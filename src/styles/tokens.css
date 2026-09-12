@@ -1,0 +1,113 @@
+/* ============================================================================
+   MODBOX — DESIGN TOKENS
+   NEON BLUE. Bright electric blue carries the whole product, lifted by a lime
+   "neon" pop borrowed from cabinet signage. Surfaces are blue-black on purpose:
+   neon only glows when it has something dark to glow against. Blue carries
+   action, flare carries danger, lime carries reward / discovery.
+   ========================================================================== */
+
+:root {
+  /* --- brand palette · neon blue --- */
+  --ink: #050a20;
+  --ink-soft: #0b1233;
+  --ink-raise: #152052;
+  --ink-line: #23306e;
+  --ink-grid: rgba(122, 166, 255, 0.1);
+
+  --blue: #2c5cff;
+  --blue-bright: #7ba6ff;
+  --blue-neon: #4f8cff;
+  --blue-deep: #0a24a8;
+
+  --flare: #ff4a18;
+  --flare-bright: #ff8a5e;
+
+  /* the lime pop: reward, "LIVE", discovery. Never more than a sprinkle. */
+  --neon: #c9ff3d;
+  --neon-ink: #08170a;
+
+  --cream: #eef3ff;
+  --cream-dim: rgba(238, 243, 255, 0.5);
+  --card-bright: #f4f7ff;
+  --card-ink: #0a1240;
+  --neutral: #f5f3ec;
+  --neutral-dim: #dedbd0;
+
+  /* --- functional --- */
+  --ok: #35e08f;
+  --warn: #ffc23d;
+  --danger: var(--flare);
+  --star: rgba(238, 243, 255, 0.55);
+
+  /* --- space (game) --- */
+  --space-0: #04081c;
+  --space-1: #060c26;
+
+  /* --- typography --- */
+  --font-display: 'Archivo', 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
+  --font-body: 'Archivo', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* readability floor: nothing on screen sits below 12px, body copy is 15/16 */
+  --fs-micro: 12px;
+  --fs-label: 13px;
+  --fs-small: 15px;
+  --fs-body: 16px;
+  --fs-lead: 18px;
+  --fs-title: 23px;
+  --fs-h2: clamp(26px, 3vw, 40px);
+  --fs-h1: clamp(40px, 7vw, 96px);
+
+  /* --- spacing scale · one rhythm for the whole product --- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 28px;
+  --sp-7: 36px;
+  --sp-8: 48px;
+
+  /* --- geometry --- */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 30px;
+  --r-pill: 999px;
+  --border-thick: 2px;
+  --border-hair: 1px;
+
+  /* control heights: 44 = touch minimum, 32 = compact chrome, 60 = hero CTA */
+  --h-control: 44px;
+  --h-chip: 34px;
+  --h-hero: 62px;
+
+  --shadow-lift: 0 22px 54px -24px rgba(0, 0, 0, 0.86);
+  --shadow-hard: 6px 6px 0 0 var(--ink);
+  /* the game viewport floats above the support UI */
+  --shadow-stage: 0 30px 70px -34px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(79, 140, 255, 0.28);
+
+  /* --- neon --- */
+  --glow-blue: 0 0 30px -6px rgba(79, 140, 255, 0.8);
+  --glow-blue-soft: 0 0 46px -10px rgba(79, 140, 255, 0.55);
+  --glow-neon: 0 0 26px -6px rgba(201, 255, 61, 0.75);
+  --glow-flare: 0 0 30px -6px rgba(255, 74, 24, 0.85);
+
+  /* --- motion --- */
+  --t-fast: 130ms;
+  --t-mid: 240ms;
+  --t-slow: 380ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 1ms;
+    --t-mid: 1ms;
+    --t-slow: 1ms;
+  }
+}

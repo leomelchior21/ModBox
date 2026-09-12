@@ -1,0 +1,566 @@
+/* ============================================================================
+   MODBOX — GLOBAL BASE + SHARED CONTROL LANGUAGE
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* no asset is ever allowed to poke out of a screen edge */
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--blue);
+  color: #fff;
+}
+
+:focus-visible {
+  /* lime focus ring: legible on navy panels *and* on blue buttons */
+  outline: 3px solid var(--neon);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+.scroll-y {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-line) transparent;
+}
+.scroll-y::-webkit-scrollbar {
+  width: 10px;
+}
+.scroll-y::-webkit-scrollbar-thumb {
+  background: var(--ink-line);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.scroll-y::-webkit-scrollbar-thumb:hover {
+  background: var(--blue-deep);
+  background-clip: content-box;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(238, 243, 255, 0.62);
+}
+.eyebrow--blue {
+  color: var(--blue-bright);
+}
+.eyebrow--flare {
+  color: var(--flare);
+}
+.eyebrow--neon {
+  color: var(--neon);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+}
+.spacer {
+  flex: 1 1 auto;
+}
+.divider {
+  height: 1px;
+  background: var(--ink-line);
+  border: 0;
+  margin: 14px 0;
+}
+
+/* ------------------------------------------------------------------- buttons */
+
+.btn {
+  --btn-bg: var(--ink-raise);
+  --btn-fg: var(--cream);
+  --btn-line: var(--ink-line);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: var(--border-thick) solid var(--btn-line);
+  border-radius: var(--r-md);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-small);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease-out), background var(--t-fast) linear,
+    border-color var(--t-fast) linear, color var(--t-fast) linear,
+    box-shadow var(--t-mid) linear;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.btn:hover:not([disabled]) {
+  transform: translateY(-1px);
+}
+.btn:active:not([disabled]) {
+  transform: translateY(1px);
+  box-shadow: inset 0 3px 10px -4px rgba(0, 0, 0, 0.7);
+}
+.btn[disabled],
+.btn[aria-disabled='true'] {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  --btn-bg: var(--blue);
+  --btn-fg: #fff;
+  --btn-line: var(--blue-neon);
+  box-shadow: var(--glow-blue);
+}
+.btn--primary:hover:not([disabled]) {
+  --btn-bg: var(--blue-neon);
+  --btn-line: var(--blue-bright);
+  box-shadow: 0 0 40px -4px rgba(79, 140, 255, 0.95);
+}
+
+/* the lime CTA — one per screen, maximum */
+.btn--neon {
+  --btn-bg: var(--neon);
+  --btn-fg: var(--neon-ink);
+  --btn-line: var(--neon);
+  box-shadow: var(--glow-neon);
+}
+.btn--neon:hover:not([disabled]) {
+  --btn-bg: #dcff7a;
+  --btn-line: #dcff7a;
+  box-shadow: 0 0 38px -4px rgba(201, 255, 61, 0.9);
+}
+
+.btn--flare {
+  --btn-bg: var(--flare);
+  --btn-fg: #fff;
+  --btn-line: var(--flare);
+}
+.btn--flare:hover:not([disabled]) {
+  --btn-bg: var(--flare-bright);
+  --btn-line: var(--flare-bright);
+}
+
+.btn--cream {
+  --btn-bg: var(--cream);
+  --btn-fg: var(--ink);
+  --btn-line: var(--cream);
+}
+
+.btn--ghost {
+  --btn-bg: transparent;
+  --btn-line: var(--ink-line);
+}
+
+.btn--chip {
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+}
+
+.btn--icon {
+  padding: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--xl {
+  min-height: 60px;
+  padding: 16px 30px;
+  font-size: var(--fs-lead);
+  border-radius: var(--r-lg);
+}
+
+/* the one irresistible control on the screen: the play / launch CTA (§J) */
+.btn--hero {
+  min-height: var(--h-hero);
+  padding: 16px 34px;
+  font-size: var(--fs-lead);
+  border-radius: var(--r-lg);
+  letter-spacing: 0.06em;
+  overflow: hidden;
+  isolation: isolate;
+}
+.btn--hero::after {
+  /* a slow specular sweep — motion without noise */
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(100deg, transparent 42%, rgba(255, 255, 255, 0.42) 50%, transparent 58%);
+  transform: translateX(-130%);
+  animation: modbox-sweep 4.6s var(--ease-out) infinite;
+  pointer-events: none;
+}
+.btn--hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* keyboard hint chip that rides inside a button, e.g. PLAY TEST  F5 */
+.btn__key {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  padding: 3px 7px;
+  border-radius: var(--r-xs);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: inherit;
+  opacity: 0.9;
+}
+
+.btn__icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* toolbar buttons: quiet until hovered, then they cut in */
+.btn--tool {
+  --btn-bg: transparent;
+  --btn-line: transparent;
+  min-height: 38px;
+  padding: 6px 12px;
+  gap: 7px;
+  border-radius: var(--r-sm);
+  color: rgba(238, 243, 255, 0.78);
+}
+.btn--tool:hover:not([disabled]) {
+  --btn-bg: rgba(79, 140, 255, 0.14);
+  --btn-line: rgba(79, 140, 255, 0.5);
+  color: var(--cream);
+}
+
+/* --------------------------------------------------------------------- chips */
+
+.chip {
+  --chip-accent: var(--blue-neon);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--h-chip);
+  padding: 6px 13px 6px 12px;
+  border-radius: var(--r-pill);
+  border: var(--border-hair) solid var(--ink-line);
+  background: rgba(238, 243, 255, 0.05);
+  color: rgba(238, 243, 255, 0.9);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-fast) linear, border-color var(--t-fast) linear,
+    transform var(--t-fast) var(--ease-out), color var(--t-fast) linear;
+}
+.chip::before {
+  /* a quiet type dot so a cluster of chips reads as a palette, not a wall */
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chip-accent);
+  opacity: 0.7;
+  flex: 0 0 auto;
+  transition: opacity var(--t-fast) linear;
+}
+.chip:hover {
+  border-color: var(--chip-accent);
+  background: rgba(44, 92, 255, 0.18);
+  transform: translateY(-1px);
+}
+.chip:hover::before {
+  opacity: 1;
+}
+.chip:active {
+  transform: translateY(1px) scale(0.98);
+}
+.chip--type {
+  --chip-accent: var(--blue-bright);
+}
+.chip--value {
+  --chip-accent: var(--flare-bright);
+}
+.chip--logic {
+  --chip-accent: var(--neon);
+}
+.chip--action {
+  --chip-accent: var(--ok);
+}
+.chip--mod {
+  --chip-accent: var(--blue-neon);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: var(--border-hair) solid var(--ink-line);
+  color: rgba(238, 243, 255, 0.75);
+}
+.tag--blue {
+  border-color: var(--blue-neon);
+  color: var(--blue-bright);
+  background: rgba(44, 92, 255, 0.14);
+}
+.tag--neon {
+  border-color: var(--neon);
+  color: var(--neon);
+  background: rgba(201, 255, 61, 0.12);
+}
+.tag--flare {
+  border-color: var(--flare);
+  color: var(--flare-bright);
+}
+.tag--ok {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+/* mod types are colour-coded everywhere they appear (§G) */
+.tag--string {
+  border-color: rgba(122, 166, 255, 0.65);
+  color: var(--blue-bright);
+  background: rgba(44, 92, 255, 0.14);
+}
+.tag--int {
+  border-color: rgba(255, 138, 94, 0.55);
+  color: var(--flare-bright);
+  background: rgba(255, 74, 24, 0.1);
+}
+.tag--bool {
+  border-color: rgba(201, 255, 61, 0.55);
+  color: var(--neon);
+  background: rgba(201, 255, 61, 0.1);
+}
+
+/* -------------------------------------------------------------------- panels */
+
+.panel {
+  background: var(--ink-soft);
+  border: var(--border-hair) solid var(--ink-line);
+  border-radius: var(--r-lg);
+}
+
+/* ------------------------------------------------------------------ surfaces */
+
+/* the reference's graph-paper field: two hairlines, no images */
+.grid-field {
+  background-image:
+    linear-gradient(var(--ink-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ink-grid) 1px, transparent 1px);
+  background-size: 46px 46px, 46px 46px;
+}
+
+/* ---------------------------------------------------------------- animations */
+
+@keyframes modbox-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modbox-pop {
+  0% {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes modbox-pulse {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes modbox-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes modbox-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* the "something is alive" beat: a status dot breathing out a ring */
+@keyframes modbox-status-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--pulse-color, rgba(53, 224, 143, 0.55));
+  }
+  70% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* success / unlock shimmer sweeping across a card */
+@keyframes modbox-shimmer {
+  0% {
+    transform: translateX(-140%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+
+@keyframes modbox-glow-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fade-up {
+  animation: modbox-fade-up var(--t-mid) var(--ease-out) both;
+}
+
+.glow-in {
+  animation: modbox-glow-in var(--t-mid) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up,
+  .glow-in,
+  .btn,
+  .chip,
+  .btn--hero::after {
+    animation: none !important;
+    transition-duration: 1ms !important;
+  }
+}
