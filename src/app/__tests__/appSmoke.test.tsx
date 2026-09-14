@@ -163,9 +163,15 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('canvas')).toBeTruthy();
     // mission 00 starter code is in the editor
     expect(host.textContent).toContain('string enemy = "small-rock";');
-    // mission microlearning + CTA
+    // co-pilot instruction + gated mission navigation
+    expect(host.querySelector('.topbar__game')?.textContent).toContain('VECTOR ZERO');
     expect(host.textContent).toContain('FIRST CONTACT');
-    expect(host.textContent).toContain('PLAY IT');
+    expect(host.textContent).toContain('YOUR NEXT STEP');
+    expect(host.textContent).toContain('Change the enemy type to "big-rock".');
+    expect(host.querySelector('[data-guided="true"]')).toBeTruthy();
+    expect(host.querySelector('.feedback__checks')).toBeNull();
+    expect(host.textContent).toContain('NEXT MISSION');
+    expect(host.querySelector<HTMLButtonElement>('.mission__next')?.disabled).toBe(true);
     // the launch overlay offers the real controls
     expect(host.textContent).toContain('LAUNCH');
     expect(host.textContent).toContain('rotate left');

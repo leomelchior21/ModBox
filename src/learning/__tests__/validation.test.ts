@@ -10,7 +10,8 @@ import {
   MISSION_M06,
 } from '../missions/missions';
 import type { Mission, ValidationContext } from '../missions/types';
-import { getMission, mergeMissionCode, unlockedMods } from '../missions';
+import { getMission, mergeMissionCode, previousMission, seedMissionCode, unlockedMods } from '../missions';
+import { copilotStep } from '../copilot';
 import { filterConfigToUnlocked, resolveLiveConfig, validateMission } from '../validation';
 import { parseCSharp } from '../../interpreter/csharp';
 import { chipById } from '../../interpreter/csharp';
@@ -314,6 +315,53 @@ describe('code merging keeps the student program growing', () => {
       expect(program.ok, `${id} produced invalid code:\n${code}`).toBe(true);
     }
     expect(code).toContain('if (health <= 30)');
+  });
+});
+
+describe('player-led mission setup', () => {
+  it('keeps the previous program without inserting the next answer', () => {
+    const previous = 'string enemy = "big-rock";';
+    const seeded = seedMissionCode(previous, MISSION_M01);
+    expect(seeded).toBe(previous);
+    expect(seeded).not.toContain('shipName');
+    expect(seeded).not.toContain('Console.WriteLine');
+  });
+
+  it('only supplies templates for the opening mission and sandbox', () => {
+    expect(seedMissionCode('', MISSION_M00)).toBe(MISSION_M00.starter);
+    expect(seedMissionCode('', MISSION_M02)).toBe('');
+    expect(seedMissionCode('student work', getMission('free'))).toBe(getMission('free').starter);
+  });
+
+  it('finds the mission immediately before the current one', () => {
+    expect(previousMission('m00')).toBeNull();
+    expect(previousMission('m02')?.id).toBe('m01');
+  });
+});
+
+describe('co-pilot staged directions', () => {
+  const guidanceFor = (mission: Mission, code: string) => {
+    const context = contextFor(mission, code);
+    return copilotStep(mission, context, validateMission(mission, context));
+  };
+
+  it('points at shipName before asking the player to rename it', () => {
+    expect(guidanceFor(MISSION_M01, 'string enemy = "big-rock";')).toMatchObject({
+      targetId: 'shipName',
+      message: 'Add the "shipName" Mod to the code.',
+    });
+    expect(guidanceFor(MISSION_M01, 'string shipName = "Nova";').message).toContain('Change shipName');
+  });
+
+  it('points at WriteLine after the custom name is ready', () => {
+    expect(guidanceFor(MISSION_M01, 'string shipName = "Comet";')).toMatchObject({
+      targetId: 'writeline',
+    });
+  });
+
+  it('points at enemyCount before asking for five enemies', () => {
+    expect(guidanceFor(MISSION_M02, '').targetId).toBe('enemyCount');
+    expect(guidanceFor(MISSION_M02, 'int enemies = 3;').message).toContain('5 or more');
   });
 });
 

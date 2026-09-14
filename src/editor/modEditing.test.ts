@@ -19,6 +19,13 @@ describe('library code placement', () => {
     expect(next.match(/string enemy/g)).toHaveLength(1);
     expect(csharpAdapter.parse(next).config.enemyType).toBe('small-rock');
   });
+  it('keeps an equal declaration when it is dragged in as another copy', () => {
+    const source = 'string shipName = "Nova";\nint enemies = 3;\nConsole.WriteLine(shipName);';
+    const next = placeMod(source, 'string shipName = "Nova";', 'duplicate');
+    expect(next.match(/string shipName = "Nova";/g)).toHaveLength(2);
+    expect(next.lastIndexOf('string shipName')).toBeLessThan(next.indexOf('Console.WriteLine'));
+    expect(csharpAdapter.parse(next).ok).toBe(true);
+  });
   it('appends output to output and keeps complete rules at the end', () => {
     const source = 'int enemies = 3;\nConsole.WriteLine("first");\nif (score > 10) { Console.WriteLine("rule"); }';
     const next = placeMod(source, 'Console.WriteLine("next");');

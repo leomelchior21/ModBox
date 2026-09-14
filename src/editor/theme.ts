@@ -4,14 +4,14 @@ import { tags as t } from '@lezer/highlight';
 
 /* ============================================================================
    MODBOX — EDITOR THEME
-   Ink surface, cream code, electric blue cursor, flare for problems.
+   Deep ink surface with teaching colors shared by the draggable Mods.
    ========================================================================== */
 
 export const modboxEditorTheme = EditorView.theme(
   {
     '&': {
-      backgroundColor: '#06140c',
-      color: '#e4ffdf',
+      backgroundColor: '#06091d',
+      color: '#e8eaf2',
       fontSize: '16px',
       height: '100%',
     },
@@ -29,8 +29,8 @@ export const modboxEditorTheme = EditorView.theme(
     },
     '.cm-line': { padding: '0 10px' },
     '.cm-gutters': {
-      backgroundColor: '#06140c',
-      color: '#86a58c',
+      backgroundColor: '#06091d',
+      color: '#77829a',
       border: 'none',
       paddingRight: '4px',
       userSelect: 'none',
@@ -73,6 +73,20 @@ export const modboxEditorTheme = EditorView.theme(
       backgroundColor: 'rgba(255,74,24,0.14)',
       boxShadow: 'inset 3px 0 0 0 #FF4A18',
     },
+    '.cm-modbox-token--string': { color: '#f3c969', fontWeight: '700' },
+    '.cm-modbox-token--int': { color: '#4de1f2', fontWeight: '700' },
+    '.cm-modbox-token--bool': { color: '#ff8b62', fontWeight: '700' },
+    '.cm-modbox-token--write': { color: '#4de1f2', fontWeight: '700' },
+    '.cm-modbox-dropZone': {
+      backgroundColor: 'color-mix(in srgb, var(--drop-color) 16%, transparent)',
+      boxShadow: 'inset 4px 0 0 var(--drop-color)',
+    },
+    '.cm-modbox-dropZone--string': { '--drop-color': '#f3c969' },
+    '.cm-modbox-dropZone--int': { '--drop-color': '#4de1f2' },
+    '.cm-modbox-dropZone--bool': { '--drop-color': '#ff8b62' },
+    '.cm-modbox-dropZone--write': { '--drop-color': '#4de1f2' },
+    '.cm-modbox-dropZone--condition': { '--drop-color': '#ef7180' },
+    '.cm-modbox-dropZone--assign': { '--drop-color': '#bd9cff' },
     '.cm-tooltip': {
       backgroundColor: '#0c2114',
       border: '1px solid #365c40',
@@ -96,14 +110,15 @@ export const modboxEditorTheme = EditorView.theme(
 );
 
 export const modboxHighlightStyle = HighlightStyle.define([
-  { tag: [t.keyword, t.controlKeyword], color: '#60eddd', fontWeight: '700' },
-  { tag: [t.typeName, t.standard(t.typeName)], color: '#53DFFF' },
-  { tag: [t.bool, t.null], color: '#FF8A5E', fontWeight: '700' },
-  { tag: [t.number], color: '#FF8A5E' },
-  { tag: [t.string], color: '#e5ef72' },
-  { tag: [t.comment], color: '#86a58c', fontStyle: 'italic' },
-  { tag: [t.variableName, t.propertyName], color: '#e4ffdf' },
-  { tag: [t.operator, t.punctuation, t.separator, t.bracket], color: 'rgba(238,243,255,0.62)' },
-  { tag: [t.className, t.namespace], color: '#35E08F' },
+  { tag: [t.keyword, t.controlKeyword], color: '#f3c969', fontWeight: '700' },
+  { tag: [t.typeName, t.standard(t.typeName)], color: '#f3c969' },
+  { tag: [t.bool, t.null], color: '#ff8b62', fontWeight: '700' },
+  { tag: [t.number], color: '#4de1f2' },
+  { tag: [t.string], color: '#9bd587' },
+  { tag: [t.comment], color: '#7f8aa2', fontStyle: 'italic' },
+  { tag: [t.variableName, t.propertyName], color: '#ef7180' },
+  { tag: [t.operator], color: '#4de1f2' },
+  { tag: [t.punctuation, t.separator, t.bracket], color: '#d6d9e4' },
+  { tag: [t.className, t.namespace, t.function(t.variableName)], color: '#4de1f2' },
   { tag: [t.invalid], color: '#FF4A18', textDecoration: 'underline wavy #FF4A18' },
 ]);

@@ -11,11 +11,20 @@ import { SettingsDialog } from '../../components/SettingsDialog';
 import { DebugPanel } from '../../components/DebugPanel';
 import { GameStage, TouchControls } from '../../components/GameStage';
 import { CodeEditor, applyModToEditor } from '../../editor/CodeEditor';
+import type { ModInsertMode } from '../../editor/modEditing';
 import { csharpAdapter } from '../../interpreter/csharp';
 import { summarize } from '../../interpreter/core/summarize';
 import { MODS, MOD_BY_ID } from '../../interpreter/core/mods';
 import { ResizeHandle } from '../../components/ResizeHandle';
-import { MISSIONS, getMission, mergeMissionCode, nextMission, unlockMissionLabelFor, unlockedMods } from '../../learning/missions';
+import {
+  MISSIONS,
+  getMission,
+  nextMission,
+  previousMission,
+  seedMissionCode,
+  unlockedMods,
+} from '../../learning/missions';
+import { codeToolsForMission, copilotStep } from '../../learning/copilot';
 import {
   filterConfigToUnlocked,
   resolveLiveConfig,
@@ -86,7 +95,6 @@ export function LabScreen({
   const [editorFocused, setEditorFocused] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [missionCollapsed, setMissionCollapsed] = useState(false);
   const [modStripCollapsed, setModStripCollapsed] = useState(false);
   const [unlockTokens, setUnlockTokens] = useState<UnlockToken[]>([]);
   const [metricsTick, setMetricsTick] = useState(0);
@@ -116,15 +124,6 @@ export function LabScreen({
   const liveConfig = useMemo(
     () => resolveLiveConfig(mission.scenario, program.config, unlocked),
     [mission.scenario, program.config, unlocked],
-  );
-
-  const discovers = useMemo(
-    () =>
-      filtered.ignored.map(
-        ({ mod, name }) =>
-          `${name} is not wired up yet — ${MOD_BY_ID[mod]?.label ?? name.toUpperCase()} unlocks in ${unlockMissionLabelFor(mod)}.`,
-      ),
-    [filtered.ignored],
   );
 
   /* ----------------------------------------------------------- engine program */
@@ -181,7 +180,8 @@ export function LabScreen({
     };
   }, []);
 
-  // 2. mission code: reuse what exists, otherwise grow the previous program
+  // 2. mission code: reuse what exists, otherwise preserve the previous work
+  // without inserting the new mission's answer for the student
   useEffect(() => {
     const store = useProgress.getState();
     if (store.currentMissionId !== mission.id) store.setMission(mission.id);
@@ -190,10 +190,9 @@ export function LabScreen({
       setCode(existing);
       return;
     }
-    const previous = MISSIONS[Math.max(0, mission.order - 1)];
-    const previousCode =
-      previous && previous.id !== mission.id ? (store.codes[previous.id] ?? '') : '';
-    const seeded = mergeMissionCode(previousCode, mission);
+    const previous = previousMission(mission.id);
+    const previousCode = previous ? (store.codes[previous.id] ?? '') : '';
+    const seeded = seedMissionCode(previousCode, mission);
     setCode(seeded);
     store.setCode(mission.id, seeded);
   }, [mission]);
@@ -234,21 +233,31 @@ export function LabScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metricsTick, phase, engineProgram]);
 
-  const validation = useMemo(
-    () =>
-      validateMission(mission, {
-        code: debouncedCode,
-        program,
-        summary,
-        config: liveConfig,
-        metrics,
-        unlocked,
-        ignored: filtered.ignored,
-      }),
-    [mission, debouncedCode, program, summary, liveConfig, metrics, unlocked, filtered.ignored],
+  const validationContext = useMemo(
+    () => ({
+      code: debouncedCode,
+      program,
+      summary,
+      config: liveConfig,
+      metrics,
+      unlocked,
+      ignored: filtered.ignored,
+    }),
+    [debouncedCode, program, summary, liveConfig, metrics, unlocked, filtered.ignored],
   );
 
+  const validation = useMemo(
+    () => validateMission(mission, validationContext),
+    [mission, validationContext],
+  );
+  const guidance = useMemo(
+    () => copilotStep(mission, validationContext, validation),
+    [mission, validationContext, validation],
+  );
+  const codeTools = useMemo(() => codeToolsForMission(mission), [mission]);
+
   const missionComplete = mission.requirements.length > 0 && validation.passed;
+  const missionPassed = missionComplete || progress.completed.includes(mission.id);
 
   // 7. completion + unlock animation (never longer than ~1.5s)
   useEffect(() => {
@@ -295,19 +304,34 @@ export function LabScreen({
   }, [focusGame]);
 
   const handleResetCode = useCallback(() => {
-    const rebuilt = MISSIONS.filter(
-      (entry) => entry.order <= mission.order && entry.kind !== 'sandbox',
-    ).reduce((acc, entry) => mergeMissionCode(acc, entry), '');
-    setCode(rebuilt || mission.starter);
+    const store = useProgress.getState();
+    const previous = previousMission(mission.id);
+    const previousCode = previous ? (store.codes[previous.id] ?? '') : '';
+    setCode(seedMissionCode(previousCode, mission));
   }, [mission]);
+
+  const handleBack = useCallback(() => {
+    const previous = previousMission(mission.id);
+    if (!previous) return;
+    useProgress.getState().setMission(previous.id);
+    navigate({ name: 'lab', missionId: previous.id, debug: debugFlag });
+  }, [mission.id, debugFlag]);
 
   const handleNext = useCallback(() => {
     const next = nextMission(mission.id);
     if (!next) return;
     useProgress.getState().setMission(next.id);
-    setMissionCollapsed(false);
     navigate({ name: 'lab', missionId: next.id, debug: debugFlag });
   }, [mission.id, debugFlag]);
+
+  const handleResetFullGame = useCallback(() => {
+    const confirmed = window.confirm(
+      'Reset the full Vector Zero game? This clears every mission, saved code, unlock and high score.',
+    );
+    if (!confirmed) return;
+    useProgress.getState().resetProgress();
+    navigate({ name: 'landing' });
+  }, []);
 
   const handleFullscreen = useCallback(() => {
     const host = stageRef.current?.closest('.lab') as HTMLElement | null;
@@ -319,8 +343,8 @@ export function LabScreen({
   }, []);
 
 
-  const handleInsertCode = useCallback((snippet: string) => {
-    requestAnimationFrame(() => applyModToEditor(editorViewRef.current, snippet));
+  const handleInsertCode = useCallback((snippet: string, mode: ModInsertMode = 'replace') => {
+    requestAnimationFrame(() => applyModToEditor(editorViewRef.current, snippet, mode));
   }, []);
 
   const pipeline = `C# · VECTOR ZERO · ${mission.code}`;
@@ -331,14 +355,14 @@ export function LabScreen({
     <div className={`lab crt-cabinet ${touch ? 'lab--touch' : ''} ${editorFocused ? 'lab--coding' : 'lab--flying'}`}>
       <CrtGlass />
       <TopBar
-        mission={mission}
+        gameName="VECTOR ZERO"
         missions={MISSIONS}
         completed={progress.completed}
         paused={phase === 'paused'}
         sound={progress.settings.sound}
-        editorFocused={editorFocused}
         onHome={() => navigate({ name: 'landing' })}
         onResetCode={handleResetCode}
+        onResetFullGame={handleResetFullGame}
         onTogglePause={() => { engineRef.current?.togglePause(); if (phase === 'paused') focusGame(); }}
         onRestart={() => { engineRef.current?.restart(); focusGame(); }}
         onToggleSound={() => {
@@ -363,8 +387,8 @@ export function LabScreen({
               </div>
               <CodeEditor value={code} onChange={setCode} errorLines={diagnostic ? [diagnostic.line] : []} onFocusChange={setEditorFocused} onViewReady={view => { editorViewRef.current = view; }} />
             </div>
-            <FeedbackPanel status={status} diagnostic={diagnostic} notices={program.notices.map(n => n.message)} discoveries={discovers} ruleCount={program.rules.length} />
-            <ModStrip mods={unlockedModList} totalMods={MODS.length} collapsed={modStripCollapsed} onToggleCollapsed={() => setModStripCollapsed(v => !v)} onInsert={handleInsertCode} onOpenLibrary={() => setLibraryOpen(true)} />
+            <FeedbackPanel status={status} diagnostic={diagnostic} ruleCount={program.rules.length} guidance={guidance} />
+            <ModStrip mods={unlockedModList} tools={codeTools} activeTargetId={guidance.targetId} totalMods={MODS.length} collapsed={modStripCollapsed} onToggleCollapsed={() => setModStripCollapsed(v => !v)} onInsert={handleInsertCode} onOpenLibrary={() => setLibraryOpen(true)} />
           </div>
         </section>
         <ResizeHandle ratio={progress.settings.splitRatio} onChange={ratio => useProgress.getState().setSetting('splitRatio', ratio)} />
@@ -373,7 +397,7 @@ export function LabScreen({
             <div className="stage-frame">
               <GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={false} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} />
             </div>
-            <ModLibrary open={libraryOpen} onClose={() => { setLibraryOpen(false); focusEditor(); }} unlocked={unlockedModList} totalMods={MODS.length} onInsert={snippet => { setLibraryOpen(false); handleInsertCode(snippet); }} />
+            <ModLibrary open={libraryOpen} onClose={() => { setLibraryOpen(false); focusEditor(); }} unlocked={unlockedModList} totalMods={MODS.length} onInsert={(snippet, mode) => { setLibraryOpen(false); handleInsertCode(snippet, mode); }} />
             {unlockTokens.length ? <UnlockBurst tokens={unlockTokens} onDone={() => setUnlockTokens([])} /> : null}
           </div>
         </section>
@@ -381,11 +405,9 @@ export function LabScreen({
       <div className="lab__console">
         {touch ? <TouchControls engine={engineRef.current} onEngage={focusGame} /> : null}
         <div className="lab__briefing">
-          <div className="lab__missionEmblem" aria-hidden="true">◎</div>
           <div className="lab__missionZone">
-            <MissionPanel mission={mission} validation={validation} complete={missionComplete} collapsed={missionCollapsed} onToggleCollapsed={() => setMissionCollapsed(v => !v)} onPlay={handleLaunch} onNext={handleNext} hasNext={Boolean(nextMission(mission.id))} playLabel={mission.playPrompt} />
+            <MissionPanel mission={mission} complete={missionPassed} onBack={handleBack} onNext={handleNext} hasPrevious={Boolean(previousMission(mission.id))} hasNext={Boolean(nextMission(mission.id))} />
           </div>
-          <p className="lab__motto">SMALL<br/>CHANGES.<br/>BIG<br/>POSSIBILITIES.</p>
         </div>
       </div>
       {orderOpen ? <CodeOrder code={code} onClose={() => { setOrderOpen(false); focusEditor(); }} onChange={next => { const view = editorViewRef.current; if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } }); }} /> : null}

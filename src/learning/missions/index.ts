@@ -27,6 +27,23 @@ export function nextMission(id: string): Mission | null {
   return MISSIONS[index + 1];
 }
 
+export function previousMission(id: string): Mission | null {
+  const index = missionIndex(id);
+  if (index <= 0) return null;
+  return MISSIONS[index - 1];
+}
+
+/**
+ * Entering a mission preserves the student's program without completing the
+ * new task for them. Only the opening mission and sandbox need templates.
+ */
+export function seedMissionCode(previousCode: string, mission: Mission): string {
+  if (mission.kind === 'sandbox') return mission.starter.trimEnd();
+  const existing = previousCode.trimEnd();
+  if (existing) return existing;
+  return mission.id === MISSIONS[0]?.id ? mission.starter.trimEnd() : '';
+}
+
 /** Every Mod a student may currently touch, given what they finished. */
 export function unlockedMods(
   completed: string[],

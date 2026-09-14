@@ -76,6 +76,12 @@ describe('C# subset — clamping', () => {
 });
 
 describe('C# subset — arithmetic and assignment', () => {
+  it('lets dragged built-in Mods repeat and uses the last value', () => {
+    const result = parseCSharp('bool shield = false;\nbool shield = true;');
+    expect(result.ok).toBe(true);
+    expect(result.config.shieldEnabled).toBe(true);
+  });
+
   it('computes arithmetic and reassigns', () => {
     const result = parseCSharp('int laserPower = 1;\nlaserPower = laserPower + 3;');
     expect(result.config.laserPower).toBe(4);

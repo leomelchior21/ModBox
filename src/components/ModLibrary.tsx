@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ModOptions } from './ModOptions';
-import { MOD_DRAG_TYPE } from '../editor/modEditing';
+import { beginModDrag, endModDrag, MOD_DRAG_TYPE, type ModInsertMode } from '../editor/modEditing';
 import { useTouchModDrag } from './useTouchModDrag';
 import type { ModDefinition } from '../interpreter/core/mods';
 import { modGlyph } from './modGlyph';
@@ -23,10 +23,10 @@ export function ModLibrary({
   onClose: () => void;
   unlocked: ModDefinition[];
   totalMods: number;
-  onInsert: (code: string) => void;
+  onInsert: (code: string, mode?: ModInsertMode) => void;
 }): JSX.Element | null {
   const locked = Math.max(0, totalMods - unlocked.length);
-  const [options, setOptions] = useState<ModDefinition | null>(null);
+  const [options, setOptions] = useState<{ mod: ModDefinition; anchor: HTMLElement } | null>(null);
   const drag = useTouchModDrag(onInsert);
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -60,7 +60,7 @@ export function ModLibrary({
 
       <div className="modlib__list scroll-y">
         {unlocked.map((mod) => (
-          <article key={mod.id} className="modcard">
+          <article key={mod.id} className={`modcard modcard--${mod.type}`}>
             <header className="modcard__head">
               <span className={`modcard__icon modcard__icon--${mod.type}`} aria-hidden="true">
                 {modGlyph(mod)}
@@ -86,10 +86,10 @@ export function ModLibrary({
                 </>
               ) : null}
             </dl>
-            <button type="button" className="btn btn--ghost btn--chip modcard__insert" {...drag.handlers(mod.example)} draggable onDragStart={event => { event.dataTransfer.setData(MOD_DRAG_TYPE, mod.example); event.dataTransfer.setData('text/plain', mod.example); }} onDragEnd={onClose}>
+            <button type="button" className="btn btn--ghost btn--chip modcard__insert" {...drag.handlers(mod.example)} draggable onDragStart={event => { beginModDrag(mod.example); event.dataTransfer.setData(MOD_DRAG_TYPE, mod.example); event.dataTransfer.setData('text/plain', mod.example); }} onDragEnd={() => { endModDrag(); onClose(); }}>
               ⠿ Add / replace
             </button>
-            <button type="button" className="btn btn--ghost btn--chip" onClick={() => setOptions(mod)} aria-label={`Explore ${mod.name} options`}>⑂ Options</button>
+            <button type="button" className="btn btn--ghost btn--chip" onClick={event => setOptions({ mod, anchor: event.currentTarget })} aria-label={`Explore ${mod.name} options`}>⑂ Options</button>
           </article>
         ))}
 
@@ -108,7 +108,7 @@ export function ModLibrary({
           </p>
         </div>
       </div>
-      {options ? <ModOptions mod={options} onClose={() => setOptions(null)} onInsert={snippet => { setOptions(null); onInsert(snippet); }} /> : null}
+      {options ? <ModOptions mod={options.mod} anchor={options.anchor} onClose={() => setOptions(null)} onInsert={(snippet, mode) => { setOptions(null); onInsert(snippet, mode); }} /> : null}
       {drag.ghost}
     </aside>
   );

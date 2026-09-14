@@ -3,7 +3,21 @@ import { tokenize } from '../interpreter/csharp/tokenizer';
 import type { Statement } from '../interpreter/core/types';
 
 export const MOD_DRAG_TYPE = 'application/x-modbox-mod';
+export const MOD_DRAG_START_EVENT = 'modbox:mod-drag-start';
+export const MOD_DRAG_END_EVENT = 'modbox:mod-drag-end';
+export type ModInsertMode = 'replace' | 'duplicate';
 export interface CodeBlock { from: number; to: number; text: string; statement: Statement; group: number }
+
+/** Keeps the editor's destination highlight in sync across mouse and touch drags. */
+export function beginModDrag(snippet: string): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(MOD_DRAG_START_EVENT, { detail: { snippet } }));
+}
+
+export function endModDrag(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(MOD_DRAG_END_EVENT));
+}
 
 /** Token boundaries keep strings, comments and entire if bodies intact. */
 export function codeBlocks(source: string): CodeBlock[] | null {
@@ -26,8 +40,15 @@ export function codeBlocks(source: string): CodeBlock[] | null {
   });
 }
 
-/** Replace an existing mod; otherwise append to its top-level section, never the caret's if body. */
-export function placeMod(source: string, snippet: string): string {
+/**
+ * Tap-to-apply replaces a Mod. Drag-to-add preserves another copy. Both paths
+ * append to the correct top-level section, never inside the caret's if body.
+ */
+export function placeMod(
+  source: string,
+  snippet: string,
+  mode: ModInsertMode = 'replace',
+): string {
   const incoming = codeBlocks(snippet)?.[0];
   if (!incoming) return source;
   const blocks = codeBlocks(source);
@@ -35,7 +56,7 @@ export function placeMod(source: string, snippet: string): string {
   if (!blocks) return `${snippet.trim()}\n${source}`;
   const stmt = incoming.statement;
   const existing = stmt.kind === 'varDecl' ? blocks.filter(b => b.statement.kind === 'varDecl' && b.statement.name === stmt.name) : [];
-  if (existing.length) {
+  if (mode === 'replace' && existing.length) {
     let result = source;
     // Collapse duplicate mod declarations when selecting a replacement, preserving unrelated code.
     for (let i = existing.length - 1; i >= 0; i--) {

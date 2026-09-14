@@ -1,4 +1,12 @@
-import { MOD_DRAG_TYPE, placeMod } from './modEditing';
+import {
+  MOD_DRAG_END_EVENT,
+  MOD_DRAG_START_EVENT,
+  MOD_DRAG_TYPE,
+  codeBlocks,
+  endModDrag,
+  placeMod,
+  type ModInsertMode,
+} from './modEditing';
 import { useEffect, useRef } from 'react';
 import {
   EditorView,
@@ -11,8 +19,10 @@ import {
   rectangularSelection,
   crosshairCursor,
   highlightSpecialChars,
+  MatchDecorator,
+  ViewPlugin,
 } from '@codemirror/view';
-import { EditorState, StateEffect, StateField, type Range } from '@codemirror/state';
+import { EditorState, StateEffect, StateField, type Range, type Text } from '@codemirror/state';
 import { Decoration, type DecorationSet } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import {
@@ -31,6 +41,7 @@ import { modboxEditorTheme } from './theme';
    ========================================================================== */
 
 const setErrorLines = StateEffect.define<number[]>();
+const setModDropZone = StateEffect.define<string | null>();
 
 const errorLineDecorations = StateField.define<DecorationSet>({
   create: () => Decoration.none,
@@ -53,6 +64,92 @@ const errorLineDecorations = StateField.define<DecorationSet>({
   },
   provide: (field) => EditorView.decorations.from(field),
 });
+
+interface ModDropZoneState {
+  snippet: string | null;
+  decorations: DecorationSet;
+}
+
+function modDropZoneDecorations(doc: Text, snippet: string): DecorationSet {
+  const incoming = codeBlocks(snippet)?.[0];
+  if (!incoming) return Decoration.none;
+  const blocks = codeBlocks(doc.toString()) ?? [];
+  const sameSection = blocks.filter((block) => block.group === incoming.group);
+  const preceding = blocks.filter((block) => block.group < incoming.group);
+  const incomingName = incoming.statement.kind === 'varDecl' ? incoming.statement.name : null;
+  const exactDeclaration = incomingName
+    ? sameSection.filter(
+      (block) => block.statement.kind === 'varDecl' && block.statement.name === incomingName,
+    ).at(-1)
+    : undefined;
+  const sectionAnchor = sameSection.at(-1);
+  const precedingAnchor = preceding.at(-1);
+  const target = exactDeclaration ?? sectionAnchor ?? precedingAnchor;
+  const targets = target ? [target] : [];
+  const positions = new Set<number>();
+
+  if (targets.length) {
+    for (const block of targets) {
+      const first = doc.lineAt(Math.min(block.from, doc.length)).number;
+      const last = doc.lineAt(Math.min(block.to, doc.length)).number;
+      for (let line = first; line <= last; line += 1) positions.add(doc.line(line).from);
+    }
+  } else {
+    positions.add(doc.line(1).from);
+  }
+
+  const statement = incoming.statement;
+  const tone =
+    statement.kind === 'varDecl'
+      ? statement.varType
+      : statement.kind === 'writeLine'
+        ? 'write'
+        : statement.kind === 'if'
+          ? 'condition'
+          : 'assign';
+  const marks = [...positions].map((position) =>
+    Decoration.line({ class: `cm-modbox-dropZone cm-modbox-dropZone--${tone}` }).range(position),
+  );
+  return Decoration.set(marks, true);
+}
+
+const modDropZone = StateField.define<ModDropZoneState>({
+  create: () => ({ snippet: null, decorations: Decoration.none }),
+  update(value, transaction) {
+    let snippet = value.snippet;
+    for (const effect of transaction.effects) {
+      if (effect.is(setModDropZone)) snippet = effect.value;
+    }
+    if (!snippet) return { snippet: null, decorations: Decoration.none };
+    if (transaction.docChanged || snippet !== value.snippet) {
+      return { snippet, decorations: modDropZoneDecorations(transaction.state.doc, snippet) };
+    }
+    return { snippet, decorations: value.decorations.map(transaction.changes) };
+  },
+  provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
+});
+
+const teachingTokenMatcher = new MatchDecorator({
+  regexp: /\b(?:string|int|bool|Console\.WriteLine)\b/g,
+  decoration: (match) => {
+    const token = match[0];
+    const tone = token === 'Console.WriteLine' ? 'write' : token;
+    return Decoration.mark({ class: `cm-modbox-token cm-modbox-token--${tone}` });
+  },
+});
+
+const teachingTokenColors = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = teachingTokenMatcher.createDeco(view);
+    }
+    update(update: import('@codemirror/view').ViewUpdate): void {
+      this.decorations = teachingTokenMatcher.updateDeco(update, this.decorations);
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
 
 export interface CodeEditorProps {
   value: string;
@@ -115,7 +212,9 @@ export function CodeEditor({
           csharpLanguage,
           csharpHighlighting,
           modboxEditorTheme,
+          teachingTokenColors,
           errorLineDecorations,
+          modDropZone,
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             autocapitalize: 'off',
@@ -134,7 +233,10 @@ export function CodeEditor({
             drop: (event, view) => {
               const snippet = event.dataTransfer?.getData(MOD_DRAG_TYPE);
               if (!snippet) return false;
-              event.preventDefault(); applyModToEditor(view, snippet); return true;
+              event.preventDefault();
+              applyModToEditor(view, snippet, 'duplicate');
+              endModDrag();
+              return true;
             },
             focus: () => onFocusRef.current?.(true),
             blur: () => onFocusRef.current?.(false),
@@ -145,7 +247,16 @@ export function CodeEditor({
 
     viewRef.current = view;
     onViewReadyRef.current?.(view);
+    const showDropZone = (event: Event) => {
+      const snippet = (event as CustomEvent<{ snippet?: string }>).detail?.snippet;
+      if (snippet) view.dispatch({ effects: setModDropZone.of(snippet) });
+    };
+    const hideDropZone = () => view.dispatch({ effects: setModDropZone.of(null) });
+    window.addEventListener(MOD_DRAG_START_EVENT, showDropZone);
+    window.addEventListener(MOD_DRAG_END_EVENT, hideDropZone);
     return () => {
+      window.removeEventListener(MOD_DRAG_START_EVENT, showDropZone);
+      window.removeEventListener(MOD_DRAG_END_EVENT, hideDropZone);
       view.destroy();
       viewRef.current = null;
       onViewReadyRef.current?.(null);
@@ -186,9 +297,13 @@ export function insertIntoEditor(view: EditorView | null, text: string, caretBac
 }
 
 /** Library operations are single undoable transactions, independent of the caret. */
-export function applyModToEditor(view: EditorView | null, snippet: string): void {
+export function applyModToEditor(
+  view: EditorView | null,
+  snippet: string,
+  mode: ModInsertMode = 'replace',
+): void {
   if (!view) return;
-  const next = placeMod(view.state.doc.toString(), snippet);
+  const next = placeMod(view.state.doc.toString(), snippet, mode);
   view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } });
   view.focus();
 }

@@ -41,14 +41,16 @@ stacked on portrait phones. Desktop uses a thin mission strip; touch devices add
 joystick and a separate fire button. Editing code does not automatically pause flight.
 `Console.WriteLine` appears in the **Flight Log** at the bottom right of the game.
 
-Drag a Mod Library tile into the editor, or open its branching options to choose a value.
-New declarations join the declaration section; existing mods are replaced in place. Tablet
-dragging includes a release preview. **Arrange** moves complete statements within their
-sections using drag handles or arrows, and editor undo can reverse these changes.
+The co-pilot gives one clear next step and pulses the matching Mod Library tile. The dock scrolls
+horizontally; when the student starts dragging, the matching destination in the editor glows.
+Opening a Mod reveals its value choices in a small box beside the tile. New declarations join the
+declaration section, while transmissions and rules follow program order. Tablet dragging includes
+a release preview. **Arrange** moves complete statements within their sections using drag handles
+or arrows, and editor undo can reverse these changes.
 
-MODBOX's teaching subset permits repeated `string enemy` declarations: the last value sets
-the enemy type, while `enemies` controls how many rocks spawn. This is a MODBOX convenience,
-not standard C# redeclaration behavior. Other duplicate variable declarations remain errors.
+MODBOX's teaching subset permits repeated built-in Mod declarations when students drag another
+copy into the editor: the last line controls the game. This is a MODBOX convenience, not standard
+C# redeclaration behavior. Duplicate student-created variables remain errors.
 
 Dev tools: append `?debug=1` to the Lab URL (`#/lab?mission=m03&debug=1`) or toggle **Dev debug panel**
 in Settings → FPS, GameConfig, live state, active rules, parsed AST, diagnostics, Flight Log queue.
@@ -110,7 +112,7 @@ src/
     rendering/    canvas vector renderer + HUD + starfield
     audio/        runtime-synthesised sound (no audio assets)
   learning/
-    missions/     mission content + code merging + unlock rules
+    missions/     mission content + player-led code seeding + unlock rules
     validation/   language-agnostic mission checks (structure + behaviour)
   state/          zustand progress store + localStorage persistence
   styles/         design tokens + component CSS

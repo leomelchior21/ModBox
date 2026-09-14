@@ -149,9 +149,15 @@ class Binder {
     if (!statement.name) return;
 
     const existing = this.env.get(statement.name);
-    if (existing && statement.name === 'enemy' && existing.type === 'string' && statement.varType === 'string') {
+    const mod = MOD_BY_NAME[statement.name];
+    if (existing && mod && existing.type === mod.type && statement.varType === mod.type) {
       this.handleAssign(statement.name, statement.init, statement.pos);
-      this.notice('enemy-replaced', 'The last enemy line sets the rock type. Use enemies to choose how many rocks spawn.');
+      this.notice(
+        `mod-repeated:${mod.id}`,
+        statement.name === 'enemy'
+          ? 'The last enemy line sets the rock type. Use enemies to choose how many rocks spawn.'
+          : `You added ${mod.name} again. The last ${mod.name} line controls the game.`,
+      );
       return;
     }
     if (existing) {
@@ -164,7 +170,6 @@ class Binder {
       return;
     }
 
-    const mod = MOD_BY_NAME[statement.name];
     if (mod && mod.type !== statement.varType) {
       this.report(
         MOD_CODES.typeMismatch,
