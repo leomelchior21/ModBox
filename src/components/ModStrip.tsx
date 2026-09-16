@@ -53,7 +53,7 @@ export function ModStrip({
   };
 
   return (
-    <section className={`modstrip ${collapsed ? 'modstrip--collapsed' : ''}`} aria-label="Mod Library">
+    <section className={`modstrip ${collapsed ? 'modstrip--collapsed' : ''} ${coach ? 'modstrip--coaching' : ''}`} aria-label="Mod Library">
       <header className="modstrip__head">
         <button
           type="button"

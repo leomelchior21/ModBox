@@ -32,6 +32,12 @@ describe('library code placement', () => {
     expect(next.indexOf('"next"')).toBeGreaterThan(next.indexOf('"first"'));
     expect(next.indexOf('"next"')).toBeLessThan(next.indexOf('if ('));
   });
+  it('leaves one blank line before every newly added if rule', () => {
+    const source = 'bool shield = false;\nConsole.WriteLine("ready");';
+    const next = placeMod(source, 'if (score >= 300)\n{\n    shield = true;\n}');
+    expect(next).toContain('Console.WriteLine("ready");\n\nif (score >= 300)');
+    expect(csharpAdapter.parse(next).ok).toBe(true);
+  });
   it('handles multiline expressions, comment braces and semicolons in strings', () => {
     const source = '// { comment\nstring shipName = "a; }";\nint enemies =\n  3 + 1;\nif (score > 10) { enemies = 5; }';
     expect(codeBlocks(source)).toHaveLength(3);

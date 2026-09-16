@@ -7,7 +7,7 @@ import {
   placeMod,
   type ModInsertMode,
 } from './modEditing';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   EditorView,
   keymap,
@@ -215,15 +215,12 @@ export function CodeEditor({
 }: CodeEditorProps): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const coachRef = useRef(coach);
-  const [coachTop, setCoachTop] = useState<number | null>(null);
   const onChangeRef = useRef(onChange);
   const onFocusRef = useRef(onFocusChange);
   const onViewReadyRef = useRef(onViewReady);
   onChangeRef.current = onChange;
   onFocusRef.current = onFocusChange;
   onViewReadyRef.current = onViewReady;
-  coachRef.current = coach;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -273,18 +270,6 @@ export function CodeEditor({
           }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
-            if (update.docChanged || update.viewportChanged || update.geometryChanged) {
-              requestAnimationFrame(() => {
-                const current = coachRef.current;
-                const shell = hostRef.current?.parentElement;
-                if (!current || !shell) { setCoachTop(null); return; }
-                const position = coachTargetPosition(update.view, current.targetId);
-                const coords = position === null ? null : update.view.coordsAtPos(position);
-                if (!coords) { setCoachTop(null); return; }
-                const shellBox = shell.getBoundingClientRect();
-                setCoachTop(Math.max(8, Math.min(coords.bottom - shellBox.top + 5, shellBox.height - 118)));
-              });
-            }
           }),
           EditorView.domEventHandlers({
             dragover: (event) => {
@@ -343,24 +328,17 @@ export function CodeEditor({
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || !coach) { setCoachTop(null); return; }
+    if (!view || !coach) return;
     const position = coachTargetPosition(view, coach.targetId);
-    if (position === null) { setCoachTop(null); return; }
+    if (position === null) return;
     view.dispatch({ effects: EditorView.scrollIntoView(position, { y: 'center' }) });
-    requestAnimationFrame(() => {
-      const coords = view.coordsAtPos(position);
-      const shell = hostRef.current?.parentElement;
-      if (!coords || !shell) { setCoachTop(null); return; }
-      const shellBox = shell.getBoundingClientRect();
-      setCoachTop(Math.max(8, Math.min(coords.bottom - shellBox.top + 5, shellBox.height - 118)));
-    });
   }, [coach?.key]);
 
   return (
-    <div className="editor-shell">
+    <div className={`editor-shell ${coach ? 'editor-shell--coaching' : ''}`}>
       <div className="editor-host" ref={hostRef} />
-      {coach && coachTop !== null && onDismissCoach ? (
-        <div style={{ top: coachTop }} className="coach-bubble-anchor">
+      {coach && onDismissCoach ? (
+        <div className="coach-bubble-anchor">
           <CoachBubble
             className="coach-bubble--editor"
             message={coach.message}

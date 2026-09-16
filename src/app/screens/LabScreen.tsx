@@ -265,6 +265,13 @@ export function LabScreen({
     guidance.targetId && /^(Add|Build)\b/i.test(guidance.message),
   );
   const coach = coachVisible ? { ...guidance, message: coachPopupMessage(guidance) } : undefined;
+  const editorCoach = coach && guidance.targetId && !libraryStep && !missionComplete ? {
+    key: coachKey,
+    message: coach.message,
+    hint: coach.hint,
+    targetId: guidance.targetId,
+  } : undefined;
+  const libraryCoach = coach && libraryStep ? coach : undefined;
 
   useEffect(() => {
     if (libraryStep) setModStripCollapsed(false);
@@ -388,9 +395,9 @@ export function LabScreen({
 
 
       <div className="lab__body" style={{ ['--split' as string]: `${Math.round(progress.settings.splitRatio * 100)}%` }}>
-        <section id="code-panel" className="lab__left" aria-label="Code and mission">
+        <section id="code-panel" className={`lab__left ${libraryCoach ? 'lab__left--coach-outside' : ''}`} aria-label="Code and mission">
           <div className="lab__editorZone">
-            <div className="lab__editor">
+            <div className={`lab__editor ${editorCoach ? 'lab__editor--coaching' : ''}`}>
               <div className="lab__editorHead">
                 <span className="lab__filename mono">main.cs</span>
                 <button className="lab__arrange" onClick={() => setOrderOpen(true)} title="Reorder whole code blocks">⠿ Arrange</button>
@@ -402,17 +409,12 @@ export function LabScreen({
                 errorLines={diagnostic ? [diagnostic.line] : []}
                 onFocusChange={setEditorFocused}
                 onViewReady={view => { editorViewRef.current = view; }}
-                coach={coach && guidance.targetId && !libraryStep && !missionComplete ? {
-                  key: coachKey,
-                  message: coach.message,
-                  hint: coach.hint,
-                  targetId: guidance.targetId,
-                } : undefined}
+                coach={editorCoach}
                 onDismissCoach={() => setDismissedCoachKey(coachKey)}
               />
             </div>
             <FeedbackPanel status={status} diagnostic={diagnostic} ruleCount={program.rules.length} guidance={guidance} />
-            <ModStrip mods={unlockedModList} tools={codeTools} activeTargetId={guidance.targetId} totalMods={MODS.length} collapsed={modStripCollapsed} onToggleCollapsed={() => setModStripCollapsed(v => !v)} onInsert={handleInsertCode} onOpenLibrary={() => setLibraryOpen(true)} coach={coach && libraryStep ? coach : undefined} onDismissCoach={() => setDismissedCoachKey(coachKey)} />
+            <ModStrip mods={unlockedModList} tools={codeTools} activeTargetId={guidance.targetId} totalMods={MODS.length} collapsed={modStripCollapsed} onToggleCollapsed={() => setModStripCollapsed(v => !v)} onInsert={handleInsertCode} onOpenLibrary={() => setLibraryOpen(true)} coach={libraryCoach} onDismissCoach={() => setDismissedCoachKey(coachKey)} />
           </div>
         </section>
         <ResizeHandle ratio={progress.settings.splitRatio} onChange={ratio => useProgress.getState().setSetting('splitRatio', ratio)} />

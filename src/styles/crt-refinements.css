@@ -440,32 +440,43 @@
 
 .lab .editor-shell { position:relative; flex:1 1 auto; min-height:0; height:100%; }
 .lab .editor-shell .editor-host { height:100%; }
-.lab .coach-bubble-anchor { position:absolute; z-index:25; right:10px; display:flex; justify-content:flex-end; width:calc(100% - 64px); }
+.lab .lab__editor--coaching {
+  border-color:#baff4a;
+  box-shadow:0 0 5px #caff52,0 0 20px #8dff4a99,inset 0 0 0 1px #baff4a88;
+}
+.lab .lab__editor--coaching .lab__editorHead { border-bottom-color:#9fe844; }
+.lab .coach-bubble-anchor { position:absolute; z-index:25; top:-35px; right:8px; display:flex; justify-content:flex-end; width:calc(100% - 64px); }
 .lab .coach-bubble--editor { position:relative; max-width:100%; }
 .lab .coach-bubble--editor::before {
-  content:'';
+  content:'☟';
   position:absolute;
-  top:-6px;
-  left:18px;
-  width:10px;
-  height:10px;
-  border-top:1px solid #c7ff4a;
-  border-left:1px solid #c7ff4a;
-  background:#caff52;
-  transform:rotate(45deg);
+  right:17px;
+  bottom:-18px;
+  color:#baff4a;
+  font:900 20px/1 sans-serif;
+  filter:drop-shadow(0 2px 2px #000);
 }
 
 .lab .modstrip { position:relative; }
-.lab .coach-bubble--mod { right:9px; bottom:8px; }
-.lab .coach-bubble--mod::after {
-  content:'DRAG ↓';
+.lab .modstrip--coaching { overflow:visible; }
+.lab .lab__left--coach-outside { position:relative; z-index:4; overflow:visible; }
+.lab .coach-bubble--mod { left:calc(100% + 18px); top:8px; max-width:none; }
+.lab .coach-bubble--mod::before {
+  content:'☜';
   position:absolute;
-  right:10px;
-  bottom:-14px;
-  color:#7dfff3;
-  font:900 8px/1 var(--font-mono);
-  text-shadow:0 1px 3px #000;
+  left:-25px;
+  top:3px;
+  color:#baff4a;
+  font:900 23px/1 sans-serif;
+  filter:drop-shadow(0 2px 2px #000);
 }
+
+/* Stream-language highlighting creates nested spans. Force the teaching
+   colors through every rendered layer so these three tokens stay cyan. */
+.lab .cm-content .cm-modbox-token--write,
+.lab .cm-content .cm-modbox-token--write *,
+.lab .cm-content .cm-modbox-token--literal,
+.lab .cm-content .cm-modbox-token--literal * { color:#4df6ff !important; }
 
 .lab .stage > .coach-bubble--stage { top:12px; right:12px; }
 .lab .mission__next-wrap { position:relative; flex:0 0 auto; }
@@ -510,7 +521,9 @@
 
 @media(max-width:600px) {
   .lab .coach-bubble { max-width:calc(100% - 10px); padding:4px 6px; gap:4px; }
-  .lab .coach-bubble-anchor { right:5px; width:calc(100% - 45px); }
+  .lab .coach-bubble-anchor { top:-29px; right:5px; width:calc(100% - 45px); }
+  .lab .coach-bubble--mod { left:auto; right:5px; top:-34px; max-width:calc(100% - 10px); }
+  .lab .coach-bubble--mod::before { content:'☟'; left:auto; right:17px; top:auto; bottom:-17px; }
   .lab .stage > .coach-bubble--stage { top:6px; right:6px; }
   .lab .coach-bubble--mission { right:0; }
   .lab .overlay__mission { font-size:8px; }
