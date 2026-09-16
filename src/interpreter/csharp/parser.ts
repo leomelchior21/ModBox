@@ -215,7 +215,7 @@ class Parser {
         nameToken.pos,
         `${varType} needs a name right after it.`,
         `Try: ${varType} ${
-          varType === 'string' ? 'shipName = "Nova";' : varType === 'int' ? 'enemies = 3;' : 'shield = true;'
+          varType === 'string' ? 'shipName = "Brian\'s ship";' : varType === 'int' ? 'enemies = 3;' : 'shield = true;'
         }`,
         csharpTechnical('expectedExpression'),
       );

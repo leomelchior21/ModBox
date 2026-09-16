@@ -24,6 +24,40 @@ export interface CopilotStep {
   targetId?: CopilotTargetId;
 }
 
+const POPUP_TARGET_LABELS: Partial<Record<CopilotTargetId, string>> = {
+  enemyType: 'ENEMY TYPE',
+  shipName: 'SHIP NAME',
+  enemyCount: 'ENEMY COUNT',
+  laserPower: 'WEAPON POWER',
+  shieldEnabled: 'SHIELD',
+  rapidFireEnabled: 'RAPID FIRE',
+  writeline: 'WRITELINE',
+  'power-math': 'POWER MATH',
+  'score-rule': 'SCORE RULE',
+  'health-rule': 'HEALTH RULE',
+};
+
+/** Short, playful copy used only by the floating coach pill. */
+export function coachPopupMessage(step: CopilotStep): string {
+  const targetLabel = step.targetId ? POPUP_TARGET_LABELS[step.targetId] : undefined;
+  if (targetLabel && /^(Add|Build)\b/i.test(step.message)) {
+    return `Drag ${targetLabel} into the code.`;
+  }
+  if (step.message.startsWith('Mission ready')) return 'Great work! Go to the next mission.';
+  if (step.message.startsWith('Change the enemy type')) return 'Change small-rock to big-rock.';
+  if (step.message.startsWith('Change shipName')) return "Give Brian's ship a new name.";
+  if (step.message.startsWith('Change the number of enemies')) return 'Set enemies to 5 or more.';
+  if (step.message.startsWith('Switch shield')) return 'Change shield from false to true.';
+  if (step.message.startsWith('Switch rapidFire')) return 'Change rapidFire from false to true.';
+  if (step.message.startsWith('Launch the game and reach')) {
+    const score = step.message.match(/reach (\d+) points/)?.[1] ?? 'the target';
+    return `Launch and reach ${score} points.`;
+  }
+  if (step.message.startsWith('Launch and let your integrity')) return 'Launch and let health fall below 30.';
+  if (step.message.startsWith('Free build')) return 'Drag in a Mod and make the game yours.';
+  return step.message;
+}
+
 export const CODE_TOOLS: CodeToolDefinition[] = [
   {
     id: 'writeline',
@@ -105,9 +139,9 @@ export function copilotStep(
           targetId: 'shipName',
         };
       }
-      if (ctx.config.shipName.trim().length <= 1 || ctx.config.shipName === 'Nova') {
+      if (ctx.config.shipName.trim().length <= 1 || ctx.config.shipName === "Brian's ship") {
         return {
-          message: 'Change shipName from "Nova" to a name you choose.',
+          message: 'Change shipName from "Brian\'s ship" to a name you choose.',
           hint: 'Keep the quotation marks around the new name.',
           targetId: 'shipName',
         };

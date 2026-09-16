@@ -66,7 +66,7 @@ const ALL_CHIPS: ChipToken[] = [
   { id: 'health', label: 'health', insert: 'health', hint: 'live ship integrity', group: 'logic' },
   { id: 'wave', label: 'wave', insert: 'wave', hint: 'live wave number', group: 'logic' },
   { id: 'enemiesRemaining', label: 'enemiesRemaining', insert: 'enemiesRemaining', group: 'logic' },
-  { id: 'decl:shipName', label: 'shipName', insert: 'string shipName = "Nova";', group: 'mod' },
+  { id: 'decl:shipName', label: 'shipName', insert: 'string shipName = "Brian\'s ship";', group: 'mod' },
   { id: 'decl:enemy', label: 'enemy', insert: 'string enemy = "big-rock";', group: 'mod' },
   { id: 'decl:enemies', label: 'enemies', insert: 'int enemies = 5;', group: 'mod' },
   { id: 'decl:enemySpeed', label: 'enemySpeed', insert: 'int enemySpeed = 2;', group: 'mod' },

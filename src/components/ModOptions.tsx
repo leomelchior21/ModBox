@@ -22,7 +22,7 @@ export function ModOptions({ mod, anchor, onClose, onInsert }: ModOptionsProps):
   const onCloseRef = useRef(onClose);
   const drag = useTouchModDrag(onInsert);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
-  const [value, setValue] = useState(mod.type === 'int' ? '3' : 'Nova');
+  const [value, setValue] = useState(mod.type === 'int' ? '3' : "Brian's ship");
   onCloseRef.current = onClose;
 
   const limit = NUMERIC_LIMITS[mod.id as keyof typeof NUMERIC_LIMITS];
@@ -32,7 +32,7 @@ export function ModOptions({ mod, anchor, onClose, onInsert }: ModOptionsProps):
       ? ['true', 'false']
       : mod.type === 'int'
         ? [...new Set([limit?.min ?? 1, 3, limit?.max ?? 10])].map(String)
-        : ['Nova', 'Voyager', 'Apollo']);
+        : ["Brian's ship", 'Voyager', 'Apollo']);
   const snippet = (nextValue: string) =>
     `${mod.type} ${mod.name} = ${mod.type === 'string' ? JSON.stringify(nextValue) : nextValue};`;
 

@@ -24,7 +24,7 @@ import {
   seedMissionCode,
   unlockedMods,
 } from '../../learning/missions';
-import { codeToolsForMission, copilotStep } from '../../learning/copilot';
+import { coachPopupMessage, codeToolsForMission, copilotStep } from '../../learning/copilot';
 import {
   filterConfigToUnlocked,
   resolveLiveConfig,
@@ -264,7 +264,7 @@ export function LabScreen({
   const libraryStep = Boolean(
     guidance.targetId && /^(Add|Build)\b/i.test(guidance.message),
   );
-  const coach = coachVisible ? guidance : undefined;
+  const coach = coachVisible ? { ...guidance, message: coachPopupMessage(guidance) } : undefined;
 
   useEffect(() => {
     if (libraryStep) setModStripCollapsed(false);

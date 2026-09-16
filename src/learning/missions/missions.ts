@@ -55,17 +55,17 @@ export const MISSION_M01: Mission = {
     example: 'Console.WriteLine("Pilot: " + shipName);',
   },
   brief: 'The HUD is showing a default call sign. Yours is better.',
-  action: 'Rename "Nova" and watch the HUD and Flight Log update.',
+  action: 'Rename "Brian\'s ship" and watch the HUD and Flight Log update.',
   hint: 'The + joins two pieces of text into one message.',
   appliedCopy: 'Your machine answers to a name you chose, and Flight Log heard it.',
   starter: [
     'string enemy = "small-rock";',
-    'string shipName = "Nova";',
+    'string shipName = "Brian\'s ship";',
     '',
     'Console.WriteLine("Pilot: " + shipName);',
   ].join('\n'),
   additions: [
-    { key: 'decl:shipName', code: 'string shipName = "Nova";' },
+    { key: 'decl:shipName', code: 'string shipName = "Brian\'s ship";' },
     { key: 'write:"Pilot: " + shipName', code: 'Console.WriteLine("Pilot: " + shipName);' },
   ],
   quickInsert: ['string', 'decl:shipName', 'writeline'],
@@ -78,7 +78,7 @@ export const MISSION_M01: Mission = {
       (ctx) =>
         ctx.summary.declares.string.includes('shipName') &&
         ctx.config.shipName.trim().length > 1 &&
-        ctx.config.shipName !== 'Nova',
+        ctx.config.shipName !== "Brian's ship",
     ),
     req('comms', 'Something was sent to Flight Log', (ctx) => ctx.summary.writesCount >= 1),
   ],

@@ -603,7 +603,7 @@ class Binder {
             MOD_CODES.badComparison,
             expr.pos,
             `${expr.op} compares numbers. Text can use == or !=.`,
-            'Try: if (shipName == "Nova") { … }',
+            'Try: if (shipName == "Brian\'s ship") { … }',
             csharpTechnical('typeMismatch'),
           );
         }

@@ -44,7 +44,7 @@ export const MODS: ModDefinition[] = [
     type: 'string',
     label: 'SHIP NAME',
     blurb: 'Name of your machine. Shows on the HUD and in the Flight Log.',
-    example: 'string shipName = "Nova";',
+    example: 'string shipName = "Brian\'s ship";',
     unlockAt: 1,
   },
   {

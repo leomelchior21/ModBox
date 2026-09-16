@@ -22,7 +22,7 @@ export interface NumericLimit {
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
-  shipName: 'Nova',
+  shipName: "Brian's ship",
   enemyType: 'small-rock',
   enemyCount: 3,
   enemySpeed: 2,

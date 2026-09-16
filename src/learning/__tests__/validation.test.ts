@@ -11,7 +11,7 @@ import {
 } from '../missions/missions';
 import type { Mission, ValidationContext } from '../missions/types';
 import { getMission, mergeMissionCode, previousMission, seedMissionCode, unlockedMods } from '../missions';
-import { copilotStep } from '../copilot';
+import { coachPopupMessage, copilotStep } from '../copilot';
 import { filterConfigToUnlocked, resolveLiveConfig, validateMission } from '../validation';
 import { parseCSharp } from '../../interpreter/csharp';
 import { chipById } from '../../interpreter/csharp';
@@ -73,7 +73,7 @@ describe('mission 00 — FIRST CONTACT', () => {
 
 describe('mission 01 — NAME YOUR MACHINE', () => {
   it('needs both a custom name and a transmission', () => {
-    expect(check(MISSION_M01, 'string shipName = "Nova";').passed).toBe(false);
+    expect(check(MISSION_M01, 'string shipName = "Brian\'s ship";').passed).toBe(false);
     expect(check(MISSION_M01, 'string shipName = "Eclipse";').passed).toBe(false);
     const full = [
       'string shipName = "Eclipse";',
@@ -278,7 +278,7 @@ describe('code merging keeps the student program growing', () => {
   it('adds only the lines that are missing', () => {
     const merged = mergeMissionCode('string enemy = "big-rock";', getMission('m01'));
     expect(merged).toContain('string enemy = "big-rock";');
-    expect(merged).toContain('string shipName = "Nova";');
+    expect(merged).toContain('string shipName = "Brian\'s ship";');
     expect(merged).toContain('Console.WriteLine("Pilot: " + shipName);');
   });
 
@@ -286,7 +286,7 @@ describe('code merging keeps the student program growing', () => {
     const student = ['string enemy = "big-rock";', 'string shipName = "Eclipse";'].join('\n');
     const merged = mergeMissionCode(student, getMission('m01'));
     expect(merged).toContain('shipName = "Eclipse"');
-    expect(merged).not.toContain('"Nova"');
+    expect(merged).not.toContain('"Brian\'s ship"');
   });
 
   it('is idempotent: running it twice changes nothing', () => {
@@ -350,7 +350,14 @@ describe('co-pilot staged directions', () => {
       targetId: 'shipName',
       message: 'Add the "shipName" Mod to the code.',
     });
-    expect(guidanceFor(MISSION_M01, 'string shipName = "Nova";').message).toContain('Change shipName');
+    expect(guidanceFor(MISSION_M01, 'string shipName = "Brian\'s ship";').message).toContain('Change shipName');
+  });
+
+  it('keeps floating coach prompts short and direct', () => {
+    expect(coachPopupMessage(guidanceFor(MISSION_M01, 'string enemy = "big-rock";')))
+      .toBe('Drag SHIP NAME into the code.');
+    expect(coachPopupMessage(guidanceFor(MISSION_M00, 'string enemy = "small-rock";')))
+      .toBe('Change small-rock to big-rock.');
   });
 
   it('points at WriteLine after the custom name is ready', () => {
