@@ -2,6 +2,7 @@ import type { ReactNode, RefObject } from 'react';
 import { useEffect, useRef } from 'react';
 import type { EngineSnapshot, Phase } from '../games/vector-zero/engine/types';
 import type { VectorZeroEngine } from '../games/vector-zero/engine/gameEngine';
+import { CoachBubble } from './CoachBubble';
 
 /* ============================================================================
    VECTOR ZERO — GAME STAGE
@@ -23,6 +24,8 @@ export interface GameStageProps {
   children?: ReactNode;
   overlayExtras?: ReactNode;
   statusNote?: string;
+  missionName?: string;
+  coach?: { message: string; hint?: string; onDismiss: () => void };
 }
 
 function HoldButton({
@@ -161,6 +164,8 @@ export function GameStage({
   children,
   overlayExtras,
   statusNote,
+  missionName,
+  coach,
 }: GameStageProps): JSX.Element {
   const config = snapshot.config;
 
@@ -172,6 +177,7 @@ export function GameStage({
         <div className="overlay overlay--launch">
           <div className="overlay__panel overlay__panel--stage">
             <p className="eyebrow eyebrow--flare">VECTOR ZERO · FLIGHT DECK</p>
+            {missionName ? <p className="overlay__mission mono">{missionName}</p> : null}
             <div className={`ship-preview ${config.shieldEnabled ? 'ship-preview--shield' : ''}`} aria-hidden="true">
               <svg viewBox="0 0 280 112" fill="none">
                 <ellipse cx="140" cy="56" rx="108" ry="45" stroke="currentColor" opacity=".18" strokeDasharray="3 7" />
@@ -292,6 +298,7 @@ export function GameStage({
       ) : null}
 
       {showTouchControls && (phase === 'playing' || phase === 'respawn') ? <TouchControls engine={engine} /> : null}
+      {coach ? <CoachBubble className="coach-bubble--stage" message={coach.message} hint={coach.hint} onDismiss={coach.onDismiss} /> : null}
       {children}
     </div>
   );

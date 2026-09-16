@@ -5,6 +5,7 @@ import { beginModDrag, endModDrag, MOD_DRAG_TYPE, type ModInsertMode } from '../
 import type { ModDefinition } from '../interpreter/core/mods';
 import type { CodeToolDefinition, CopilotTargetId } from '../learning/copilot';
 import { modGlyph } from './modGlyph';
+import { CoachBubble } from './CoachBubble';
 
 /* ============================================================================
    MODBOX — MOD DOCK (compact library)
@@ -21,6 +22,8 @@ export function ModStrip({
   onToggleCollapsed,
   onInsert,
   onOpenLibrary,
+  coach,
+  onDismissCoach,
 }: {
   mods: ModDefinition[];
   tools: CodeToolDefinition[];
@@ -30,6 +33,8 @@ export function ModStrip({
   onToggleCollapsed: () => void;
   onInsert: (code: string, mode?: ModInsertMode) => void;
   onOpenLibrary: () => void;
+  coach?: { message: string; hint?: string };
+  onDismissCoach?: () => void;
 }): JSX.Element {
   const [options, setOptions] = useState<{ mod: ModDefinition; anchor: HTMLElement } | null>(null);
   const drag = useTouchModDrag(onInsert);
@@ -66,6 +71,10 @@ export function ModStrip({
         </button>
         <button type="button" className="modstrip__all" onClick={onOpenLibrary}>All mods ▸</button>
       </header>
+
+      {coach && onDismissCoach ? (
+        <CoachBubble className="coach-bubble--mod" message={coach.message} hint={coach.hint} onDismiss={onDismissCoach} />
+      ) : null}
 
       {!collapsed ? (
         <div className="modstrip__row">

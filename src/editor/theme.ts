@@ -77,6 +77,12 @@ export const modboxEditorTheme = EditorView.theme(
     '.cm-modbox-token--int': { color: '#4de1f2', fontWeight: '700' },
     '.cm-modbox-token--bool': { color: '#ff8b62', fontWeight: '700' },
     '.cm-modbox-token--write': { color: '#4de1f2', fontWeight: '700' },
+    '.cm-modbox-token--literal': { color: '#4de1f2', fontWeight: '700' },
+    '.cm-modbox-addedLine': {
+      backgroundColor: 'rgba(77,225,242,0.18)',
+      boxShadow: 'inset 4px 0 0 #4de1f2',
+      animation: 'modbox-added-line 0.72s ease-in-out 3',
+    },
     '.cm-modbox-dropZone': {
       backgroundColor: 'color-mix(in srgb, var(--drop-color) 16%, transparent)',
       boxShadow: 'inset 4px 0 0 var(--drop-color)',
@@ -112,7 +118,8 @@ export const modboxEditorTheme = EditorView.theme(
 export const modboxHighlightStyle = HighlightStyle.define([
   { tag: [t.keyword, t.controlKeyword], color: '#f3c969', fontWeight: '700' },
   { tag: [t.typeName, t.standard(t.typeName)], color: '#f3c969' },
-  { tag: [t.bool, t.null], color: '#ff8b62', fontWeight: '700' },
+  { tag: [t.bool], color: '#4de1f2', fontWeight: '700' },
+  { tag: [t.null], color: '#ff8b62', fontWeight: '700' },
   { tag: [t.number], color: '#4de1f2' },
   { tag: [t.string], color: '#9bd587' },
   { tag: [t.comment], color: '#7f8aa2', fontStyle: 'italic' },

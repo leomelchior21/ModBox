@@ -98,6 +98,7 @@ export function LabScreen({
   const [modStripCollapsed, setModStripCollapsed] = useState(false);
   const [unlockTokens, setUnlockTokens] = useState<UnlockToken[]>([]);
   const [metricsTick, setMetricsTick] = useState(0);
+  const [dismissedCoachKey, setDismissedCoachKey] = useState<string | null>(null);
 
   const touch = useMediaQuery('(any-pointer: coarse)');
   const debugVisible = debugFlag || progress.settings.debug;
@@ -258,6 +259,16 @@ export function LabScreen({
 
   const missionComplete = mission.requirements.length > 0 && validation.passed;
   const missionPassed = missionComplete || progress.completed.includes(mission.id);
+  const coachKey = `${mission.id}:${guidance.message}`;
+  const coachVisible = !diagnostic && dismissedCoachKey !== coachKey;
+  const libraryStep = Boolean(
+    guidance.targetId && /^(Add|Build)\b/i.test(guidance.message),
+  );
+  const coach = coachVisible ? guidance : undefined;
+
+  useEffect(() => {
+    if (libraryStep) setModStripCollapsed(false);
+  }, [coachKey, libraryStep]);
 
   // 7. completion + unlock animation (never longer than ~1.5s)
   useEffect(() => {
@@ -385,17 +396,30 @@ export function LabScreen({
                 <button className="lab__arrange" onClick={() => setOrderOpen(true)} title="Reorder whole code blocks">⠿ Arrange</button>
                 <span className="lab__autosave">Auto-save <b>ON</b></span>
               </div>
-              <CodeEditor value={code} onChange={setCode} errorLines={diagnostic ? [diagnostic.line] : []} onFocusChange={setEditorFocused} onViewReady={view => { editorViewRef.current = view; }} />
+              <CodeEditor
+                value={code}
+                onChange={setCode}
+                errorLines={diagnostic ? [diagnostic.line] : []}
+                onFocusChange={setEditorFocused}
+                onViewReady={view => { editorViewRef.current = view; }}
+                coach={coach && guidance.targetId && !libraryStep && !missionComplete ? {
+                  key: coachKey,
+                  message: coach.message,
+                  hint: coach.hint,
+                  targetId: guidance.targetId,
+                } : undefined}
+                onDismissCoach={() => setDismissedCoachKey(coachKey)}
+              />
             </div>
             <FeedbackPanel status={status} diagnostic={diagnostic} ruleCount={program.rules.length} guidance={guidance} />
-            <ModStrip mods={unlockedModList} tools={codeTools} activeTargetId={guidance.targetId} totalMods={MODS.length} collapsed={modStripCollapsed} onToggleCollapsed={() => setModStripCollapsed(v => !v)} onInsert={handleInsertCode} onOpenLibrary={() => setLibraryOpen(true)} />
+            <ModStrip mods={unlockedModList} tools={codeTools} activeTargetId={guidance.targetId} totalMods={MODS.length} collapsed={modStripCollapsed} onToggleCollapsed={() => setModStripCollapsed(v => !v)} onInsert={handleInsertCode} onOpenLibrary={() => setLibraryOpen(true)} coach={coach && libraryStep ? coach : undefined} onDismissCoach={() => setDismissedCoachKey(coachKey)} />
           </div>
         </section>
         <ResizeHandle ratio={progress.settings.splitRatio} onChange={ratio => useProgress.getState().setSetting('splitRatio', ratio)} />
         <section id="flight-panel" className="lab__right" aria-label="Vector Zero game">
           <div className="lab__stageHost" ref={stageRef}>
             <div className="stage-frame">
-              <GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={false} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} />
+              <GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={false} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} missionName={mission.kind === 'sandbox' ? mission.code : `MISSION ${String(mission.order).padStart(2, '0')} · ${mission.code}`} coach={coach && !guidance.targetId && !missionComplete ? { ...coach, onDismiss: () => setDismissedCoachKey(coachKey) } : undefined} />
             </div>
             <ModLibrary open={libraryOpen} onClose={() => { setLibraryOpen(false); focusEditor(); }} unlocked={unlockedModList} totalMods={MODS.length} onInsert={(snippet, mode) => { setLibraryOpen(false); handleInsertCode(snippet, mode); }} />
             {unlockTokens.length ? <UnlockBurst tokens={unlockTokens} onDone={() => setUnlockTokens([])} /> : null}
@@ -406,7 +430,7 @@ export function LabScreen({
         {touch ? <TouchControls engine={engineRef.current} onEngage={focusGame} /> : null}
         <div className="lab__briefing">
           <div className="lab__missionZone">
-            <MissionPanel mission={mission} complete={missionPassed} onBack={handleBack} onNext={handleNext} hasPrevious={Boolean(previousMission(mission.id))} hasNext={Boolean(nextMission(mission.id))} />
+            <MissionPanel mission={mission} complete={missionPassed} onBack={handleBack} onNext={handleNext} hasPrevious={Boolean(previousMission(mission.id))} hasNext={Boolean(nextMission(mission.id))} coach={coach && missionComplete ? coach : undefined} onDismissCoach={() => setDismissedCoachKey(coachKey)} />
           </div>
         </div>
       </div>

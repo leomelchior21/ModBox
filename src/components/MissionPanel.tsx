@@ -1,4 +1,5 @@
 import type { Mission } from '../learning/missions/types';
+import { CoachBubble } from './CoachBubble';
 
 export function MissionPanel({
   mission,
@@ -7,6 +8,8 @@ export function MissionPanel({
   onNext,
   hasPrevious,
   hasNext,
+  coach,
+  onDismissCoach,
 }: {
   mission: Mission;
   complete: boolean;
@@ -14,6 +17,8 @@ export function MissionPanel({
   onNext: () => void;
   hasPrevious: boolean;
   hasNext: boolean;
+  coach?: { message: string; hint?: string };
+  onDismissCoach?: () => void;
 }): JSX.Element {
   const name = mission.kind === 'sandbox'
     ? mission.code
@@ -30,15 +35,20 @@ export function MissionPanel({
         <h2 className="mission__badge">{name}</h2>
       </div>
       {hasNext ? (
-        <button
-          type="button"
-          className="mission__next"
-          onClick={onNext}
-          disabled={!complete}
-          aria-disabled={!complete}
-        >
-          NEXT MISSION <span aria-hidden="true">→</span>
-        </button>
+        <div className="mission__next-wrap">
+          <button
+            type="button"
+            className="mission__next"
+            onClick={onNext}
+            disabled={!complete}
+            aria-disabled={!complete}
+          >
+            NEXT MISSION <span aria-hidden="true">→</span>
+          </button>
+          {coach && onDismissCoach ? (
+            <CoachBubble className="coach-bubble--mission" message={coach.message} hint={coach.hint} onDismiss={onDismissCoach} />
+          ) : null}
+        </div>
       ) : null}
     </section>
   );

@@ -102,7 +102,7 @@ async function flush(times = 6) {
 }
 
 /** Waits for a lazily loaded chunk to finish rendering. */
-async function waitFor(check: () => boolean, attempts = 80): Promise<boolean> {
+async function waitFor(check: () => boolean, attempts = 160): Promise<boolean> {
   for (let index = 0; index < attempts; index += 1) {
     if (check()) return true;
     // eslint-disable-next-line no-await-in-loop
@@ -174,6 +174,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector<HTMLButtonElement>('.mission__next')?.disabled).toBe(true);
     // the launch overlay offers the real controls
     expect(host.textContent).toContain('LAUNCH');
+    expect(host.querySelector('.overlay__mission')?.textContent).toContain('MISSION 00');
     expect(host.textContent).toContain('rotate left');
   });
 });

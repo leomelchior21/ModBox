@@ -7,7 +7,7 @@ import {
   placeMod,
   type ModInsertMode,
 } from './modEditing';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   EditorView,
   keymap,
@@ -33,6 +33,10 @@ import {
 import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { csharpCompletions, csharpHighlighting, csharpLanguage } from './csharpLanguage';
 import { modboxEditorTheme } from './theme';
+import { MOD_BY_ID } from '../interpreter/core/mods';
+import type { ConfigKey } from '../interpreter/core/types';
+import type { CopilotTargetId } from '../learning/copilot';
+import { CoachBubble } from '../components/CoachBubble';
 
 /* ============================================================================
    MODBOX — CODE EDITOR
@@ -42,6 +46,7 @@ import { modboxEditorTheme } from './theme';
 
 const setErrorLines = StateEffect.define<number[]>();
 const setModDropZone = StateEffect.define<string | null>();
+const setAddedLine = StateEffect.define<number | null>();
 
 const errorLineDecorations = StateField.define<DecorationSet>({
   create: () => Decoration.none,
@@ -59,6 +64,25 @@ const errorLineDecorations = StateField.define<DecorationSet>({
         );
       }
       next = Decoration.set(marks, true);
+    }
+    return next;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+const addedLineDecoration = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(decorations, transaction) {
+    let next = decorations.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (!effect.is(setAddedLine)) continue;
+      next = effect.value === null
+        ? Decoration.none
+        : Decoration.set([
+          Decoration.line({ class: 'cm-modbox-addedLine' }).range(
+            transaction.state.doc.lineAt(Math.min(effect.value, transaction.state.doc.length)).from,
+          ),
+        ]);
     }
     return next;
   },
@@ -130,10 +154,10 @@ const modDropZone = StateField.define<ModDropZoneState>({
 });
 
 const teachingTokenMatcher = new MatchDecorator({
-  regexp: /\b(?:string|int|bool|Console\.WriteLine)\b/g,
+  regexp: /\b(?:string|int|bool|true|false|Console\.WriteLine)\b/g,
   decoration: (match) => {
     const token = match[0];
-    const tone = token === 'Console.WriteLine' ? 'write' : token;
+    const tone = token === 'Console.WriteLine' ? 'write' : token === 'true' || token === 'false' ? 'literal' : token;
     return Decoration.mark({ class: `cm-modbox-token cm-modbox-token--${tone}` });
   },
 });
@@ -158,6 +182,25 @@ export interface CodeEditorProps {
   onFocusChange?: (focused: boolean) => void;
   onViewReady?: (view: EditorView | null) => void;
   ariaLabel?: string;
+  coach?: { key: string; message: string; hint?: string; targetId: CopilotTargetId };
+  onDismissCoach?: () => void;
+}
+
+function coachTargetPosition(view: EditorView, targetId: CopilotTargetId): number | null {
+  const modName = MOD_BY_ID[targetId as ConfigKey]?.name;
+  const patterns: Partial<Record<CopilotTargetId, RegExp>> = {
+    writeline: /\bConsole\.WriteLine\b/,
+    'power-math': /^\s*laserPower\s*=/,
+    'score-rule': /^\s*if\s*\([^\n]*\bscore\b/,
+    'health-rule': /^\s*if\s*\([^\n]*\bhealth\b/,
+  };
+  const pattern = patterns[targetId] ?? (modName ? new RegExp(`\\b${modName}\\b`) : null);
+  if (!pattern) return null;
+  for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
+    const line = view.state.doc.line(lineNumber);
+    if (pattern.test(line.text)) return line.from;
+  }
+  return null;
 }
 
 export function CodeEditor({
@@ -167,15 +210,20 @@ export function CodeEditor({
   onFocusChange,
   onViewReady,
   ariaLabel = 'C# code editor',
+  coach,
+  onDismissCoach,
 }: CodeEditorProps): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const coachRef = useRef(coach);
+  const [coachTop, setCoachTop] = useState<number | null>(null);
   const onChangeRef = useRef(onChange);
   const onFocusRef = useRef(onFocusChange);
   const onViewReadyRef = useRef(onViewReady);
   onChangeRef.current = onChange;
   onFocusRef.current = onFocusChange;
   onViewReadyRef.current = onViewReady;
+  coachRef.current = coach;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -214,6 +262,7 @@ export function CodeEditor({
           modboxEditorTheme,
           teachingTokenColors,
           errorLineDecorations,
+          addedLineDecoration,
           modDropZone,
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
@@ -224,6 +273,18 @@ export function CodeEditor({
           }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
+            if (update.docChanged || update.viewportChanged || update.geometryChanged) {
+              requestAnimationFrame(() => {
+                const current = coachRef.current;
+                const shell = hostRef.current?.parentElement;
+                if (!current || !shell) { setCoachTop(null); return; }
+                const position = coachTargetPosition(update.view, current.targetId);
+                const coords = position === null ? null : update.view.coordsAtPos(position);
+                if (!coords) { setCoachTop(null); return; }
+                const shellBox = shell.getBoundingClientRect();
+                setCoachTop(Math.max(8, Math.min(coords.bottom - shellBox.top + 5, shellBox.height - 118)));
+              });
+            }
           }),
           EditorView.domEventHandlers({
             dragover: (event) => {
@@ -280,7 +341,36 @@ export function CodeEditor({
     view.dispatch({ effects: setErrorLines.of(errorLines) });
   }, [errorLines]);
 
-  return <div className="editor-host" ref={hostRef} />;
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !coach) { setCoachTop(null); return; }
+    const position = coachTargetPosition(view, coach.targetId);
+    if (position === null) { setCoachTop(null); return; }
+    view.dispatch({ effects: EditorView.scrollIntoView(position, { y: 'center' }) });
+    requestAnimationFrame(() => {
+      const coords = view.coordsAtPos(position);
+      const shell = hostRef.current?.parentElement;
+      if (!coords || !shell) { setCoachTop(null); return; }
+      const shellBox = shell.getBoundingClientRect();
+      setCoachTop(Math.max(8, Math.min(coords.bottom - shellBox.top + 5, shellBox.height - 118)));
+    });
+  }, [coach?.key]);
+
+  return (
+    <div className="editor-shell">
+      <div className="editor-host" ref={hostRef} />
+      {coach && coachTop !== null && onDismissCoach ? (
+        <div style={{ top: coachTop }} className="coach-bubble-anchor">
+          <CoachBubble
+            className="coach-bubble--editor"
+            message={coach.message}
+            hint={coach.hint}
+            onDismiss={onDismissCoach}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /** Inserts text at the caret — used by the quick-insert chips (spec §27). */
@@ -304,6 +394,35 @@ export function applyModToEditor(
 ): void {
   if (!view) return;
   const next = placeMod(view.state.doc.toString(), snippet, mode);
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } });
+  const addedAt = Math.max(0, next.lastIndexOf(snippet.trim()));
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: next },
+    effects: setAddedLine.of(addedAt),
+  });
   view.focus();
+  window.setTimeout(() => {
+    if (view.dom.isConnected) view.dispatch({ effects: setAddedLine.of(null) });
+  }, 2600);
+  requestAnimationFrame(() => showInsertedCodeCue(view, addedAt));
+}
+
+function showInsertedCodeCue(view: EditorView, position: number): void {
+  const direction = position < view.viewport.from ? 'up' : position > view.viewport.to ? 'down' : null;
+  view.dom.closest('.editor-shell')?.querySelector('.editor-scroll-cue')?.remove();
+  if (!direction) return;
+
+  const shell = view.dom.closest('.editor-shell');
+  if (!shell) return;
+  const cue = document.createElement('button');
+  cue.type = 'button';
+  cue.className = `editor-scroll-cue editor-scroll-cue--${direction}`;
+  cue.setAttribute('aria-label', `New code was added ${direction}. Scroll to it.`);
+  cue.innerHTML = `<span aria-hidden="true">${direction === 'up' ? '↑' : '↓'}</span> NEW CODE ${direction.toUpperCase()}`;
+  cue.addEventListener('click', () => {
+    view.dispatch({ effects: EditorView.scrollIntoView(position, { y: 'center' }) });
+    cue.remove();
+    view.focus();
+  });
+  shell.appendChild(cue);
+  window.setTimeout(() => cue.remove(), 7000);
 }
