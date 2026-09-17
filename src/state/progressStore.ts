@@ -10,7 +10,6 @@ import type { LanguageId } from '../interpreter/core/adapter';
 export interface Settings {
   sound: boolean;
   debug: boolean;
-  splitRatio: number;
 }
 
 interface ProgressState {
@@ -84,7 +83,7 @@ function initialReset(): Partial<ProgressState> {
     freeModeUnlocked: false,
     bestScore: 0,
     codes: {},
-    settings: { sound: true, debug: false, splitRatio: 0.42 },
+    settings: { sound: true, debug: false },
   };
 }
 

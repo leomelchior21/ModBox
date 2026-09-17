@@ -11,13 +11,11 @@ export function SettingsDialog({
   studentName,
   sound,
   debug,
-  splitRatio,
   bestScore,
   completedCount,
   onRename,
   onToggleSound,
   onToggleDebug,
-  onSplitRatio,
   onResetProgress,
 }: {
   open: boolean;
@@ -25,13 +23,11 @@ export function SettingsDialog({
   studentName: string;
   sound: boolean;
   debug: boolean;
-  splitRatio: number;
   bestScore: number;
   completedCount: number;
   onRename: (name: string) => void;
   onToggleSound: () => void;
   onToggleDebug: () => void;
-  onSplitRatio: (ratio: number) => void;
   onResetProgress: () => void;
 }): JSX.Element | null {
   const [confirmReset, setConfirmReset] = useState(false);
@@ -112,19 +108,6 @@ export function SettingsDialog({
           >
             {debug ? 'ON' : 'OFF'}
           </button>
-        </div>
-
-        <div className="setting">
-          <p className="setting__label">EDITOR / GAME SPLIT · {Math.round(splitRatio * 100)}%</p>
-          <input
-            className="setting__range"
-            type="range"
-            min={32}
-            max={62}
-            value={Math.round(splitRatio * 100)}
-            onChange={(event) => onSplitRatio(Number(event.target.value) / 100)}
-            aria-label="Editor width"
-          />
         </div>
 
         <hr className="divider" />

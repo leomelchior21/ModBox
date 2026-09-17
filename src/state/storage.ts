@@ -19,7 +19,6 @@ export interface PersistedState {
   settings: {
     sound: boolean;
     debug: boolean;
-    splitRatio: number;
   };
 }
 
@@ -33,7 +32,7 @@ export const DEFAULT_PERSISTED: PersistedState = {
   codes: {},
   freeModeCode: '',
   freeModeUnlocked: false,
-  settings: { sound: true, debug: false, splitRatio: 0.42 },
+  settings: { sound: true, debug: false },
 };
 
 export function loadPersisted(): PersistedState {

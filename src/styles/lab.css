@@ -240,7 +240,8 @@
 .lab__body {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: var(--split, 42%) 12px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
+  gap: 12px;
   min-height: 0;
 }
 
@@ -530,27 +531,6 @@
   background: var(--ok);
   color: var(--ink);
   box-shadow: 0 0 24px -6px rgba(53, 224, 143, 0.8);
-}
-
-.split-handle {
-  position: relative;
-  cursor: col-resize;
-  background: var(--ink);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-right: 1px solid var(--ink-line);
-}
-.split-handle:hover .split-handle__grip,
-.split-handle:focus-visible .split-handle__grip {
-  background: var(--blue);
-}
-.split-handle__grip {
-  width: 4px;
-  height: 54px;
-  border-radius: 99px;
-  background: var(--ink-line);
-  transition: background var(--t-fast) linear;
 }
 
 /* -------------------------------------------------------------- narrow mode */

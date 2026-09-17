@@ -78,13 +78,11 @@ export function App(): JSX.Element {
       studentName={progress.studentName}
       sound={progress.settings.sound}
       debug={progress.settings.debug}
-      splitRatio={progress.settings.splitRatio}
       bestScore={progress.bestScore}
       completedCount={progress.completed.length}
       onRename={(name) => useProgress.getState().setStudentName(name)}
       onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)}
       onToggleDebug={() => useProgress.getState().setSetting('debug', !progress.settings.debug)}
-      onSplitRatio={(ratio) => useProgress.getState().setSetting('splitRatio', ratio)}
       onResetProgress={() => {
         useProgress.getState().resetProgress();
         navigate({ name: 'landing' });

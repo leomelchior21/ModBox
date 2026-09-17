@@ -19,7 +19,6 @@ import { languageById } from '../../interpreter/core/adapter';
 import { codeKey, fileNameForLanguage, localizeLanguageCopy, localizeMission, localizeMod, localizeTool } from '../../interpreter/languageSyntax';
 import { summarize } from '../../interpreter/core/summarize';
 import { MODS, MOD_BY_ID } from '../../interpreter/core/mods';
-import { ResizeHandle } from '../../components/ResizeHandle';
 import {
   MISSIONS,
   getMission,
@@ -422,7 +421,7 @@ export function LabScreen({
       />
 
 
-      <div className="lab__body" style={{ ['--split' as string]: `${Math.round(progress.settings.splitRatio * 100)}%` }}>
+      <div className="lab__body">
         <section id="code-panel" className="lab__left" aria-label="Code and mission">
           <div className="lab__editorZone">
             <div className={`lab__editor ${editorCoach ? 'lab__editor--coaching' : ''}`}>
@@ -447,7 +446,6 @@ export function LabScreen({
             <ModStrip mods={unlockedModList} tools={codeTools} activeTargetId={guidance.targetId} totalMods={MODS.length} collapsed={modStripCollapsed} onToggleCollapsed={() => setModStripCollapsed(v => !v)} onInsert={handleInsertCode} onOpenLibrary={() => setLibraryOpen(true)} coach={libraryCoach} onDismissCoach={() => setDismissedCoachKey(coachKey)} language={language} />
           </div>
         </section>
-        <ResizeHandle ratio={progress.settings.splitRatio} onChange={ratio => useProgress.getState().setSetting('splitRatio', ratio)} />
         <section id="flight-panel" className="lab__right" aria-label="Vector Zero game">
           <div className="lab__stageHost" ref={stageRef}>
             <div className="stage-frame">
@@ -467,11 +465,10 @@ export function LabScreen({
         </div>
       </div>
       {orderOpen ? <CodeOrder code={code} onClose={() => { setOrderOpen(false); focusEditor(); }} onChange={next => { const view = editorViewRef.current; if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } }); }} /> : null}
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} splitRatio={progress.settings.splitRatio} bestScore={progress.bestScore} completedCount={progress.completed.length}
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} bestScore={progress.bestScore} completedCount={progress.completed.length}
         onRename={name => useProgress.getState().setStudentName(name)}
         onToggleSound={() => { const next = !progress.settings.sound; useProgress.getState().setSetting('sound', next); engineRef.current?.setSound(next); }}
         onToggleDebug={() => useProgress.getState().setSetting('debug', !progress.settings.debug)}
-        onSplitRatio={ratio => useProgress.getState().setSetting('splitRatio', ratio)}
         onResetProgress={() => { useProgress.getState().resetProgress(); navigate({ name: 'landing' }); }} />
       <DebugPanel open={debugVisible} onClose={() => useProgress.getState().setSetting('debug', false)} engine={engineRef.current} mission={mission} program={program} config={liveConfig} unlocked={unlocked} editorFocused={editorFocused} />
       {gameBooting ? <VhsBoot mode="game" title={mission.code} /> : null}
