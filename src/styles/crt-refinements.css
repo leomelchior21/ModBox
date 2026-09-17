@@ -40,7 +40,7 @@
 .joystick:active { cursor:grabbing; }.joystick > span:not(.joystick__stick) { position:absolute; font-size:16px; color:#d5edc1; }.joystick__north { top:6%; left:43%; }.joystick__south { bottom:6%; left:43%; }.joystick__west { left:7%; top:40%; }.joystick__east { right:7%; top:40%; }
 .joystick__stick { position:absolute; inset:29%; border-radius:50%; border:1px solid #dcf7c9; background:radial-gradient(circle at 35% 27%,#709268,#29432a 34%,#102611 66%,#020b05); box-shadow:5px 9px 8px #000c,inset 1px 2px 4px #e4ffd86b,0 0 9px #caffae33; transform:translate(var(--stick-x,0px),var(--stick-y,0px)); pointer-events:none; }
 .home.crt-cabinet { display:flex; flex-direction:column; }
-.home .home__wordmark { width:80%; max-width:440px; }.home__hero h1 { font-size:clamp(12px,1.45vw,21px); margin-top:14px; }
+.home__heroCopy { width:64%; }.home .home__wordmark { width:175%; max-width:1120px; }.home__hero h1 { font-size:clamp(12px,1.45vw,21px); margin-top:14px; }
 .home__hero { flex:1 1 0; min-height:100px; }.home__nav,.home__games,.home__languages { flex-shrink:0; }.home__demo,.home__resume,.home__footer,.home__player { display:none !important; }
 .home__sectionHead h2 button { display:flex; align-items:center; gap:13px; color:inherit; font:inherit; border:0; background:none; }
 .home__languageSoon { background:transparent; color:inherit; border:0; text-align:left; }
@@ -65,7 +65,7 @@
  .lab__console .joystick { width:66px; }.joystick > span:not(.joystick__stick) { font-size:10px; }
  .lab--touch .lab__console { grid-template-columns:66px minmax(0,1fr) 48px; gap:9px; flex-basis:106px; }
  .lab--touch .mission { flex-direction:column; align-items:stretch; gap:3px; }.lab--touch .mission__actions { flex-direction:row; flex-wrap:wrap; justify-content:flex-end; gap:3px; }.lab--touch .mission__help { font-size:6px; }.lab--touch .mission__next { min-height:23px; font-size:7px; padding:3px; }
- .home__nav { min-height:43px; gap:12px; }.home__brand .logo { width:123px; }.home__nav nav { gap:12px; }.home__nav button { font-size:11px; gap:6px; }.home__nav svg { width:18px; }.home__heroCopy { width:100%; }.home .home__wordmark { max-width:240px; width:72%; }.home__hero h1 { font-size:11px; margin-top:8px; }.home__heroArt { opacity:.65; }
+ .home__nav { min-height:43px; gap:12px; }.home__brand .logo { width:123px; }.home__nav nav { gap:12px; }.home__nav button { font-size:11px; gap:6px; }.home__nav svg { width:18px; }.home__heroCopy { width:100%; }.home .home__wordmark { max-width:480px; width:100%; }.home__hero h1 { font-size:11px; margin-top:8px; }.home__heroArt { opacity:.65; }
  .home__games { padding:8px; }.home__sectionHead { margin-bottom:6px; }.home h2 { font-size:13px; gap:7px; }.home__gameGrid { gap:8px; }.home-game { height:clamp(86px,14.5dvh,140px); }.home-game h3 { font-size:12px; }.home-game__status { font-size:9px; }.home__languages { margin-top:10px; padding:8px; gap:8px; }.home__languages h2 { font-size:11px; }.home__languages button { min-height:30px; }.home__languages strong { font-size:14px; }.home__languages span { font-size:7px; }.home__languageSoon img { width:20px; height:20px; }
  .screen.arcade,.screen.languages { gap:12px; }.screen__top .logo { height:18px !important; }.screen__top .tag { display:none; }.arcade__sub { font-size:10px; }.arcade__browse { font-size:8px; }.arcade__browse > div { gap:7px; }.arcade__browse button { width:31px; height:31px; }.arcade .cabinet { flex-basis:87%; min-width:0; }.arcade .cabinet__body { padding:13px; }.arcade .cabinet__title { font-size:20px; }
  .mod-options[open] { inset:20% 6% auto auto; max-height:65dvh; padding:16px; }
@@ -75,7 +75,7 @@
  .lab .topbar { min-height:34px; padding-bottom:4px; }.lab .topbar__logo .logo { height:23px !important; }.console-button { min-height:28px; height:28px; }.topbar__more > summary { min-height:28px; }.console-button__icon { font-size:20px; }
  .lab:not(.lab--touch) .lab__briefing { min-height:46px; padding:6px 10px; }.lab:not(.lab--touch) .mission__badge { font-size:11px; }.lab:not(.lab--touch) .mission__action { font-size:10px; }
  .lab__console .joystick { width:70px; }.lab .modtile { padding:3px 20px 3px 12px; }.modtile__options { width:20px; height:20px; }.lab .modtile__name { font-size:8px; }.lab--touch .mission__actions { flex-direction:column; }
- .home__nav { min-height:36px; }.home__nav .logo { height:24px !important; }.home__hero { min-height:65px; }.home .home__wordmark { max-width:240px; }.home__hero h1 { font-size:10px; margin-top:0; }.home__games { padding:6px; }.home__sectionHead { margin-bottom:3px; }.home h2 { font-size:12px; }.home__sectionHead > button { min-height:20px; }.home__gameGrid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }.home-game { height:clamp(65px,20dvh,120px); }.home-game h3 { font-size:10px; }.home-game__status { font-size:7px; }.home__languages { margin-top:6px; padding:4px 8px; min-height:33px; }.home__languages strong { font-size:14px; }.home__languages span { font-size:7px; }.home__languages img { width:20px; height:20px; }
+ .home__nav { min-height:36px; }.home__nav .logo { height:24px !important; }.home__hero { min-height:65px; }.home .home__wordmark { max-width:480px; }.home__hero h1 { font-size:10px; margin-top:0; }.home__games { padding:6px; }.home__sectionHead { margin-bottom:3px; }.home h2 { font-size:12px; }.home__sectionHead > button { min-height:20px; }.home__gameGrid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }.home-game { height:clamp(65px,20dvh,120px); }.home-game h3 { font-size:10px; }.home-game__status { font-size:7px; }.home__languages { margin-top:6px; padding:4px 8px; min-height:33px; }.home__languages strong { font-size:14px; }.home__languages span { font-size:7px; }.home__languages img { width:20px; height:20px; }
  .arcade__intro { padding:0; }.arcade__title { font-size:25px; }.arcade__sub,.arcade__meta { display:none; }.arcade__browse { font-size:9px; }.arcade__browse button { height:27px; }.arcade .cabinet { flex-basis:42%; min-width:220px; }.arcade .cabinet__body { padding:9px; }.arcade .cabinet__genre { display:none; }.arcade .cabinet__title { font-size:17px; }.arcade .cabinet__art { min-height:45px; }.arcade .cabinet__actions { margin-top:5px; }.arcade .cabinet__actions button { min-height:28px; padding:5px; font-size:9px; }
 }
 @media(forced-colors:active) { .crt-cabinet > *,.lab__left,.lab .stage-frame,.lab__briefing { filter:none; } }
@@ -532,4 +532,56 @@
 
 @media(prefers-reduced-motion:reduce) {
   .lab .coach-bubble,.lab .editor-scroll-cue,.lab .cm-modbox-addedLine { animation:none; }
+}
+
+/* Final flight header: progress and game identity lead, the MODBOX mark owns
+   the center, and flight controls stay anchored at the right edge. */
+.lab .topbar {
+  display:grid;
+  grid-template-columns:minmax(270px,1fr) auto minmax(270px,1fr);
+  align-items:center;
+  min-height:68px;
+  padding-block:4px 7px;
+}
+.lab .topbar__left { grid-column:1; display:flex; flex:0 1 auto; align-items:center; gap:16px; }
+.lab .topbar__progress { flex:0 1 190px; min-width:120px; }
+.lab .topbar__progress label { display:block; margin-bottom:3px; color:#e0ebce; font:700 8px/1 var(--font-mono); white-space:nowrap; }
+.lab .topbar__progress > div { display:flex; align-items:center; gap:9px; }
+.lab .topbar__progress progress { appearance:none; width:100%; height:10px; padding:1px; overflow:hidden; border:1px solid #bbd2a9; border-radius:12px; background:#06170b; box-shadow:0 0 8px #caffad20; }
+.lab .topbar__progress progress::-webkit-progress-bar { border-radius:10px; background:#06170b; }
+.lab .topbar__progress progress::-webkit-progress-value { border-radius:10px; background:linear-gradient(#efffe2,#c2e2aa); box-shadow:0 0 10px #e2ffc9; }
+.lab .topbar__progress progress::-moz-progress-bar { border-radius:10px; background:#ddf9ca; }
+.lab .topbar__progress span { color:#e4f6d4; font:800 13px/1 var(--font-mono); white-space:nowrap; }
+.lab .topbar__game { flex:0 1 auto; }
+.lab .topbar__center { grid-column:2; display:flex; width:auto; min-height:0; padding:0; justify-self:center; }
+.lab .topbar__logo .logo { height:60px !important; }
+.lab .topbar__right { grid-column:3; justify-self:end; flex:0 0 auto; }
+
+/* Coach prompts must beat the CRT glass, dialogs, and every panel stack. */
+.lab .coach-bubble,
+.lab .coach-bubble-anchor,
+.lab .coach-portal { z-index:2147483000 !important; }
+.lab .lab__left:has(.coach-bubble),
+.lab .stage-frame:has(.coach-bubble),
+.lab .lab__briefing:has(.coach-bubble) { position:relative; z-index:2147482999; }
+
+@media(max-width:900px) {
+  .lab .topbar { grid-template-columns:minmax(170px,1fr) auto minmax(170px,1fr); gap:7px; min-height:56px; }
+  .lab .topbar__left { gap:7px; }
+  .lab .topbar__progress { flex-basis:125px; min-width:88px; }
+  .lab .topbar__progress label { font-size:6px; }
+  .lab .topbar__progress span { font-size:10px; }
+  .lab .topbar__game { padding-left:7px; }
+  .lab .topbar__logo .logo { height:44px !important; }
+}
+@media(max-width:600px) and (orientation:portrait) {
+  .lab .topbar { grid-template-columns:1fr auto; grid-template-rows:auto auto; min-height:0; }
+  .lab .topbar__left { grid-column:1; grid-row:1; }
+  .lab .topbar__center { grid-column:2; grid-row:1; }
+  .lab .topbar__logo .logo { height:34px !important; }
+  .lab .topbar__right { grid-column:1 / -1; grid-row:2; justify-self:stretch; }
+}
+@media(max-height:650px) and (orientation:landscape) {
+  .lab .topbar { min-height:45px; }
+  .lab .topbar__logo .logo { height:38px !important; }
 }

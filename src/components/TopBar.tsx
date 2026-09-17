@@ -40,22 +40,21 @@ export function TopBar({
   return (
     <header className="topbar">
       <div className="topbar__left">
-        <button className="topbar__logo" onClick={onHome} aria-label="MODBOX home">
-          <Logo height={40} />
-        </button>
-        <span className="topbar__motto">CODE<br />LEARN<br />PLAY</span>
+        <div className="topbar__progress">
+          <label htmlFor="mission-progress">MISSION PROGRESS</label>
+          <div>
+            <progress id="mission-progress" max={learning.length} value={done} />
+            <span>{done}/{learning.length}</span>
+          </div>
+        </div>
         <span className="topbar__game">
           <small>NOW PLAYING</small>
           <strong>{gameName}</strong>
         </span>
       </div>
-      <div className="topbar__center">
-        <label htmlFor="mission-progress">MISSION PROGRESS</label>
-        <div>
-          <progress id="mission-progress" max={learning.length} value={done} />
-          <span>{done}/{learning.length}</span>
-        </div>
-      </div>
+      <button className="topbar__logo topbar__center" onClick={onHome} aria-label="MODBOX home">
+        <Logo height={60} />
+      </button>
       <div className="topbar__right">
         <button className="console-button" onClick={onRestart} aria-label="Restart flight">
           <span className="console-button__icon">⟳</span>
