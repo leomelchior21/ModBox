@@ -291,6 +291,7 @@ export function CodeEditor({
           errorLineDecorations,
           addedLineDecoration,
           modDropZone,
+          EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             autocapitalize: 'off',
             autocorrect: 'off',

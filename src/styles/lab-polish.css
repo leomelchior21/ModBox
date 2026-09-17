@@ -24,8 +24,9 @@
 .topbar__more > div { position:absolute; top:100%; right:0; display:grid; width:180px; border:1px solid #accc96; border-radius:8px; background:#0a2010; padding:6px; box-shadow:0 8px 30px #000a; }
 .topbar__more button { background:transparent; border:0; text-align:left; padding:10px; cursor:pointer; font-size:12px; border-radius:4px; }
 .topbar__more button:hover { background:#254128; }
-.lab__body { flex:1 1 0; min-height:0; min-width:0; padding:0; grid-template-columns:minmax(0,var(--split,42%)) 12px minmax(0,1fr); }
-.lab__left,.lab__right { border:0; min-height:0; min-width:0; background:transparent; }
+.lab__body { flex:1 1 0; min-height:0; min-width:0; padding:0; grid-template-columns:minmax(0,var(--split,42%)) 12px minmax(0,1fr); overflow:hidden; }
+.lab__left,.lab__right { width:100%; max-width:100%; border:0; min-height:0; min-width:0; background:transparent; }
+.lab__right { overflow:hidden; }
 .lab__editorZone { height:100%; padding:0; display:grid; grid-template-rows:minmax(0,1fr) auto auto; gap:9px; overflow:visible; }
 .lab__editor { min-height:0; border:1px solid var(--panel-line); border-radius:9px; box-shadow:var(--panel-glow); background:#06160a; }
 .lab__editorHead { min-height:40px; padding:6px 12px; background:linear-gradient(#192e17aa,#081908); border-color:#91ae7b; }
@@ -34,8 +35,7 @@
 .lab__autosave { color:#deebd3; font:12px var(--font-body); letter-spacing:0; gap:9px; }
 .lab__autosave b { color:#183017; background:#e4f5d6; border-radius:4px; padding:1px 5px; font-size:14px; }
 .lab__editor .cm-editor { font-size:clamp(13px,1.35vw,19px); }
-.lab__editor .cm-scroller { min-height:0; line-height:1.55; padding:10px 0 14px; overflow:auto; }
-.lab__editor .cm-content { width:max-content; min-width:100%; }
+.lab__editor .cm-scroller { min-height:0; line-height:1.55; padding:10px 0 14px; overflow-x:hidden; overflow-y:auto; }
 .lab .split-handle { position:relative; border:0; background:linear-gradient(90deg,transparent calc(50% - .5px),#8aaa78 calc(50% - .5px),#8aaa78 calc(50% + .5px),transparent calc(50% + .5px)); cursor:col-resize; touch-action:none; }
 .lab .split-handle__grip { width:4px; height:64px; border:1px solid #b8d6a5; border-radius:99px; background:#19311f; box-shadow:0 0 9px #b8ff9066; }
 .lab__stageHost { padding:0; overflow:hidden; border-radius:11px; }
