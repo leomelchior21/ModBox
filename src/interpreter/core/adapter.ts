@@ -44,6 +44,24 @@ export interface LanguageAdapter {
 
 export const LANGUAGES: LanguageMeta[] = [
   {
+    id: 'python',
+    label: 'Python',
+    short: 'PY',
+    status: 'play',
+    blurb: 'Fly with Python',
+    detail: 'Clean syntax, meaningful indentation, and the full Vector Zero campaign.',
+    support: 1,
+  },
+  {
+    id: 'swift',
+    label: 'Swift',
+    short: 'SW',
+    status: 'play',
+    blurb: 'Launch with Swift',
+    detail: 'Type-safe variables and rules with native Swift syntax.',
+    support: 1,
+  },
+  {
     id: 'csharp',
     label: 'C#',
     short: 'C#',
@@ -51,24 +69,6 @@ export const LANGUAGES: LanguageMeta[] = [
     blurb: 'Ship it in C#',
     detail: 'Variables, booleans and rules — the full Vector Zero campaign.',
     support: 1,
-  },
-  {
-    id: 'python',
-    label: 'Python',
-    short: 'PY',
-    status: 'coming-soon',
-    blurb: 'Python adapter',
-    detail: 'Same arcade, same Mods — indentation instead of braces.',
-    support: 0,
-  },
-  {
-    id: 'swift',
-    label: 'Swift',
-    short: 'SW',
-    status: 'coming-soon',
-    blurb: 'Swift adapter',
-    detail: 'Build the arcade on Apple platforms, in Swift.',
-    support: 0,
   },
 ];
 

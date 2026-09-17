@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { clearPersisted, loadPersisted, savePersisted, type PersistedState } from './storage';
+import type { LanguageId } from '../interpreter/core/adapter';
 
 /* ============================================================================
    MODBOX — PROGRESS STORE
@@ -15,6 +16,7 @@ export interface Settings {
 interface ProgressState {
   studentName: string;
   currentMissionId: string;
+  activeLanguage: LanguageId;
   completed: string[];
   freeModeUnlocked: boolean;
   bestScore: number;
@@ -23,6 +25,7 @@ interface ProgressState {
 
   setStudentName: (name: string) => void;
   setMission: (missionId: string) => void;
+  setLanguage: (language: LanguageId) => void;
   completeMission: (missionId: string, discoverFreeMode?: boolean) => void;
   setCode: (missionId: string, code: string) => void;
   setBestScore: (score: number) => void;
@@ -35,6 +38,7 @@ const initial = loadPersisted();
 export const useProgress = create<ProgressState>()((set, get) => ({
   studentName: initial.studentName,
   currentMissionId: initial.currentMissionId,
+  activeLanguage: initial.activeLanguage,
   completed: initial.completed,
   freeModeUnlocked: initial.freeModeUnlocked,
   bestScore: initial.bestScore,
@@ -46,6 +50,8 @@ export const useProgress = create<ProgressState>()((set, get) => ({
   setMission: (currentMissionId) => {
     set({ currentMissionId, codes: { ...get().codes } });
   },
+
+  setLanguage: (activeLanguage) => set({ activeLanguage }),
 
   completeMission: (missionId, discoverFreeMode = false) => {
     const completed = get().completed.includes(missionId)
@@ -73,6 +79,7 @@ function initialReset(): Partial<ProgressState> {
   return {
     studentName: '',
     currentMissionId: 'm00',
+    activeLanguage: 'csharp',
     completed: [],
     freeModeUnlocked: false,
     bestScore: 0,
@@ -86,6 +93,7 @@ function toPersisted(state: ProgressState): PersistedState {
     version: 1,
     studentName: state.studentName,
     currentMissionId: state.currentMissionId,
+    activeLanguage: state.activeLanguage,
     completed: state.completed,
     bestScore: state.bestScore,
     codes: state.codes,

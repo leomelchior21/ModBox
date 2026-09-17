@@ -7,6 +7,8 @@ import type { ModDefinition } from '../interpreter/core/mods';
 import type { CodeToolDefinition, CopilotTargetId } from '../learning/copilot';
 import { modGlyph } from './modGlyph';
 import { CoachBubble } from './CoachBubble';
+import type { LanguageId } from '../interpreter/core/adapter';
+import { typeLabelForLanguage } from '../interpreter/languageSyntax';
 
 /* ============================================================================
    MODBOX — MOD DOCK (compact library)
@@ -25,6 +27,7 @@ export function ModStrip({
   onOpenLibrary,
   coach,
   onDismissCoach,
+  language,
 }: {
   mods: ModDefinition[];
   tools: CodeToolDefinition[];
@@ -36,6 +39,7 @@ export function ModStrip({
   onOpenLibrary: () => void;
   coach?: { message: string; hint?: string };
   onDismissCoach?: () => void;
+  language: LanguageId;
 }): JSX.Element {
   const [options, setOptions] = useState<{ mod: ModDefinition; anchor: HTMLElement } | null>(null);
   const drag = useTouchModDrag(onInsert);
@@ -132,7 +136,7 @@ export function ModStrip({
                   <span className="modtile__grip" aria-hidden="true">⠿</span>
                   <span className={`modtile__icon modtile__icon--${mod.type}`} aria-hidden="true">{modGlyph(mod)}</span>
                   <span className="modtile__name mono">{mod.name}</span>
-                  <span className={`tag tag--${mod.type}`}>{mod.type}</span>
+                  <span className={`tag tag--${mod.type}`}>{typeLabelForLanguage(mod.type, language)}</span>
                   <span className="modtile__effect">{mod.blurb}</span>
                   <span className="modtile__insert">DRAG TO CODE</span>
                 </button>
@@ -195,6 +199,7 @@ export function ModStrip({
             setOptions(null);
             onInsert(snippet, mode);
           }}
+          language={language}
         />
       ) : null}
       {drag.ghost}

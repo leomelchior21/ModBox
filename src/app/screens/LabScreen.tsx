@@ -13,7 +13,9 @@ import { DebugPanel } from '../../components/DebugPanel';
 import { GameStage, TouchControls } from '../../components/GameStage';
 import { CodeEditor, applyModToEditor } from '../../editor/CodeEditor';
 import type { ModInsertMode } from '../../editor/modEditing';
-import { csharpAdapter } from '../../interpreter/csharp';
+import { requireAdapter } from '../../interpreter/adapters';
+import { languageById } from '../../interpreter/core/adapter';
+import { codeKey, fileNameForLanguage, localizeLanguageCopy, localizeMission, localizeMod, localizeTool } from '../../interpreter/languageSyntax';
 import { summarize } from '../../interpreter/core/summarize';
 import { MODS, MOD_BY_ID } from '../../interpreter/core/mods';
 import { ResizeHandle } from '../../components/ResizeHandle';
@@ -77,9 +79,11 @@ export function LabScreen({
   debugFlag: boolean;
 }): JSX.Element {
   const progress = useProgress();
+  const language = progress.activeLanguage;
+  const adapter = useMemo(() => requireAdapter(language), [language]);
   const mission = useMemo(
-    () => getMission(missionId ?? progress.currentMissionId),
-    [missionId, progress.currentMissionId],
+    () => localizeMission(getMission(missionId ?? progress.currentMissionId), language),
+    [missionId, progress.currentMissionId, language],
   );
 
   const engineRef = useRef<VectorZeroEngine | null>(null);
@@ -113,7 +117,7 @@ export function LabScreen({
   /* ------------------------------------------------------------ live parsing */
 
   const debouncedCode = useDebouncedValue(code, 380);
-  const program = useMemo(() => csharpAdapter.parse(debouncedCode), [debouncedCode]);
+  const program = useMemo(() => adapter.parse(debouncedCode), [adapter, debouncedCode]);
   const summary = useMemo(() => summarize(program), [program]);
   const diagnostic = program.diagnostics.find((entry) => entry.severity === 'error');
 
@@ -130,8 +134,8 @@ export function LabScreen({
       if (aCurrent >= 0) return -1;
       if (bCurrent >= 0) return 1;
       return b.unlockAt - a.unlockAt;
-    }),
-    [mission.unlocks, unlocked],
+    }).map((mod) => localizeMod(mod, language)),
+    [mission.unlocks, unlocked, language],
   );
 
   const filtered = useMemo(
@@ -203,24 +207,25 @@ export function LabScreen({
   useEffect(() => {
     const store = useProgress.getState();
     if (store.currentMissionId !== mission.id) store.setMission(mission.id);
-    const existing = store.codes[mission.id];
+    const key = codeKey(language, mission.id);
+    const existing = store.codes[key] ?? (language === 'csharp' ? store.codes[mission.id] : undefined);
     if (existing !== undefined) {
       setCode(existing);
       return;
     }
     const previous = previousMission(mission.id);
-    const previousCode = previous ? (store.codes[previous.id] ?? '') : '';
+    const previousCode = previous ? (store.codes[codeKey(language, previous.id)] ?? (language === 'csharp' ? store.codes[previous.id] ?? '' : '')) : '';
     const seeded = seedMissionCode(previousCode, mission);
     setCode(seeded);
-    store.setCode(mission.id, seeded);
-  }, [mission]);
+    store.setCode(key, seeded);
+  }, [mission, language]);
 
   // 3. always remember the student's code
   useEffect(() => {
     if (!code) return;
-    const timer = window.setTimeout(() => useProgress.getState().setCode(mission.id, code), 500);
+    const timer = window.setTimeout(() => useProgress.getState().setCode(codeKey(language, mission.id), code), 500);
     return () => window.clearTimeout(timer);
-  }, [code, mission.id]);
+  }, [code, mission.id, language]);
 
   // 4. push every parse result into the living game
   useEffect(() => {
@@ -269,10 +274,13 @@ export function LabScreen({
     [mission, validationContext],
   );
   const guidance = useMemo(
-    () => copilotStep(mission, validationContext, validation),
-    [mission, validationContext, validation],
+    () => {
+      const step = copilotStep(mission, validationContext, validation);
+      return { ...step, message: localizeLanguageCopy(step.message, language), hint: step.hint ? localizeLanguageCopy(step.hint, language) : undefined };
+    },
+    [mission, validationContext, validation, language],
   );
-  const codeTools = useMemo(() => codeToolsForMission(mission), [mission]);
+  const codeTools = useMemo(() => codeToolsForMission(mission).map((tool) => localizeTool(tool, language)), [mission, language]);
 
   const missionComplete = mission.requirements.length > 0 && validation.passed;
   const missionPassed = missionComplete || progress.completed.includes(mission.id);
@@ -341,9 +349,9 @@ export function LabScreen({
   const handleResetCode = useCallback(() => {
     const store = useProgress.getState();
     const previous = previousMission(mission.id);
-    const previousCode = previous ? (store.codes[previous.id] ?? '') : '';
+    const previousCode = previous ? (store.codes[codeKey(language, previous.id)] ?? (language === 'csharp' ? store.codes[previous.id] ?? '' : '')) : '';
     setCode(seedMissionCode(previousCode, mission));
-  }, [mission]);
+  }, [mission, language]);
 
   const handleBack = useCallback(() => {
     const previous = previousMission(mission.id);
@@ -379,10 +387,10 @@ export function LabScreen({
 
 
   const handleInsertCode = useCallback((snippet: string, mode: ModInsertMode = 'replace') => {
-    requestAnimationFrame(() => applyModToEditor(editorViewRef.current, snippet, mode));
-  }, []);
+    requestAnimationFrame(() => applyModToEditor(editorViewRef.current, snippet, mode, language));
+  }, [language]);
 
-  const pipeline = `C# · VECTOR ZERO · ${mission.code}`;
+  const pipeline = `${languageById(language).label.toUpperCase()} · VECTOR ZERO · ${mission.code}`;
 
   /* -------------------------------------------------------------------- view */
 
@@ -416,8 +424,8 @@ export function LabScreen({
           <div className="lab__editorZone">
             <div className={`lab__editor ${editorCoach ? 'lab__editor--coaching' : ''}`}>
               <div className="lab__editorHead">
-                <span className="lab__filename mono">main.cs</span>
-                <button className="lab__arrange" onClick={() => setOrderOpen(true)} title="Reorder whole code blocks">⠿ Arrange</button>
+                <span className="lab__filename mono">{fileNameForLanguage(language)}</span>
+                {language === 'csharp' ? <button className="lab__arrange" onClick={() => setOrderOpen(true)} title="Reorder whole code blocks">⠿ Arrange</button> : null}
                 <span className="lab__autosave">Auto-save <b>ON</b></span>
               </div>
               <CodeEditor
@@ -428,10 +436,12 @@ export function LabScreen({
                 onViewReady={view => { editorViewRef.current = view; }}
                 coach={editorCoach}
                 onDismissCoach={() => setDismissedCoachKey(coachKey)}
+                language={language}
+                ariaLabel={`${languageById(language).label} code editor`}
               />
             </div>
             <FeedbackPanel status={status} diagnostic={diagnostic} ruleCount={program.rules.length} guidance={guidance} />
-            <ModStrip mods={unlockedModList} tools={codeTools} activeTargetId={guidance.targetId} totalMods={MODS.length} collapsed={modStripCollapsed} onToggleCollapsed={() => setModStripCollapsed(v => !v)} onInsert={handleInsertCode} onOpenLibrary={() => setLibraryOpen(true)} coach={libraryCoach} onDismissCoach={() => setDismissedCoachKey(coachKey)} />
+            <ModStrip mods={unlockedModList} tools={codeTools} activeTargetId={guidance.targetId} totalMods={MODS.length} collapsed={modStripCollapsed} onToggleCollapsed={() => setModStripCollapsed(v => !v)} onInsert={handleInsertCode} onOpenLibrary={() => setLibraryOpen(true)} coach={libraryCoach} onDismissCoach={() => setDismissedCoachKey(coachKey)} language={language} />
           </div>
         </section>
         <ResizeHandle ratio={progress.settings.splitRatio} onChange={ratio => useProgress.getState().setSetting('splitRatio', ratio)} />
@@ -440,7 +450,7 @@ export function LabScreen({
             <div className="stage-frame">
               <GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={false} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} missionName={mission.kind === 'sandbox' ? mission.code : `MISSION ${String(mission.order).padStart(2, '0')} · ${mission.code}`} coach={coach && !guidance.targetId && !missionComplete ? { ...coach, onDismiss: () => setDismissedCoachKey(coachKey) } : undefined} />
             </div>
-            <ModLibrary open={libraryOpen} onClose={() => { setLibraryOpen(false); focusEditor(); }} unlocked={unlockedModList} totalMods={MODS.length} onInsert={(snippet, mode) => { setLibraryOpen(false); handleInsertCode(snippet, mode); }} />
+            <ModLibrary open={libraryOpen} onClose={() => { setLibraryOpen(false); focusEditor(); }} unlocked={unlockedModList} totalMods={MODS.length} onInsert={(snippet, mode) => { setLibraryOpen(false); handleInsertCode(snippet, mode); }} language={language} />
             {unlockTokens.length ? <UnlockBurst tokens={unlockTokens} onDone={() => setUnlockTokens([])} /> : null}
           </div>
         </section>

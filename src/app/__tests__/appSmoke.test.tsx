@@ -126,15 +126,16 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('canvas')).toBeTruthy();
   });
 
-  it('renders the language screen with upcoming adapters', async () => {
+  it('renders Python, Swift, and C# as playable languages in the right order', async () => {
     window.location.hash = '#/languages';
     const { host, root } = mount();
     await act(async () => {
       root.render(<App />);
     });
     await flush();
-    expect(host.textContent).toContain('Python');
-    expect(host.textContent).toContain('COMING SOON');
+    const cards = [...host.querySelectorAll('.langcard')];
+    expect(cards.map((card) => card.querySelector('h2')?.textContent)).toEqual(['Python', 'Swift', 'C#']);
+    expect(cards.every((card) => card.textContent?.includes('ENTER THE ARCADE'))).toBe(true);
   });
 
   it('renders the arcade with VECTOR ZERO and locked future cabinets', async () => {

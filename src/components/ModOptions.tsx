@@ -9,15 +9,18 @@ import {
   type ModInsertMode,
 } from '../editor/modEditing';
 import { useTouchModDrag } from './useTouchModDrag';
+import type { LanguageId } from '../interpreter/core/adapter';
+import { formatCodeForLanguage, typeLabelForLanguage } from '../interpreter/languageSyntax';
 
 interface ModOptionsProps {
   mod: ModDefinition;
   anchor: HTMLElement;
   onClose: () => void;
   onInsert: (code: string, mode?: ModInsertMode) => void;
+  language: LanguageId;
 }
 
-export function ModOptions({ mod, anchor, onClose, onInsert }: ModOptionsProps): JSX.Element {
+export function ModOptions({ mod, anchor, onClose, onInsert, language }: ModOptionsProps): JSX.Element {
   const dialog = useRef<HTMLDialogElement>(null);
   const onCloseRef = useRef(onClose);
   const drag = useTouchModDrag(onInsert);
@@ -33,8 +36,10 @@ export function ModOptions({ mod, anchor, onClose, onInsert }: ModOptionsProps):
       : mod.type === 'int'
         ? [...new Set([limit?.min ?? 1, 3, limit?.max ?? 10])].map(String)
         : ["Brian's ship", 'Voyager', 'Apollo']);
-  const snippet = (nextValue: string) =>
-    `${mod.type} ${mod.name} = ${mod.type === 'string' ? JSON.stringify(nextValue) : nextValue};`;
+  const snippet = (nextValue: string) => formatCodeForLanguage(
+    `${mod.type} ${mod.name} = ${mod.type === 'string' ? JSON.stringify(nextValue) : nextValue};`,
+    language,
+  );
 
   useLayoutEffect(() => {
     const node = dialog.current;
@@ -97,7 +102,7 @@ export function ModOptions({ mod, anchor, onClose, onInsert }: ModOptionsProps):
     >
       <header>
         <div>
-          <span className="mod-options__type">{mod.type}</span>
+          <span className="mod-options__type">{typeLabelForLanguage(mod.type, language)}</span>
           <h2>{mod.name}</h2>
         </div>
         <button type="button" onClick={onClose} aria-label="Close mod options">×</button>

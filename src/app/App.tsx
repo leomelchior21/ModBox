@@ -51,7 +51,7 @@ export function App(): JSX.Element {
       <>
         <Suspense fallback={<LoadingCabinet />}>
           <LabScreen
-            key={`${route.missionId ?? 'current'}-${route.debug ? 'debug' : 'clean'}`}
+            key={`${progress.activeLanguage}-${route.missionId ?? 'current'}-${route.debug ? 'debug' : 'clean'}`}
             missionId={route.missionId}
             debugFlag={route.debug}
           />
@@ -96,7 +96,10 @@ export function App(): JSX.Element {
     return (
       <>
         <LanguageScreen
-          onSelect={() => navigate({ name: 'arcade' })}
+          onSelect={(language) => {
+            useProgress.getState().setLanguage(language);
+            navigate({ name: 'arcade' });
+          }}
           onBack={() => navigate({ name: 'landing' })}
         />
         {settingsDialog}
@@ -138,6 +141,11 @@ export function App(): JSX.Element {
         onProfile={() => setSettingsOpen(true)}
         currentMission={currentMission}
         studentName={progress.studentName}
+        activeLanguage={progress.activeLanguage}
+        onLanguage={(language) => {
+          useProgress.getState().setLanguage(language);
+          navigate({ name: 'arcade' });
+        }}
       />
       {settingsDialog}
       {siteBooting ? <VhsBoot /> : null}

@@ -4,6 +4,8 @@ import { beginModDrag, endModDrag, MOD_DRAG_TYPE, type ModInsertMode } from '../
 import { useTouchModDrag } from './useTouchModDrag';
 import type { ModDefinition } from '../interpreter/core/mods';
 import { modGlyph } from './modGlyph';
+import type { LanguageId } from '../interpreter/core/adapter';
+import { typeLabelForLanguage } from '../interpreter/languageSyntax';
 
 /* ============================================================================
    MODBOX — MOD LIBRARY
@@ -18,12 +20,14 @@ export function ModLibrary({
   unlocked,
   totalMods,
   onInsert,
+  language,
 }: {
   open: boolean;
   onClose: () => void;
   unlocked: ModDefinition[];
   totalMods: number;
   onInsert: (code: string, mode?: ModInsertMode) => void;
+  language: LanguageId;
 }): JSX.Element | null {
   const locked = Math.max(0, totalMods - unlocked.length);
   const [options, setOptions] = useState<{ mod: ModDefinition; anchor: HTMLElement } | null>(null);
@@ -69,7 +73,7 @@ export function ModLibrary({
                 <h3 className="modcard__name">{mod.label}</h3>
                 <span className="modcard__var mono">{mod.name}</span>
               </div>
-              <span className={`tag tag--${mod.type}`}>{mod.type}</span>
+              <span className={`tag tag--${mod.type}`}>{typeLabelForLanguage(mod.type, language)}</span>
             </header>
             <p className="modcard__blurb">{mod.blurb}</p>
             <dl className="modcard__spec">
@@ -108,7 +112,7 @@ export function ModLibrary({
           </p>
         </div>
       </div>
-      {options ? <ModOptions mod={options.mod} anchor={options.anchor} onClose={() => setOptions(null)} onInsert={(snippet, mode) => { setOptions(null); onInsert(snippet, mode); }} /> : null}
+      {options ? <ModOptions mod={options.mod} anchor={options.anchor} onClose={() => setOptions(null)} onInsert={(snippet, mode) => { setOptions(null); onInsert(snippet, mode); }} language={language} /> : null}
       {drag.ghost}
     </aside>
   );

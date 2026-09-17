@@ -32,8 +32,13 @@ import {
 } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { csharpCompletions, csharpHighlighting, csharpLanguage } from './csharpLanguage';
+import { StreamLanguage } from '@codemirror/language';
+import { python } from '@codemirror/legacy-modes/mode/python';
+import { swift } from '@codemirror/legacy-modes/mode/swift';
+import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete';
+import type { LanguageId } from '../interpreter/core/adapter';
 import { modboxEditorTheme } from './theme';
-import { MOD_BY_ID } from '../interpreter/core/mods';
+import { MODS, MOD_BY_ID } from '../interpreter/core/mods';
 import type { ConfigKey } from '../interpreter/core/types';
 import type { CopilotTargetId } from '../learning/copilot';
 import { CoachBubble } from '../components/CoachBubble';
@@ -184,15 +189,35 @@ export interface CodeEditorProps {
   ariaLabel?: string;
   coach?: { key: string; message: string; hint?: string; targetId: CopilotTargetId };
   onDismissCoach?: () => void;
+  language?: LanguageId;
+}
+
+const pythonLanguage = StreamLanguage.define(python);
+const swiftLanguage = StreamLanguage.define(swift);
+
+function languageCompletions(language: LanguageId) {
+  if (language === 'csharp') return csharpCompletions;
+  const keywords = language === 'python'
+    ? ['if', 'True', 'False', 'print']
+    : ['var', 'let', 'String', 'Int', 'Bool', 'if', 'true', 'false', 'print'];
+  return (context: CompletionContext): CompletionResult | null => {
+    const word = context.matchBefore(/[A-Za-z_]\w*/);
+    if (!word || (word.from === word.to && !context.explicit)) return null;
+    return {
+      from: word.from,
+      options: [...keywords.map((label) => ({ label, type: label === 'print' ? 'function' : 'keyword' })), ...MODS.map((mod) => ({ label: mod.name, type: 'variable', detail: mod.blurb }))],
+      validFor: /^\w*$/,
+    };
+  };
 }
 
 function coachTargetPosition(view: EditorView, targetId: CopilotTargetId): number | null {
   const modName = MOD_BY_ID[targetId as ConfigKey]?.name;
   const patterns: Partial<Record<CopilotTargetId, RegExp>> = {
-    writeline: /\bConsole\.WriteLine\b/,
+    writeline: /\b(?:Console\.WriteLine|print)\b/,
     'power-math': /^\s*laserPower\s*=/,
-    'score-rule': /^\s*if\s*\([^\n]*\bscore\b/,
-    'health-rule': /^\s*if\s*\([^\n]*\bhealth\b/,
+    'score-rule': /^\s*if\s*\(?[^\n]*\bscore\b/,
+    'health-rule': /^\s*if\s*\(?[^\n]*\bhealth\b/,
   };
   const pattern = patterns[targetId] ?? (modName ? new RegExp(`\\b${modName}\\b`) : null);
   if (!pattern) return null;
@@ -212,6 +237,7 @@ export function CodeEditor({
   ariaLabel = 'C# code editor',
   coach,
   onDismissCoach,
+  language = 'csharp',
 }: CodeEditorProps): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -244,7 +270,7 @@ export function CodeEditor({
           indentUnit.of('    '),
           bracketMatching(),
           closeBrackets(),
-          autocompletion({ override: [csharpCompletions], activateOnTyping: true }),
+          autocompletion({ override: [languageCompletions(language)], activateOnTyping: true }),
           EditorState.tabSize.of(4),
           keymap.of([
             ...closeBracketsKeymap,
@@ -253,8 +279,7 @@ export function CodeEditor({
             ...completionKeymap,
             indentWithTab,
           ]),
-          // the same clike/csharp stream, registered once
-          csharpLanguage,
+          language === 'python' ? pythonLanguage : language === 'swift' ? swiftLanguage : csharpLanguage,
           csharpHighlighting,
           modboxEditorTheme,
           teachingTokenColors,
@@ -280,7 +305,7 @@ export function CodeEditor({
               const snippet = event.dataTransfer?.getData(MOD_DRAG_TYPE);
               if (!snippet) return false;
               event.preventDefault();
-              applyModToEditor(view, snippet, 'duplicate');
+              applyModToEditor(view, snippet, 'duplicate', language);
               endModDrag();
               return true;
             },
@@ -369,9 +394,39 @@ export function applyModToEditor(
   view: EditorView | null,
   snippet: string,
   mode: ModInsertMode = 'replace',
+  language: LanguageId = 'csharp',
 ): void {
   if (!view) return;
-  const next = placeMod(view.state.doc.toString(), snippet, mode);
+  const current = view.state.doc.toString();
+  let next: string;
+  if (language === 'csharp') {
+    next = placeMod(current, snippet, mode);
+  } else {
+    const name = language === 'swift'
+      ? snippet.match(/^\s*(?:var|let)\s+([A-Za-z_]\w*)/)?.[1]
+      : snippet.match(/^\s*([A-Za-z_]\w*)\s*=/)?.[1];
+    const declarationPattern = name
+      ? (language === 'swift'
+        ? new RegExp(`^\\s*(?:var|let)\\s+${name}\\b.*$`, 'm')
+        : new RegExp(`^\\s*${name}\\s*=.*$`, 'm'))
+      : null;
+    if (mode === 'replace' && declarationPattern?.test(current)) {
+      next = current.replace(declarationPattern, snippet.trim());
+    } else {
+      const trimmedSnippet = snippet.trim();
+      const isRule = /^if\b/.test(trimmedSnippet);
+      const isPrint = /^print\(/.test(trimmedSnippet);
+      const boundary = isRule ? null : isPrint ? /^\s*if\b/m : /^\s*(?:print\(|if\b)/m;
+      const match = boundary?.exec(current);
+      if (match?.index !== undefined) {
+        const before = current.slice(0, match.index).trimEnd();
+        const after = current.slice(match.index).trimStart();
+        next = `${before}${before ? '\n\n' : ''}${trimmedSnippet}\n\n${after}`;
+      } else {
+        next = `${current.trimEnd()}${current.trim() ? '\n\n' : ''}${trimmedSnippet}`;
+      }
+    }
+  }
   const addedAt = Math.max(0, next.lastIndexOf(snippet.trim()));
   view.dispatch({
     changes: { from: 0, to: view.state.doc.length, insert: next },

@@ -5,7 +5,7 @@ import type { LanguageId } from '../../interpreter/core/adapter';
 
 /* ============================================================================
    MODBOX — LANGUAGE SELECT
-   C# is live. Python and Swift are visibly planned, never broken (spec §3).
+   Every supported language enters the same game through its own adapter.
    ========================================================================== */
 
 export function LanguageScreen({
@@ -26,7 +26,7 @@ export function LanguageScreen({
         <span className="eyebrow">STEP 1 · PICK A LANGUAGE</span>
       </header>
 
-      <div className="languages__intro"><p className="eyebrow">CHOOSE YOUR TOOLKIT</p><h1>IT STARTS WITH A LINE OF CODE.</h1><p>Start with C#. Make a small change. See what happens.</p></div>
+      <div className="languages__intro"><p className="eyebrow">CHOOSE YOUR TOOLKIT</p><h1>IT STARTS WITH A LINE OF CODE.</h1><p>Choose a language. Make a small change. See what happens.</p></div>
       <div className="languages__grid">
         {LANGUAGES.map((language) => {
           const playable = language.status === 'play';
@@ -42,7 +42,7 @@ export function LanguageScreen({
                 </span>
               </div>
               <h2 className="langcard__title">{language.label}</h2>
-              <p className="langcard__blurb">{playable ? 'Your first flight starts here. Learn variables, switches, and rules across eight missions.' : language.id === 'python' ? 'Simple syntax. New possibilities. A new way to mod your favorite games is on its way.' : 'Big ideas, one line at a time. Another language for your arcade adventures is on its way.'}</p>
+              <p className="langcard__blurb">{language.detail}</p>
               <div className="langcard__meter" aria-hidden="true">
                 <span style={{ width: `${Math.round(language.support * 100)}%` }} />
               </div>

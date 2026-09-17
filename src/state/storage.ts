@@ -3,11 +3,14 @@
    No accounts, no backend: progress lives in localStorage (spec §22 / §31).
    ========================================================================== */
 
+import type { LanguageId } from '../interpreter/core/adapter';
+
 const KEY = 'modbox:v1';
 export interface PersistedState {
   version: 1;
   studentName: string;
   currentMissionId: string;
+  activeLanguage: LanguageId;
   completed: string[];
   bestScore: number;
   codes: Record<string, string>;
@@ -24,6 +27,7 @@ export const DEFAULT_PERSISTED: PersistedState = {
   version: 1,
   studentName: '',
   currentMissionId: 'm00',
+  activeLanguage: 'csharp',
   completed: [],
   bestScore: 0,
   codes: {},

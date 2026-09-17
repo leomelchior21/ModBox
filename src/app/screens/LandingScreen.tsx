@@ -5,6 +5,7 @@ import { Logo } from '../../brand/Logo';
 import { VectorZeroCover } from './ArcadeScreen';
 import { GameTeaser } from '../../components/GameTeaser';
 import type { Mission } from '../../learning/missions/types';
+import type { LanguageId } from '../../interpreter/core/adapter';
 
 function Icon({ code = false }: { code?: boolean }): JSX.Element {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">{code ? <path d="m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18" /> : <path d="M7 7h10l3 3 2 9-3 1-4-4H9l-4 4-3-1 2-9zm0 3v6m-3-3h6m5-2h2m1 3h2" />}</svg>;
@@ -16,9 +17,10 @@ const HERO_SLIDES = [
   { src: '/art/neon-maze-hero.png', title: 'NEON MAZE', alt: 'A glowing probe racing through a vast neon labyrinth' },
   { src: '/art/devil-floor-hero.png', title: 'DEVIL FLOOR', alt: 'An explorer jumping over a volcanic energy chasm' },
 ] as const;
-export function LandingScreen({ onEnter, onContinue, onPlay, onArcade, onProfile, hasProgress, bestScore, completedCount, currentMission, studentName }: {
+export function LandingScreen({ onEnter, onContinue, onPlay, onArcade, onProfile, onLanguage, hasProgress, bestScore, completedCount, currentMission, studentName, activeLanguage }: {
   onEnter: () => void; onContinue: () => void; onPlay: () => void; onArcade: () => void; onProfile: () => void;
-  hasProgress: boolean; bestScore: number; completedCount: number; currentMission: Mission; studentName: string;
+  onLanguage: (language: LanguageId) => void;
+  hasProgress: boolean; bestScore: number; completedCount: number; currentMission: Mission; studentName: string; activeLanguage: LanguageId;
 }): JSX.Element {
   const games = useRef<HTMLElement>(null);
   const learn = useRef<HTMLElement>(null);
@@ -67,9 +69,9 @@ export function LandingScreen({ onEnter, onContinue, onPlay, onArcade, onProfile
     </section>
     <section className="home__languages crt-panel" ref={learn} aria-label="Choose a language">
       <h2><Icon code /> LANGUAGES</h2>
-      <button className="home__languageLive" onClick={onArcade}><strong>C#</strong><span>GET STARTED</span><span className="home__check" aria-hidden="true">✓</span></button>
-      <button className="home__languageSoon" onClick={onArcade}><img src="/brand/python.svg" alt="" /><strong>Python</strong><span>COMING SOON</span></button>
-      <button className="home__languageSoon" onClick={onArcade}><img src="/brand/swift.svg" alt="" /><strong>Swift</strong><span>COMING SOON</span></button>
+      <button className={`home__languageChoice ${activeLanguage === 'python' ? 'home__languageChoice--active' : ''}`} onClick={() => onLanguage('python')}><img src="/brand/python.svg" alt="" /><strong>Python</strong><span>PLAY</span></button>
+      <button className={`home__languageChoice ${activeLanguage === 'swift' ? 'home__languageChoice--active' : ''}`} onClick={() => onLanguage('swift')}><img src="/brand/swift.svg" alt="" /><strong>Swift</strong><span>PLAY</span></button>
+      <button className={`home__languageChoice ${activeLanguage === 'csharp' ? 'home__languageChoice--active' : ''}`} onClick={() => onLanguage('csharp')}><strong>C#</strong><span>PLAY</span></button>
     </section>
     {hasProgress ? <aside className="home__resume"><span><span className="signal-dot" /> WELCOME BACK, PILOT</span><strong>MISSION {String(currentMission.order).padStart(2, '0')} · {currentMission.code}</strong><span>{completedCount} CLEARED / BEST {bestScore.toLocaleString()}</span><button onClick={onContinue}>RESUME →</button></aside> : null}
     <details className="home__demo"><summary><span>CURIOUS? <strong>MOD THE GAME. LEARN THE CODE.</strong></span><span>TRY A LIVE DEMO +</span></summary><LandingDemo /></details>

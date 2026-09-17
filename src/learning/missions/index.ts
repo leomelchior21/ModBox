@@ -1,6 +1,7 @@
 import type { ConfigKey } from '../../interpreter/core/types';
 import { MODS } from '../../interpreter/core/mods';
-import { parseCSharp } from '../../interpreter/csharp';
+import { requireAdapter } from '../../interpreter/adapters';
+import type { LanguageId } from '../../interpreter/core/adapter';
 import { summarize } from '../../interpreter/core/summarize';
 import { MISSIONS, FREE_MODE_MISSION } from './missions';
 import type { Mission } from './types';
@@ -73,9 +74,9 @@ export function modsDiscoveredBy(mission: Mission): ConfigKey[] {
   return mission.unlocks;
 }
 
-function presentKeys(code: string): Set<string> {
+function presentKeys(code: string, language: LanguageId): Set<string> {
   if (!code.trim()) return new Set();
-  return new Set(summarize(parseCSharp(code)).keys);
+  return new Set(summarize(requireAdapter(language).parse(code)).keys);
 }
 
 /**
@@ -83,13 +84,13 @@ function presentKeys(code: string): Set<string> {
  * only lines that do not already exist are added, and their values are never
  * overwritten.
  */
-export function mergeMissionCode(previousCode: string, mission: Mission): string {
+export function mergeMissionCode(previousCode: string, mission: Mission, language: LanguageId = 'csharp'): string {
   const base = (previousCode.trim().length ? previousCode : mission.starter).replace(/\s+$/, '');
   const hasContent = base.trim().length > 0;
 
   if (!mission.additions.length) return hasContent ? base : mission.starter.trimEnd();
 
-  const present = presentKeys(base);
+  const present = presentKeys(base, language);
   const missing = mission.additions.filter((addition) => !present.has(addition.key));
   if (!missing.length) return base;
 
