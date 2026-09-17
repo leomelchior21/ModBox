@@ -1,5 +1,5 @@
 import type { ConfigKey, VarType } from './types';
-import { ENEMY_KINDS, NUMERIC_LIMITS, WEAPON_KINDS } from './limits';
+import { BACKGROUND_COLORS, ENEMY_KINDS, NUMERIC_LIMITS, ROCK_SHAPES, SHIP_TYPES, WEAPON_KINDS } from './limits';
 
 /* ============================================================================
    MODBOX — MODS (the programmable controls of a game)
@@ -46,6 +46,36 @@ export const MODS: ModDefinition[] = [
     blurb: 'Name of your machine. Shows on the HUD and in the Flight Log.',
     example: 'string shipName = "Brian\'s ship";',
     unlockAt: 1,
+  },
+  {
+    id: 'shipType',
+    name: 'shipType',
+    type: 'string',
+    label: 'SHIP TYPE',
+    blurb: 'Changes the silhouette of your ship.',
+    example: 'string shipType = "scout";',
+    values: SHIP_TYPES,
+    unlockAt: 7,
+  },
+  {
+    id: 'backgroundColor',
+    name: 'backgroundColor',
+    type: 'string',
+    label: 'SPACE COLOR',
+    blurb: 'Recolors the whole flight sector.',
+    example: 'string backgroundColor = "purple";',
+    values: BACKGROUND_COLORS,
+    unlockAt: 7,
+  },
+  {
+    id: 'rockShape',
+    name: 'rockShape',
+    type: 'string',
+    label: 'ROCK SHAPE',
+    blurb: 'Changes every asteroid outline.',
+    example: 'string rockShape = "crystal";',
+    values: ROCK_SHAPES,
+    unlockAt: 7,
   },
   {
     id: 'enemyCount',

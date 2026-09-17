@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useTouchModDrag } from './useTouchModDrag';
 import { ModOptions } from './ModOptions';
 import { beginModDrag, endModDrag, MOD_DRAG_TYPE, type ModInsertMode } from '../editor/modEditing';
@@ -39,11 +40,37 @@ export function ModStrip({
   const [options, setOptions] = useState<{ mod: ModDefinition; anchor: HTMLElement } | null>(null);
   const drag = useTouchModDrag(onInsert);
   const guidedTileRef = useRef<HTMLDivElement | null>(null);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const stripRef = useRef<HTMLElement | null>(null);
+  const [coachAnchor, setCoachAnchor] = useState<{ left: number; top: number } | null>(null);
   const locked = Math.max(0, totalMods - mods.length);
 
   useEffect(() => {
-    guidedTileRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    const row = rowRef.current;
+    const tile = guidedTileRef.current;
+    if (!row || !tile) return;
+    const rowBox = row.getBoundingClientRect();
+    const tileBox = tile.getBoundingClientRect();
+    const left = row.scrollLeft + tileBox.left - rowBox.left - (rowBox.width - tileBox.width) / 2;
+    const target = Math.max(0, left);
+    if (typeof row.scrollTo === 'function') row.scrollTo({ left: target, behavior: 'smooth' });
+    else row.scrollLeft = target;
   }, [activeTargetId, collapsed]);
+
+  useLayoutEffect(() => {
+    if (!coach) {
+      setCoachAnchor(null);
+      return;
+    }
+    const sync = () => {
+      const box = stripRef.current?.getBoundingClientRect();
+      if (!box) return;
+      setCoachAnchor({ left: Math.min(box.right + 18, window.innerWidth - 300), top: box.top + 8 });
+    };
+    sync();
+    window.addEventListener('resize', sync);
+    return () => window.removeEventListener('resize', sync);
+  }, [coach?.message, collapsed]);
 
   const beginNativeDrag = (event: DragEvent<HTMLButtonElement>, snippet: string) => {
     beginModDrag(snippet);
@@ -53,7 +80,7 @@ export function ModStrip({
   };
 
   return (
-    <section className={`modstrip ${collapsed ? 'modstrip--collapsed' : ''} ${coach ? 'modstrip--coaching' : ''}`} aria-label="Mod Library">
+    <section ref={stripRef} className={`modstrip ${collapsed ? 'modstrip--collapsed' : ''} ${coach ? 'modstrip--coaching' : ''}`} aria-label="Mod Library">
       <header className="modstrip__head">
         <button
           type="button"
@@ -72,12 +99,15 @@ export function ModStrip({
         <button type="button" className="modstrip__all" onClick={onOpenLibrary}>All mods ▸</button>
       </header>
 
-      {coach && onDismissCoach ? (
-        <CoachBubble className="coach-bubble--mod" message={coach.message} hint={coach.hint} onDismiss={onDismissCoach} />
+      {coach && onDismissCoach && coachAnchor && typeof document !== 'undefined' ? createPortal(
+        <div className="coach-portal" style={coachAnchor}>
+          <CoachBubble className="coach-bubble--mod" message={coach.message} hint={coach.hint} onDismiss={onDismissCoach} />
+        </div>,
+        document.querySelector('.lab') ?? document.body,
       ) : null}
 
       {!collapsed ? (
-        <div className="modstrip__row">
+        <div className="modstrip__row" ref={rowRef}>
           {mods.map((mod) => {
             const guided = activeTargetId === mod.id;
             return (

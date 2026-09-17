@@ -129,6 +129,9 @@ export interface EngineCallbacks {
 
 export type ConfigChange =
   | 'shipName'
+  | 'shipType'
+  | 'backgroundColor'
+  | 'rockShape'
   | 'enemyType'
   | 'enemyCount'
   | 'enemySpeed'

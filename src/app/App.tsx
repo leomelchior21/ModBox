@@ -3,7 +3,7 @@ import { LandingScreen } from './screens/LandingScreen';
 import { LanguageScreen } from './screens/LanguageScreen';
 import { ArcadeScreen } from './screens/ArcadeScreen';
 import { SettingsDialog } from '../components/SettingsDialog';
-import { Logo } from '../brand/Logo';
+import { VhsBoot } from '../components/VhsBoot';
 import { navigate, useRoute } from './router';
 import { useProgress } from '../state/progressStore';
 import { getMission } from '../learning/missions';
@@ -15,13 +15,7 @@ const LabScreen = lazy(() =>
 );
 
 function LoadingCabinet(): JSX.Element {
-  return (
-    <div className="booting">
-      <Logo height={30} />
-      <p className="eyebrow eyebrow--blue">BOOTING CABINET…</p>
-      <span className="booting__bar" aria-hidden="true" />
-    </div>
-  );
+  return <VhsBoot mode="game" title="VECTOR ZERO" />;
 }
 
 /* ============================================================================
@@ -33,6 +27,12 @@ export function App(): JSX.Element {
   const route = useRoute();
   const progress = useProgress();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [siteBooting, setSiteBooting] = useState(true);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSiteBooting(false), 1250);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const scrollHost = document.getElementById('root');
@@ -48,13 +48,16 @@ export function App(): JSX.Element {
 
   if (route.name === 'lab') {
     return (
-      <Suspense fallback={<LoadingCabinet />}>
-        <LabScreen
-          key={`${route.missionId ?? 'current'}-${route.debug ? 'debug' : 'clean'}`}
-          missionId={route.missionId}
-          debugFlag={route.debug}
-        />
-      </Suspense>
+      <>
+        <Suspense fallback={<LoadingCabinet />}>
+          <LabScreen
+            key={`${route.missionId ?? 'current'}-${route.debug ? 'debug' : 'clean'}`}
+            missionId={route.missionId}
+            debugFlag={route.debug}
+          />
+        </Suspense>
+        {siteBooting ? <VhsBoot /> : null}
+      </>
     );
   }
 
@@ -97,6 +100,7 @@ export function App(): JSX.Element {
           onBack={() => navigate({ name: 'landing' })}
         />
         {settingsDialog}
+        {siteBooting ? <VhsBoot /> : null}
       </>
     );
   }
@@ -116,6 +120,7 @@ export function App(): JSX.Element {
           onFreeMod={() => openMission('free')}
         />
         {settingsDialog}
+        {siteBooting ? <VhsBoot /> : null}
       </>
     );
   }
@@ -135,6 +140,7 @@ export function App(): JSX.Element {
         studentName={progress.studentName}
       />
       {settingsDialog}
+      {siteBooting ? <VhsBoot /> : null}
     </>
   );
 }

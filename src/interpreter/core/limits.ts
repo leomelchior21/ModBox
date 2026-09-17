@@ -23,6 +23,9 @@ export interface NumericLimit {
 
 export const DEFAULT_CONFIG: GameConfig = {
   shipName: "Brian's ship",
+  shipType: 'dart',
+  backgroundColor: 'green',
+  rockShape: 'jagged',
   enemyType: 'small-rock',
   enemyCount: 3,
   enemySpeed: 2,
@@ -38,6 +41,9 @@ export const DEFAULT_CONFIG: GameConfig = {
 
 export const ENEMY_KINDS = ['small-rock', 'medium-rock', 'big-rock'] as const;
 export const WEAPON_KINDS = ['laser', 'spread', 'pulse'] as const;
+export const SHIP_TYPES = ['dart', 'scout', 'wing'] as const;
+export const BACKGROUND_COLORS = ['green', 'blue', 'purple'] as const;
+export const ROCK_SHAPES = ['jagged', 'crystal', 'square'] as const;
 
 export const NUMERIC_LIMITS: Record<
   'enemyCount' | 'enemySpeed' | 'laserPower' | 'lives' | 'scoreMultiplier' | 'worldGravity',
@@ -188,6 +194,29 @@ export function clampWeapon(raw: string): ClampOutcome<string> {
       id: 'clamp:weapon',
       tone: 'playful',
       message: `No "${raw}" in the armoury. MODBOX fitted the default laser instead.`,
+    },
+  };
+}
+
+export function clampChoice<K extends 'shipType' | 'backgroundColor' | 'rockShape'>(
+  key: K,
+  raw: string,
+): ClampOutcome<GameConfig[K]> {
+  const choices = {
+    shipType: SHIP_TYPES,
+    backgroundColor: BACKGROUND_COLORS,
+    rockShape: ROCK_SHAPES,
+  } as const;
+  const labels = { shipType: 'ship type', backgroundColor: 'background color', rockShape: 'rock shape' };
+  const normalised = raw.trim().toLowerCase();
+  const allowed = choices[key] as readonly string[];
+  if (allowed.includes(normalised)) return { value: normalised as GameConfig[K] };
+  return {
+    value: DEFAULT_CONFIG[key],
+    notice: {
+      id: `clamp:${key}`,
+      tone: 'playful',
+      message: `Unknown ${labels[key]} "${raw}". Try: ${allowed.join(', ')}.`,
     },
   };
 }

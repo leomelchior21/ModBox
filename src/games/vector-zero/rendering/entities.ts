@@ -2,6 +2,7 @@ import { PALETTE } from '../engine/constants';
 import type { Bullet, Particle, Rock, ScorePop, Ship } from '../engine/types';
 import { rockPoints } from '../engine/asteroids';
 import { TAU } from '../engine/vector';
+import type { RockShape, ShipType } from '../../../interpreter/core/types';
 
 /* ============================================================================
    VECTOR ZERO — ENTITY DRAWING
@@ -18,6 +19,7 @@ export function drawShip(
     time: number;
     thrusting: boolean;
     reducedMotion: boolean;
+    shipType?: ShipType;
   },
 ): void {
   const { pos, angle, radius } = ship;
@@ -51,10 +53,26 @@ export function drawShip(
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo(radius * 1.35, 0);
-  ctx.lineTo(-radius * 0.85, -radius * 0.95);
-  ctx.lineTo(-radius * 0.45, 0);
-  ctx.lineTo(-radius * 0.85, radius * 0.95);
+  if (options.shipType === 'scout') {
+    ctx.moveTo(radius * 1.15, 0);
+    ctx.lineTo(radius * 0.1, -radius * 0.82);
+    ctx.lineTo(-radius * 0.95, -radius * 0.62);
+    ctx.lineTo(-radius * 0.55, 0);
+    ctx.lineTo(-radius * 0.95, radius * 0.62);
+    ctx.lineTo(radius * 0.1, radius * 0.82);
+  } else if (options.shipType === 'wing') {
+    ctx.moveTo(radius * 1.45, 0);
+    ctx.lineTo(-radius * 0.15, -radius * 0.42);
+    ctx.lineTo(-radius * 1.15, -radius * 1.1);
+    ctx.lineTo(-radius * 0.72, 0);
+    ctx.lineTo(-radius * 1.15, radius * 1.1);
+    ctx.lineTo(-radius * 0.15, radius * 0.42);
+  } else {
+    ctx.moveTo(radius * 1.35, 0);
+    ctx.lineTo(-radius * 0.85, -radius * 0.95);
+    ctx.lineTo(-radius * 0.45, 0);
+    ctx.lineTo(-radius * 0.85, radius * 0.95);
+  }
   ctx.closePath();
   ctx.stroke();
 
@@ -94,8 +112,18 @@ export function drawRock(
   ctx: CanvasRenderingContext2D,
   rock: Rock,
   highlight: boolean,
+  shape: RockShape = 'jagged',
 ): void {
-  const points = rockPoints(rock, rock.phaseIn < 1 ? 0.6 + 0.4 * rock.phaseIn : 1);
+  const scale = rock.phaseIn < 1 ? 0.6 + 0.4 * rock.phaseIn : 1;
+  const points = shape === 'jagged'
+    ? rockPoints(rock, scale)
+    : Array.from({ length: shape === 'square' ? 4 : 6 }, (_, index) => {
+        const count = shape === 'square' ? 4 : 6;
+        const angle = rock.angle + (index / count) * TAU + (shape === 'square' ? Math.PI / 4 : 0);
+        const shapeScale = shape === 'crystal' && index % 3 === 0 ? 1.2 : shape === 'crystal' ? 0.72 : 1;
+        const radius = rock.radius * scale * shapeScale;
+        return { x: rock.pos.x + Math.cos(angle) * radius, y: rock.pos.y + Math.sin(angle) * radius };
+      });
   const flashing = rock.hitFlash > 0;
 
   ctx.save();

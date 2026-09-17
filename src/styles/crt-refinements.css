@@ -458,8 +458,9 @@
 }
 
 .lab .modstrip { position:relative; }
-.lab .modstrip--coaching { overflow:visible; }
-.lab .lab__left--coach-outside { position:relative; z-index:4; overflow:visible; }
+.lab .modstrip--coaching { z-index:6; overflow:visible; }
+.lab .coach-portal { position:fixed; z-index:100; width:max-content; pointer-events:none; }
+.lab .coach-portal .coach-bubble--mod { position:relative; left:auto; top:auto; }
 .lab .coach-bubble--mod { left:calc(100% + 18px); top:8px; max-width:none; }
 .lab .coach-bubble--mod::before {
   content:'☜';

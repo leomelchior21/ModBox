@@ -176,7 +176,6 @@ export function GameStage({
       {phase === 'launch' ? (
         <div className="overlay overlay--launch">
           <div className="overlay__panel overlay__panel--stage">
-            <p className="eyebrow eyebrow--flare">VECTOR ZERO · FLIGHT DECK</p>
             {missionName ? <p className="overlay__mission mono">{missionName}</p> : null}
             <div className={`ship-preview ${config.shieldEnabled ? 'ship-preview--shield' : ''}`} aria-hidden="true">
               <svg viewBox="0 0 280 112" fill="none">

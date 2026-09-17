@@ -35,6 +35,20 @@ describe('C# subset — declarations', () => {
     expect(result.config.rapidFireEnabled).toBe(false);
   });
 
+  it('binds the final mission visual Mods', () => {
+    const result = parseCSharp([
+      'string shipType = "wing";',
+      'string backgroundColor = "purple";',
+      'string rockShape = "crystal";',
+    ].join('\n'));
+    expect(result.ok).toBe(true);
+    expect(result.config).toMatchObject({
+      shipType: 'wing',
+      backgroundColor: 'purple',
+      rockShape: 'crystal',
+    });
+  });
+
   it('treats unknown names as student variables, not game values', () => {
     const result = parseCSharp('int booster = 2;');
     expect(result.ok).toBe(true);

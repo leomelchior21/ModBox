@@ -1,4 +1,5 @@
 import { STAR_LAYERS, PALETTE } from '../engine/constants';
+import type { BackgroundColor } from '../../../interpreter/core/types';
 
 /* ============================================================================
    VECTOR ZERO — STARFIELD
@@ -75,10 +76,10 @@ export function drawVignette(
   ctx.fillRect(0, 0, width, height);
 }
 
-export function fieldTint(health: number): string {
-  if (health > 60) return PALETTE.space;
+export function fieldTint(health: number, backgroundColor: BackgroundColor = 'green'): string {
+  const healthy = { green: PALETTE.space, blue: '#050d20', purple: '#150820' }[backgroundColor];
+  if (health > 60) return healthy;
   const danger = 1 - health / 60;
-  return `rgba(${Math.round(20 + 40 * danger)},${Math.round(8 + 4 * danger)},${Math.round(
-    16 + 4 * danger,
-  )},1)`;
+  const base = backgroundColor === 'blue' ? [8, 13, 34] : backgroundColor === 'purple' ? [23, 8, 31] : [20, 8, 16];
+  return `rgba(${Math.round(base[0] + 40 * danger)},${Math.round(base[1] + 4 * danger)},${Math.round(base[2] + 4 * danger)},1)`;
 }

@@ -7,6 +7,9 @@ import type { ModDefinition } from '../interpreter/core/mods';
    ========================================================================== */
 
 const MOD_GLYPH: Record<string, string> = {
+  shipType: '△',
+  backgroundColor: '◉',
+  rockShape: '◇',
   enemyType: '☄',
   shipName: '✦',
   enemyCount: '☰',

@@ -1176,6 +1176,10 @@ export class VectorZeroEngine {
       changes.push('shipName');
     }
 
+    if (next.shipType !== previous.shipType) changes.push('shipType');
+    if (next.backgroundColor !== previous.backgroundColor) changes.push('backgroundColor');
+    if (next.rockShape !== previous.rockShape) changes.push('rockShape');
+
     if (next.enemyType !== previous.enemyType) {
       changes.push('enemyType');
       if (this.phase === 'launch') {
@@ -1252,7 +1256,7 @@ export class VectorZeroEngine {
     const width = this.width;
     const height = this.height;
 
-    ctx.fillStyle = fieldTint(this.health);
+    ctx.fillStyle = fieldTint(this.health, this.liveConfig.backgroundColor);
     ctx.fillRect(0, 0, width, height);
 
     drawStars(ctx, this.stars, width, height, this.elapsed, this.driftX, this.driftY, this.reducedMotion);
@@ -1263,7 +1267,7 @@ export class VectorZeroEngine {
       ctx.translate(rand(-this.shake, this.shake), rand(-this.shake, this.shake));
     }
 
-    for (const rock of this.rocks) drawRock(ctx, rock, false);
+    for (const rock of this.rocks) drawRock(ctx, rock, false, this.liveConfig.rockShape);
     for (const bullet of this.bullets) drawBullet(ctx, bullet);
     for (const particle of this.particles) drawParticle(ctx, particle);
     for (const pop of this.pops) drawScorePop(ctx, pop);
@@ -1276,6 +1280,7 @@ export class VectorZeroEngine {
         time: this.elapsed,
         thrusting: this.ship.thrusting,
         reducedMotion: this.reducedMotion,
+        shipType: this.liveConfig.shipType,
       });
     }
     ctx.restore();

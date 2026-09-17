@@ -1,6 +1,7 @@
 import type { ConfigKey, LiteralValue, Notice, Position, VarType } from './types';
 import {
   clampEnemyType,
+  clampChoice,
   clampNumber,
   clampText,
   clampWeapon,
@@ -108,6 +109,10 @@ export function coerceModValue(
   }
   if (mod.id === 'weaponType') {
     const clamped = clampWeapon(raw);
+    return { value: clamped.value, notice: clamped.notice };
+  }
+  if (mod.id === 'shipType' || mod.id === 'backgroundColor' || mod.id === 'rockShape') {
+    const clamped = clampChoice(mod.id, raw);
     return { value: clamped.value, notice: clamped.notice };
   }
   const clamped = clampText('shipName', raw);

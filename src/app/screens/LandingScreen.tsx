@@ -32,7 +32,7 @@ export function LandingScreen({ onEnter, onContinue, onPlay, onArcade, onProfile
       <img className="home__heroArt" src="/art/modbox-crt-space.png" alt="An orange and white starfighter racing past glowing asteroids" loading="eager" />
       <div className="home__heroCopy">
         <span className="home__eyebrow"><span className="signal-dot" /> A PROGRAMMABLE ARCADE</span>
-        <Logo height={200} className="home__wordmark" />
+        <Logo height={200} className="home__wordmark" layout="hero" />
         <h1>MOD IT. CODE IT. PLAY IT.</h1>
         <p>Your code. Your rules. Your next high score.</p>
         <button className="home__enter" onClick={hasProgress ? onContinue : onEnter}>{hasProgress ? 'CONTINUE YOUR MISSION' : 'ENTER MODBOX'} <span aria-hidden="true">↗</span></button>

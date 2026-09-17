@@ -24,16 +24,16 @@
   display: inline-block;
   position: relative;
   overflow: hidden;
-  /* the supplied artwork is a padded square: crop it to the wordmark frame */
-  aspect-ratio: 2.2 / 1;
   vertical-align: middle;
 }
+.logo--header { aspect-ratio: 265 / 42; }
+.logo--hero { aspect-ratio: 420 / 145; }
 .logo img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
 }
 

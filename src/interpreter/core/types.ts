@@ -99,10 +99,16 @@ export interface Notice {
 /* --------------------------------------------------------------- game model */
 
 export type AsteroidKind = 'small-rock' | 'medium-rock' | 'big-rock';
+export type ShipType = 'dart' | 'scout' | 'wing';
+export type BackgroundColor = 'green' | 'blue' | 'purple';
+export type RockShape = 'jagged' | 'crystal' | 'square';
 
 /** Every programmable control a student can reach from code. */
 export interface GameConfig {
   shipName: string;
+  shipType: ShipType;
+  backgroundColor: BackgroundColor;
+  rockShape: RockShape;
   enemyType: AsteroidKind;
   enemyCount: number;
   enemySpeed: number;

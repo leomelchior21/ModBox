@@ -27,6 +27,9 @@ export interface CopilotStep {
 const POPUP_TARGET_LABELS: Partial<Record<CopilotTargetId, string>> = {
   enemyType: 'ENEMY TYPE',
   shipName: 'SHIP NAME',
+  shipType: 'SHIP TYPE',
+  backgroundColor: 'SPACE COLOR',
+  rockShape: 'ROCK SHAPE',
   enemyCount: 'ENEMY COUNT',
   laserPower: 'WEAPON POWER',
   shieldEnabled: 'SHIELD',

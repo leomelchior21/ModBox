@@ -268,12 +268,15 @@ export const MISSION_FINAL: Mission = {
   },
   brief: 'Your sector. Your rules.',
   action:
-    'Build a level with 5+ rocks, a custom name, a weapon setting, a bool, a rule and a transmission.',
+    'Build a level with 5+ rocks, a custom name, visual style, weapon, bool, rule and transmission.',
   hint: 'Open MOD LIBRARY for every control you can reach.',
   appliedCopy: 'LEVEL BUILT. Your level ships with your rules inside it.',
   starter: '',
   additions: [],
   quickInsert: [
+    'decl:shipType',
+    'decl:backgroundColor',
+    'decl:rockShape',
     'decl:shipName',
     'decl:enemy',
     'decl:enemies',
@@ -290,7 +293,7 @@ export const MISSION_FINAL: Mission = {
     'health',
   ],
   scenario: { lives: 5 },
-  unlocks: ['lives', 'scoreMultiplier', 'worldGravity', 'weaponType'],
+  unlocks: ['shipType', 'backgroundColor', 'rockShape', 'lives', 'scoreMultiplier', 'worldGravity', 'weaponType'],
   requirements: [
     req('string', 'A custom ship name (string)', (ctx) =>
       ctx.summary.declares.string.length >= 1 && ctx.config.shipName.trim().length > 1,
@@ -313,7 +316,10 @@ export const MISSION_FINAL: Mission = {
 export const FREE_MODE_TEMPLATE = [
   '// FREE MOD MODE — every control is unlocked.',
   'string shipName = "Eclipse";',
+  'string shipType = "wing";',
+  'string backgroundColor = "blue";',
   'string enemy = "big-rock";',
+  'string rockShape = "crystal";',
   'string weapon = "laser";',
   '',
   'int enemies = 6;',
@@ -351,6 +357,9 @@ export const MISSION_SANDBOX: Mission = {
   starter: FREE_MODE_TEMPLATE,
   additions: [],
   quickInsert: [
+    'decl:shipType',
+    'decl:backgroundColor',
+    'decl:rockShape',
     'decl:shipName',
     'decl:enemy',
     'decl:enemies',

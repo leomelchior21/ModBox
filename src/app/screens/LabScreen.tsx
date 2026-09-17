@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CodeOrder } from '../../components/CodeOrder';
 import { CrtGlass } from '../../components/CrtGlass';
+import { VhsBoot } from '../../components/VhsBoot';
 import { TopBar } from '../../components/TopBar';
 import { MissionPanel } from '../../components/MissionPanel';
 import { FeedbackPanel, type FeedbackStatus } from '../../components/FeedbackPanel';
@@ -99,6 +100,12 @@ export function LabScreen({
   const [unlockTokens, setUnlockTokens] = useState<UnlockToken[]>([]);
   const [metricsTick, setMetricsTick] = useState(0);
   const [dismissedCoachKey, setDismissedCoachKey] = useState<string | null>(null);
+  const [gameBooting, setGameBooting] = useState(true);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setGameBooting(false), 1050);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const touch = useMediaQuery('(any-pointer: coarse)');
   const debugVisible = debugFlag || progress.settings.debug;
@@ -115,7 +122,17 @@ export function LabScreen({
     [progress.completed, mission.id, progress.freeModeUnlocked],
   );
 
-  const unlockedModList = useMemo(() => MODS.filter((mod) => unlocked.includes(mod.id)), [unlocked]);
+  const unlockedModList = useMemo(
+    () => MODS.filter((mod) => unlocked.includes(mod.id)).sort((a, b) => {
+      const aCurrent = mission.unlocks.indexOf(a.id);
+      const bCurrent = mission.unlocks.indexOf(b.id);
+      if (aCurrent >= 0 && bCurrent >= 0) return aCurrent - bCurrent;
+      if (aCurrent >= 0) return -1;
+      if (bCurrent >= 0) return 1;
+      return b.unlockAt - a.unlockAt;
+    }),
+    [mission.unlocks, unlocked],
+  );
 
   const filtered = useMemo(
     () => filterConfigToUnlocked(program.config, unlocked),
@@ -395,7 +412,7 @@ export function LabScreen({
 
 
       <div className="lab__body" style={{ ['--split' as string]: `${Math.round(progress.settings.splitRatio * 100)}%` }}>
-        <section id="code-panel" className={`lab__left ${libraryCoach ? 'lab__left--coach-outside' : ''}`} aria-label="Code and mission">
+        <section id="code-panel" className="lab__left" aria-label="Code and mission">
           <div className="lab__editorZone">
             <div className={`lab__editor ${editorCoach ? 'lab__editor--coaching' : ''}`}>
               <div className="lab__editorHead">
@@ -444,6 +461,7 @@ export function LabScreen({
         onSplitRatio={ratio => useProgress.getState().setSetting('splitRatio', ratio)}
         onResetProgress={() => { useProgress.getState().resetProgress(); navigate({ name: 'landing' }); }} />
       <DebugPanel open={debugVisible} onClose={() => useProgress.getState().setSetting('debug', false)} engine={engineRef.current} mission={mission} program={program} config={liveConfig} unlocked={unlocked} editorFocused={editorFocused} />
+      {gameBooting ? <VhsBoot mode="game" title={mission.code} /> : null}
     </div>
   );
 }
