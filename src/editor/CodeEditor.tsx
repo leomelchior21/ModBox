@@ -42,6 +42,7 @@ import { MODS, MOD_BY_ID } from '../interpreter/core/mods';
 import type { ConfigKey } from '../interpreter/core/types';
 import type { CopilotTargetId } from '../learning/copilot';
 import { CoachBubble } from '../components/CoachBubble';
+import { normalizeVariableSpacing, placeLanguageSnippet } from './languageEditing';
 
 /* ============================================================================
    MODBOX — CODE EDITOR
@@ -159,10 +160,14 @@ const modDropZone = StateField.define<ModDropZoneState>({
 });
 
 const teachingTokenMatcher = new MatchDecorator({
-  regexp: /\b(?:string|int|bool|true|false|Console\.WriteLine)\b/g,
+  regexp: /\b(?:string|int|bool|String|Int|Bool|true|false|True|False|Console\.WriteLine|print)\b/g,
   decoration: (match) => {
     const token = match[0];
-    const tone = token === 'Console.WriteLine' ? 'write' : token === 'true' || token === 'false' ? 'literal' : token;
+    const tone = token === 'Console.WriteLine' || token === 'print'
+      ? 'write'
+      : /^(?:true|false|True|False)$/.test(token)
+        ? 'literal'
+        : token.toLowerCase();
     return Decoration.mark({ class: `cm-modbox-token cm-modbox-token--${tone}` });
   },
 });
@@ -286,7 +291,6 @@ export function CodeEditor({
           errorLineDecorations,
           addedLineDecoration,
           modDropZone,
-          EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             autocapitalize: 'off',
             autocorrect: 'off',
@@ -398,35 +402,10 @@ export function applyModToEditor(
 ): void {
   if (!view) return;
   const current = view.state.doc.toString();
-  let next: string;
-  if (language === 'csharp') {
-    next = placeMod(current, snippet, mode);
-  } else {
-    const name = language === 'swift'
-      ? snippet.match(/^\s*(?:var|let)\s+([A-Za-z_]\w*)/)?.[1]
-      : snippet.match(/^\s*([A-Za-z_]\w*)\s*=/)?.[1];
-    const declarationPattern = name
-      ? (language === 'swift'
-        ? new RegExp(`^\\s*(?:var|let)\\s+${name}\\b.*$`, 'm')
-        : new RegExp(`^\\s*${name}\\s*=.*$`, 'm'))
-      : null;
-    if (mode === 'replace' && declarationPattern?.test(current)) {
-      next = current.replace(declarationPattern, snippet.trim());
-    } else {
-      const trimmedSnippet = snippet.trim();
-      const isRule = /^if\b/.test(trimmedSnippet);
-      const isPrint = /^print\(/.test(trimmedSnippet);
-      const boundary = isRule ? null : isPrint ? /^\s*if\b/m : /^\s*(?:print\(|if\b)/m;
-      const match = boundary?.exec(current);
-      if (match?.index !== undefined) {
-        const before = current.slice(0, match.index).trimEnd();
-        const after = current.slice(match.index).trimStart();
-        next = `${before}${before ? '\n\n' : ''}${trimmedSnippet}\n\n${after}`;
-      } else {
-        next = `${current.trimEnd()}${current.trim() ? '\n\n' : ''}${trimmedSnippet}`;
-      }
-    }
-  }
+  const placed = language === 'csharp'
+    ? placeMod(current, snippet, mode)
+    : placeLanguageSnippet(current, snippet, language, mode);
+  const next = normalizeVariableSpacing(placed, language);
   const addedAt = Math.max(0, next.lastIndexOf(snippet.trim()));
   view.dispatch({
     changes: { from: 0, to: view.state.doc.length, insert: next },

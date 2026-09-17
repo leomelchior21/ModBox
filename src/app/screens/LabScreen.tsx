@@ -12,6 +12,7 @@ import { SettingsDialog } from '../../components/SettingsDialog';
 import { DebugPanel } from '../../components/DebugPanel';
 import { GameStage, TouchControls } from '../../components/GameStage';
 import { CodeEditor, applyModToEditor } from '../../editor/CodeEditor';
+import { normalizeVariableSpacing } from '../../editor/languageEditing';
 import type { ModInsertMode } from '../../editor/modEditing';
 import { requireAdapter } from '../../interpreter/adapters';
 import { languageById } from '../../interpreter/core/adapter';
@@ -210,12 +211,14 @@ export function LabScreen({
     const key = codeKey(language, mission.id);
     const existing = store.codes[key] ?? (language === 'csharp' ? store.codes[mission.id] : undefined);
     if (existing !== undefined) {
-      setCode(existing);
+      const normalized = normalizeVariableSpacing(existing, language);
+      setCode(normalized);
+      if (normalized !== existing) store.setCode(key, normalized);
       return;
     }
     const previous = previousMission(mission.id);
     const previousCode = previous ? (store.codes[codeKey(language, previous.id)] ?? (language === 'csharp' ? store.codes[previous.id] ?? '' : '')) : '';
-    const seeded = seedMissionCode(previousCode, mission);
+    const seeded = normalizeVariableSpacing(seedMissionCode(previousCode, mission), language);
     setCode(seeded);
     store.setCode(key, seeded);
   }, [mission, language]);
@@ -289,7 +292,7 @@ export function LabScreen({
   const libraryStep = Boolean(
     guidance.targetId && /^(Add|Build)\b/i.test(guidance.message),
   );
-  const coach = coachVisible ? { ...guidance, message: coachPopupMessage(guidance) } : undefined;
+  const coach = coachVisible ? { ...guidance, message: coachPopupMessage(guidance, language) } : undefined;
   const editorCoach = coach && guidance.targetId && !libraryStep && !missionComplete ? {
     key: coachKey,
     message: coach.message,
@@ -350,7 +353,7 @@ export function LabScreen({
     const store = useProgress.getState();
     const previous = previousMission(mission.id);
     const previousCode = previous ? (store.codes[codeKey(language, previous.id)] ?? (language === 'csharp' ? store.codes[previous.id] ?? '' : '')) : '';
-    setCode(seedMissionCode(previousCode, mission));
+    setCode(normalizeVariableSpacing(seedMissionCode(previousCode, mission), language));
   }, [mission, language]);
 
   const handleBack = useCallback(() => {

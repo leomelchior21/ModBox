@@ -3,6 +3,7 @@ import { parsePython } from '../python';
 import { parseSwift } from '../swift';
 import { formatCodeForLanguage, localizeMission } from '../languageSyntax';
 import { getMission } from '../../learning/missions';
+import { coachPopupMessage } from '../../learning/copilot';
 
 describe('Python adapter', () => {
   it('parses idiomatic assignments, booleans, print, and indented rules', () => {
@@ -62,6 +63,18 @@ describe('Swift adapter', () => {
 });
 
 describe('language-specific teaching code', () => {
+  it('uses language-correct text in every language popup', () => {
+    const printStep = { message: 'Add a transmission.', targetId: 'writeline' as const };
+    expect(coachPopupMessage(printStep, 'csharp')).toBe('Drag WRITELINE into the code.');
+    expect(coachPopupMessage(printStep, 'python')).toBe('Drag PRINT into the code.');
+    expect(coachPopupMessage(printStep, 'swift')).toBe('Drag PRINT into the code.');
+
+    const boolStep = { message: 'Switch shield on.', targetId: 'shieldEnabled' as const };
+    expect(coachPopupMessage(boolStep, 'python')).toBe('Change shield from False to True.');
+    expect(coachPopupMessage(boolStep, 'swift')).toBe('Change shield from false to true.');
+    expect(coachPopupMessage(boolStep, 'csharp')).toBe('Change shield from false to true.');
+  });
+
   it('formats mission code with each language grammar', () => {
     const csharp = getMission('m05').concept?.example ?? '';
     const python = formatCodeForLanguage(csharp, 'python');

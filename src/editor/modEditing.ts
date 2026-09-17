@@ -69,8 +69,13 @@ export function placeMod(
   const preceding = blocks.filter(b => b.group < incoming.group);
   const anchor = sameSection.at(-1) ?? preceding.at(-1);
   const at = anchor?.to ?? 0;
-  const lineBreakBefore = at ? (stmt.kind === 'if' ? '\n\n' : '\n') : '';
-  return source.slice(0, at) + lineBreakBefore + snippet.trim() + (source.slice(at).startsWith('\n') ? '' : '\n') + source.slice(at);
+  const before = source.slice(0, at).trimEnd();
+  const after = source.slice(at).trimStart();
+  const isVariable = stmt.kind === 'varDecl';
+  const nextBlock = blocks.find((block) => block.from >= at);
+  const beforeGap = before ? (isVariable ? '\n' : '\n\n') : '';
+  const afterGap = after ? (isVariable && nextBlock?.group === 0 ? '\n' : '\n\n') : '';
+  return `${before}${beforeGap}${snippet.trim()}${afterGap}${after}`;
 }
 
 /** Move one whole statement within its section. This never splits a rule or sorts dependencies. */

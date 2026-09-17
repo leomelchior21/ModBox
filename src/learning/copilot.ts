@@ -2,6 +2,7 @@ import type { ConfigKey } from '../interpreter/core/types';
 import type { Mission, ValidationContext } from './missions/types';
 import type { MissionValidation } from './validation';
 import { scoreTarget } from './validation/scoreTarget';
+import type { LanguageId } from '../interpreter/core/adapter';
 
 export type CodeToolId = 'writeline' | 'power-math' | 'score-rule' | 'health-rule';
 export type CopilotTargetId = ConfigKey | CodeToolId;
@@ -41,8 +42,10 @@ const POPUP_TARGET_LABELS: Partial<Record<CopilotTargetId, string>> = {
 };
 
 /** Short, playful copy used only by the floating coach pill. */
-export function coachPopupMessage(step: CopilotStep): string {
-  const targetLabel = step.targetId ? POPUP_TARGET_LABELS[step.targetId] : undefined;
+export function coachPopupMessage(step: CopilotStep, language: LanguageId = 'csharp'): string {
+  const targetLabel = step.targetId === 'writeline' && language !== 'csharp'
+    ? 'PRINT'
+    : step.targetId ? POPUP_TARGET_LABELS[step.targetId] : undefined;
   if (targetLabel && /^(Add|Build)\b/i.test(step.message)) {
     return `Drag ${targetLabel} into the code.`;
   }
@@ -50,8 +53,10 @@ export function coachPopupMessage(step: CopilotStep): string {
   if (step.message.startsWith('Change the enemy type')) return 'Change small-rock to big-rock.';
   if (step.message.startsWith('Change shipName')) return "Give Brian's ship a new name.";
   if (step.message.startsWith('Change the number of enemies')) return 'Set enemies to 5 or more.';
-  if (step.message.startsWith('Switch shield')) return 'Change shield from false to true.';
-  if (step.message.startsWith('Switch rapidFire')) return 'Change rapidFire from false to true.';
+  const falseValue = language === 'python' ? 'False' : 'false';
+  const trueValue = language === 'python' ? 'True' : 'true';
+  if (step.message.startsWith('Switch shield')) return `Change shield from ${falseValue} to ${trueValue}.`;
+  if (step.message.startsWith('Switch rapidFire')) return `Change rapidFire from ${falseValue} to ${trueValue}.`;
   if (step.message.startsWith('Launch the game and reach')) {
     const score = step.message.match(/reach (\d+) points/)?.[1] ?? 'the target';
     return `Launch and reach ${score} points.`;

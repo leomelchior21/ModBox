@@ -8,6 +8,7 @@ describe('library code placement', () => {
     const next = placeMod(source, 'bool shield = false;');
     expect(next.indexOf('bool shield')).toBeGreaterThan(next.indexOf('int enemies'));
     expect(next.indexOf('bool shield')).toBeLessThan(next.indexOf('Console.WriteLine'));
+    expect(next).toContain('int enemies = 3;\nbool shield = false;\n\nConsole.WriteLine');
     expect(csharpAdapter.parse(next).ok).toBe(true);
   });
   it('replaces a mod without touching assignments inside rules or user comments', () => {
@@ -31,6 +32,7 @@ describe('library code placement', () => {
     const next = placeMod(source, 'Console.WriteLine("next");');
     expect(next.indexOf('"next"')).toBeGreaterThan(next.indexOf('"first"'));
     expect(next.indexOf('"next"')).toBeLessThan(next.indexOf('if ('));
+    expect(next).toContain('Console.WriteLine("first");\n\nConsole.WriteLine("next");\n\nif (');
   });
   it('leaves one blank line before every newly added if rule', () => {
     const source = 'bool shield = false;\nConsole.WriteLine("ready");';
