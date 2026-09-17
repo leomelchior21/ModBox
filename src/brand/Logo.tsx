@@ -10,7 +10,7 @@ export function Logo({
   layout?: 'header' | 'hero';
   variant?: LogoVariant;
 }): JSX.Element {
-  const src = layout === 'hero' ? '/brand/modbox-crt-hero.svg' : '/brand/modbox-crt-logo.svg';
+  const src = layout === 'hero' ? '/brand/main-logo-final.png' : '/brand/header-logo.png';
   return <span className={['logo', `logo--${layout}`, className].filter(Boolean).join(' ')} style={{ height }} role="img" aria-label="MODBOX"><img src={src} alt="" draggable={false} /></span>;
 }
 export function LogoMark({ size = 26 }: { size?: number }): JSX.Element {

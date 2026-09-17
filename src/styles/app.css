@@ -26,8 +26,8 @@
   overflow: hidden;
   vertical-align: middle;
 }
-.logo--header { aspect-ratio: 265 / 42; }
-.logo--hero { aspect-ratio: 420 / 145; }
+.logo--header { aspect-ratio: 3 / 1; }
+.logo--hero { aspect-ratio: 3 / 1; }
 .logo img {
   position: absolute;
   inset: 0;
