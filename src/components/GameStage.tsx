@@ -27,6 +27,7 @@ export interface GameStageProps {
   statusNote?: string;
   missionName?: string;
   missionReady?: boolean;
+  fullGameReady?: boolean;
   coach?: { message: string; hint?: string; onDismiss: () => void };
 }
 
@@ -169,12 +170,13 @@ export function GameStage({
   statusNote,
   missionName,
   missionReady = false,
+  fullGameReady = false,
   coach,
 }: GameStageProps): JSX.Element {
   const config = snapshot.config;
 
   return (
-    <div className={`stage ${missionReady ? 'stage--missionReady' : ''}`} onClick={event => {
+    <div className={`stage ${missionReady ? 'stage--missionReady' : ''} ${fullGameReady ? 'stage--fullGameReady' : ''}`} onClick={event => {
       if (!(event.target as HTMLElement).closest('button, .joystick, .coach-bubble')) onFocusGame();
     }} role="presentation">
       <canvas ref={canvasRef} className="stage__canvas" tabIndex={0} aria-label="Vector Zero game view. Focus to fly: arrows to steer, space to fire." />

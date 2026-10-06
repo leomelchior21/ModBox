@@ -55,6 +55,8 @@ Your controller owns animation timers, listeners and input, and cleans them up o
 
 `applyModToEditor(view, snippet, mode, language)` handles tap replacement and drag insertion. The shared libraries supply the insertion mode. Pass the same catalog to the editor for matching autocomplete and co-pilot targets.
 
+If a tool needs to change other starting values when inserted, supply an optional `prepareModInsert(source, snippet, language)` callback to `editor` and as the fifth argument of `applyModToEditor`. Both tap and drop then apply the preparation and snippet together in one undoable edit. Keep these game-specific changes in your game's directory; Vector Zero uses this hook to reset the starting shield and laser power when inserting its rule tools.
+
 Import `parseGameScript` and `evaluateGameScript` from `src/interpreter/gameScript.ts`:
 
 ```ts

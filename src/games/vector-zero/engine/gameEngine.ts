@@ -1,6 +1,7 @@
 import { DEFAULT_CONFIG } from '../../../interpreter/core/limits';
 import type {
   GameConfig,
+  Expr,
   GameRule,
   LiteralValue,
   RuntimeValues,
@@ -54,6 +55,13 @@ import { renderText } from '../../../interpreter/csharp/binder';
 const STEP = 1 / 60;
 const MAX_SUBSTEPS = 5;
 
+function readsHealth(expr: Expr): boolean {
+  if (expr.kind === 'identifier') return expr.name === 'health';
+  if (expr.kind === 'literal') return false;
+  if (expr.kind === 'unary') return readsHealth(expr.operand);
+  return readsHealth(expr.left) || readsHealth(expr.right);
+}
+
 export interface EngineOptions extends EngineCallbacks {
   reducedMotion?: boolean;
   bestScore?: number;
@@ -100,6 +108,8 @@ export class VectorZeroEngine {
   private baseConfig: GameConfig = { ...DEFAULT_CONFIG };
   private liveConfig: GameConfig = { ...DEFAULT_CONFIG };
   private rules: GameRule[] = [];
+  private hasHealthRule = false;
+  private healthChallengeComplete = false;
   private constants: Record<string, LiteralValue> = {};
   private missionLabel = '';
   private initialComms: CommsEntry[] = [];
@@ -183,6 +193,10 @@ export class VectorZeroEngine {
     const previousRuleCount = this.rules.length;
     this.baseConfig = input.config;
     this.rules = input.rules;
+    const hasHealthRule = input.rules.some(rule => readsHealth(rule.condition) &&
+      rule.actions.some(action => action.target === 'laserPower'));
+    if (hasHealthRule !== this.hasHealthRule) this.healthChallengeComplete = false;
+    this.hasHealthRule = hasHealthRule;
     this.missionLabel = input.missionLabel;
     this.initialComms = input.comms;
     this.constants = input.constants;
@@ -472,6 +486,7 @@ export class VectorZeroEngine {
         this.resolveShipHits();
         this.updateRules();
         this.updateHealth(dt);
+        this.replenishHealthChallenge();
         this.updateWaves(dt);
         this.metrics.playTimeMs += dt * 1000;
         this.metrics.maxScore = Math.max(this.metrics.maxScore, this.score);
@@ -789,6 +804,7 @@ export class VectorZeroEngine {
 
   private damageShip(amount: number): void {
     this.health -= amount;
+    if (this.hasHealthRule && Math.round(this.health) <= 30) this.healthChallengeComplete = true;
     this.metrics.hitsTaken += 1;
     this.healthRegenDelay = FIELD.healthRegenDelay;
     this.ship.hitFlash = 0.2;
@@ -883,6 +899,15 @@ export class VectorZeroEngine {
     if (this.liveConfig.shieldEnabled && this.shieldCharge < 1) {
       this.shieldCharge = Math.min(1, this.shieldCharge + dt / FIELD.shieldRecharge);
     }
+  }
+
+  private replenishHealthChallenge(): void {
+    if (!this.hasHealthRule || this.healthChallengeComplete || this.phase !== 'playing') return;
+    if (Math.round(this.health) <= 30) {
+      this.healthChallengeComplete = true;
+      return;
+    }
+    if (this.rocks.length < 3) this.syncRockCount(3);
   }
 
   private updateWaves(dt: number): void {
@@ -1058,6 +1083,7 @@ export class VectorZeroEngine {
     this.health = FIELD.maxHealth;
     this.shieldCharge = 1;
     this.fireCooldown = 0;
+    this.healthChallengeComplete = false;
     this.respawnTimer = 0;
     this.waveTimer = 0;
     this.healthRegenDelay = 0;

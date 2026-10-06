@@ -167,11 +167,11 @@ export function ModStrip({
                 <button
                   type="button"
                   className={`modtile modtile--tool modtile--${tool.type} ${guided ? 'modtile--required' : ''}`}
-                  {...drag.handlers(tool.example, () => undefined, 'x')}
+                  {...drag.handlers(tool.example, undefined, 'x')}
                   draggable
                   onDragStart={(event) => beginNativeDrag(event, tool.example)}
                   onDragEnd={endModDrag}
-                  aria-label={`Drag ${tool.label} into the code.`}
+                  aria-label={`Add or drag ${tool.label} into the code.`}
                   data-guided={guided || undefined}
                   title={`${tool.blurb} · ${tool.example}`}
                 >

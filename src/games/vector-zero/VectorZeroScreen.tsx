@@ -9,6 +9,7 @@ import { SettingsDialog } from '../../components/SettingsDialog';
 import { DebugPanel } from '../../components/DebugPanel';
 import { GameStage, Joystick } from '../../components/GameStage';
 import { applyModToEditor } from '../../editor/CodeEditor';
+import { prepareVectorModInsert } from './modInsertion';
 import { normalizeVariableSpacing } from '../../editor/languageEditing';
 import type { ModInsertMode } from '../../editor/modEditing';
 import { requireAdapter } from '../../interpreter/adapters';
@@ -274,17 +275,20 @@ export function VectorZeroScreen({ gameId, missionId, debugFlag }: GameScreenPro
     () => validateMission(mission, validationContext),
     [mission, validationContext],
   );
+  const missionComplete = mission.requirements.length > 0 && validation.passed;
+  const missionPassed = missionComplete || progress.completed.includes(mission.id);
+  const fullGameReady = mission.kind === 'final' && missionPassed;
   const guidance = useMemo(
     () => {
-      const step = copilotStep(mission, validationContext, validation);
+      const step: ReturnType<typeof copilotStep> = fullGameReady
+        ? { message: 'Your game is ready. Play the full game and mod anything.' }
+        : copilotStep(mission, validationContext, validation);
       return { ...step, message: localizeLanguageCopy(step.message, language), hint: step.hint ? localizeLanguageCopy(step.hint, language) : undefined };
     },
-    [mission, validationContext, validation, language],
+    [mission, validationContext, validation, language, fullGameReady],
   );
   const codeTools = useMemo(() => codeToolsForMission(mission).map((tool) => localizeTool(tool, language)), [mission, language]);
 
-  const missionComplete = mission.requirements.length > 0 && validation.passed;
-  const missionPassed = missionComplete || progress.completed.includes(mission.id);
   const coachKey = `${mission.id}:${guidance.message}`;
   const coachVisible = !diagnostic && dismissedCoachKey !== coachKey;
   const libraryStep = Boolean(
@@ -321,7 +325,7 @@ export function VectorZeroScreen({ gameId, missionId, debugFlag }: GameScreenPro
 
   const status: FeedbackStatus = diagnostic
     ? 'error'
-    : missionComplete
+    : missionComplete || fullGameReady
       ? 'complete'
       : worldUpdated
         ? 'updated'
@@ -370,10 +374,16 @@ export function VectorZeroScreen({ gameId, missionId, debugFlag }: GameScreenPro
   const handleNext = useCallback(() => {
     const next = nextMission(mission.id);
     if (!next) return;
-    useProgress.getState().setCode(codeKey(language, mission.id), code);
-    useProgress.getState().setMission(next.id);
+    const store = useProgress.getState();
+    store.setCode(codeKey(language, mission.id), code);
+    if (mission.kind === 'final' && next.kind === 'sandbox' &&
+      store.codes[codeKey(language, next.id)] === undefined &&
+      (language !== 'csharp' || store.codes[next.id] === undefined)) {
+      store.setCode(codeKey(language, next.id), code);
+    }
+    store.setMission(next.id);
     navigate({ name: 'lab', gameId, missionId: next.id, debug: debugFlag });
-  }, [gameId, mission.id, debugFlag, language, code]);
+  }, [gameId, mission, debugFlag, language, code]);
 
   const handleResetFullGame = useCallback(() => {
     const confirmed = window.confirm(
@@ -395,7 +405,7 @@ export function VectorZeroScreen({ gameId, missionId, debugFlag }: GameScreenPro
 
 
   const handleInsertCode = useCallback((snippet: string, mode: ModInsertMode = 'replace') => {
-    requestAnimationFrame(() => applyModToEditor(editorViewRef.current, snippet, mode, language));
+    requestAnimationFrame(() => applyModToEditor(editorViewRef.current, snippet, mode, language, prepareVectorModInsert));
   }, [language]);
 
   const pipeline = `${languageById(language).label.toUpperCase()} · VECTOR ZERO · ${mission.code}`;
@@ -428,7 +438,7 @@ export function VectorZeroScreen({ gameId, missionId, debugFlag }: GameScreenPro
       errorLines: diagnostic ? [diagnostic.line] : [], onFocusChange: setEditorFocused,
       onViewReady: view => { editorViewRef.current = view; }, coach: editorCoach,
       onDismissCoach: () => setDismissedCoachKey(coachKey), language,
-      ariaLabel: `${languageById(language).label} code editor` }}
+      ariaLabel: `${languageById(language).label} code editor`, prepareModInsert: prepareVectorModInsert }}
     editorToolbar={<>
       <span className="lab__filename mono">{fileNameForLanguage(language)}</span>
       {language === 'csharp' ? <button className="lab__arrange" onClick={() => setOrderOpen(true)} title="Reorder whole code blocks">&#x283F; Arrange</button> : null}
@@ -447,11 +457,12 @@ export function VectorZeroScreen({ gameId, missionId, debugFlag }: GameScreenPro
     library={{ open: libraryOpen, onClose: () => { setLibraryOpen(false); focusEditor(); },
       onInsert: (snippet, mode) => { setLibraryOpen(false); handleInsertCode(snippet, mode); } }}
     stageRef={stageRef}
-    stage={<GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={touch} dockJoystick={dockJoystick} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} missionReady={missionPassed && Boolean(nextMission(mission.id))} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} missionName={mission.kind === 'sandbox' ? mission.code : `MISSION ${String(mission.order).padStart(2, '0')} · ${mission.code}`} coach={coach && !guidance.targetId && !missionComplete ? { ...coach, onDismiss: () => setDismissedCoachKey(coachKey) } : undefined}>
+    stage={<GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={touch} dockJoystick={dockJoystick} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} missionReady={missionPassed && Boolean(nextMission(mission.id))} fullGameReady={fullGameReady} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} missionName={mission.kind === 'sandbox' ? mission.code : `MISSION ${String(mission.order).padStart(2, '0')} · ${mission.code}`} coach={coach && !guidance.targetId && !missionComplete ? { ...coach, onDismiss: () => setDismissedCoachKey(coachKey) } : undefined}>
                 {previousMission(mission.id) ? <button type="button" className="stage__missionBack" onClick={event => { event.stopPropagation(); handleBack(); }}>← Previous mission</button> : null}
                 {missionPassed && nextMission(mission.id) ? (
                   <div className="stage__missionNext">
-                    <button type="button" className="mission__next mission__next--ready" onClick={event => { event.stopPropagation(); handleNext(); }}>NEXT MISSION <span aria-hidden="true">→</span></button>
+                    {fullGameReady ? <span className="stage__fullGameStatus" role="status">All mods unlocked. Your game is ready.</span> : null}
+                    <button type="button" className="mission__next mission__next--ready" onClick={event => { event.stopPropagation(); handleNext(); }}>{fullGameReady ? 'Play full game' : 'NEXT MISSION'} <span aria-hidden="true">→</span></button>
                   </div>
                 ) : null}
                 {coach && missionComplete && nextMission(mission.id) ? <CoachBubble className="coach-bubble--mission" message={coach.message} onDismiss={() => setDismissedCoachKey(coachKey)} /> : null}

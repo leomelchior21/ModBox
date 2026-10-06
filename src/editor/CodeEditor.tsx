@@ -183,6 +183,8 @@ const teachingTokenColors = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
+export type PrepareModInsert = (source: string, snippet: string, language: LanguageId) => string;
+
 export interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -196,6 +198,7 @@ export interface CodeEditorProps {
   mods: readonly ModDefinition[];
   runtimeLabels?: Readonly<Record<string, string>>;
   coachTargets?: Readonly<Record<string, RegExp>>;
+  prepareModInsert?: PrepareModInsert;
 }
 
 const pythonLanguage = StreamLanguage.define(python);
@@ -244,15 +247,18 @@ export function CodeEditor({
   mods,
   runtimeLabels = EMPTY_LABELS,
   coachTargets = EMPTY_TARGETS,
+  prepareModInsert,
 }: CodeEditorProps): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onFocusRef = useRef(onFocusChange);
   const onViewReadyRef = useRef(onViewReady);
+  const prepareModInsertRef = useRef(prepareModInsert);
   onChangeRef.current = onChange;
   onFocusRef.current = onFocusChange;
   onViewReadyRef.current = onViewReady;
+  prepareModInsertRef.current = prepareModInsert;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -311,7 +317,7 @@ export function CodeEditor({
               const snippet = event.dataTransfer?.getData(MOD_DRAG_TYPE);
               if (!snippet) return false;
               event.preventDefault();
-              applyModToEditor(view, snippet, 'duplicate', language);
+              applyModToEditor(view, snippet, 'duplicate', language, prepareModInsertRef.current);
               endModDrag();
               return true;
             },
@@ -401,9 +407,11 @@ export function applyModToEditor(
   snippet: string,
   mode: ModInsertMode = 'replace',
   language: LanguageId = 'csharp',
+  prepareModInsert?: PrepareModInsert,
 ): void {
   if (!view) return;
-  const current = view.state.doc.toString();
+  const source = view.state.doc.toString();
+  const current = prepareModInsert?.(source, snippet, language) ?? source;
   const placed = language === 'csharp'
     ? placeMod(current, snippet, mode)
     : placeLanguageSnippet(current, snippet, language, mode);

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { App } from '../App';
@@ -8,6 +8,9 @@ import { EditorView } from '@codemirror/view';
 import { createGameRegistry } from '../../games/createRegistry';
 import { gameRegistry } from '../../games/registry';
 import { gardenGame } from '../../games/__tests__/fixtures/gardenGame';
+import { VectorZeroEngine } from '../../games/vector-zero/engine/gameEngine';
+import type { RuntimeMetrics } from '../../games/vector-zero/engine/types';
+import { MODS } from '../../interpreter/core/mods';
 
 /* ============================================================================
    MODBOX — APP SMOKE TEST
@@ -89,6 +92,7 @@ afterEach(() => {
     act(() => root.unmount());
   }
   document.body.innerHTML = '';
+  vi.restoreAllMocks();
 });
 
 function mount() {
@@ -122,6 +126,60 @@ async function waitFor(check: () => boolean, attempts = 160): Promise<boolean> {
 }
 
 describe('MODBOX app shell', () => {
+  it('celebrates mission eight only after passing and opens the fully unlocked game', async () => {
+    for (const id of ['m00', 'm01', 'm02', 'm03', 'm04', 'm05', 'm06']) useProgress.getState().completeMission(id);
+    useProgress.getState().setCode('csharp:final', [
+      'string shipName = "Voyager";', 'int enemies = 5;', 'int laserPower = 1;',
+      'bool shield = false;', 'Console.WriteLine(shipName);',
+      'if (score >= 300) { shield = true; }',
+    ].join('\n'));
+    let engine: VectorZeroEngine | undefined;
+    const setProgram = VectorZeroEngine.prototype.setProgram;
+    vi.spyOn(VectorZeroEngine.prototype, 'setProgram').mockImplementation(function (this: VectorZeroEngine, input) {
+      engine = this;
+      return setProgram.call(this, input);
+    });
+    window.location.hash = '#/lab?game=vector-zero&mission=final';
+    const { host, root } = mount();
+    await act(async () => root.render(<App />));
+    expect(await waitFor(() => Boolean(host.querySelector('.cm-editor')))).toBe(true);
+    expect(host.querySelector('.stage--fullGameReady')).toBeNull();
+    expect(host.querySelector('.mission__next')).toBeNull();
+    expect(useProgress.getState().freeModeUnlocked).toBe(false);
+
+    // Feed the real validation pipeline a rock kill reported by the simulation.
+    await act(async () => engine!.launch());
+    (engine as unknown as { metrics: RuntimeMetrics }).metrics.kills = 1;
+    await act(async () => engine!.pause());
+    expect(await waitFor(() => Boolean(host.querySelector('.stage--fullGameReady')))).toBe(true);
+    expect(host.querySelector('.stage__fullGameStatus')?.textContent).toContain('All mods unlocked');
+    expect(host.querySelector('.mission__next')?.textContent).toContain('Play full game');
+    expect(useProgress.getState().completed).toContain('final');
+    expect(useProgress.getState().freeModeUnlocked).toBe(true);
+
+    await act(async () => host.querySelector<HTMLButtonElement>('.mission__next')?.click());
+    expect(await waitFor(() => useProgress.getState().currentMissionId === 'free')).toBe(true);
+    expect(window.location.hash).toContain('mission=free');
+    expect(host.querySelector('.stage--fullGameReady')).toBeNull();
+    expect(host.querySelectorAll('.modtile__options')).toHaveLength(MODS.length);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('Voyager');
+    expect(useProgress.getState().codes['csharp:free']).toBe(useProgress.getState().codes['csharp:final']);
+  });
+
+  it('restores the full-game celebration when returning to completed mission eight', async () => {
+    useProgress.getState().completeMission('final', true);
+    useProgress.getState().setCode('csharp:free', 'string shipName = "My sandbox";');
+    window.location.hash = '#/lab?game=vector-zero&mission=final';
+    const { host, root } = mount();
+    await act(async () => root.render(<App />));
+    expect(await waitFor(() => Boolean(host.querySelector('.stage--fullGameReady')))).toBe(true);
+    expect(host.querySelector('.mission__next')?.textContent).toContain('Play full game');
+    expect(host.querySelector('.feedback--complete')?.textContent).toContain('Your game is ready');
+    await act(async () => host.querySelector<HTMLButtonElement>('.mission__next')?.click());
+    expect(await waitFor(() => useProgress.getState().currentMissionId === 'free')).toBe(true);
+    expect(useProgress.getState().codes['csharp:free']).toBe('string shipName = "My sandbox";');
+  });
+
   it('registers another game with its own languages, mods, game design and isolated saves', async () => {
     useProgress.getState().setCode('csharp:m00', 'string enemy = "big-rock";');
     const registry = createGameRegistry([...gameRegistry.games, gardenGame]);
