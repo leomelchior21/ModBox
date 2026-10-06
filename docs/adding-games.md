@@ -49,6 +49,7 @@ Export a React screen taking `GameScreenProps`. Render `GameWorkspace` with:
 - `library`: open/close state and insertion handler.
 - `stage`: your game view, engine lifecycle and input controls. Canvas, SVG and DOM are supported. Use `.stage` inside the provided frame, or size your view to fill it.
 - Optional `stageExtras` and `overlays`: unlock effects, mission navigation, settings or debug UI.
+- Optional `modAreaExtras`: an accessory in the mod area. On tablets, the shared layout puts this slot on the left and the scrollable mod library on the right. Vector Zero uses it for the joystick.
 
 Your controller owns animation timers, listeners and input, and cleans them up on unmount. Suspend keyboard gameplay while editing or using dialogs/libraries. Put mobile controls inside your game view and account for its available size and safe areas.
 

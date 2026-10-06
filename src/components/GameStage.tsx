@@ -17,6 +17,7 @@ export interface GameStageProps {
   phase: Phase;
   snapshot: EngineSnapshot;
   showTouchControls: boolean;
+  dockJoystick?: boolean;
   onLaunch: () => void;
   onResume: () => void;
   onRestart: () => void;
@@ -88,7 +89,7 @@ function HoldButton({
   );
 }
 
-function Joystick({ engine }: { engine: VectorZeroEngine | null }): JSX.Element {
+export function Joystick({ engine, onEngage }: { engine: VectorZeroEngine | null; onEngage?: () => void }): JSX.Element {
   const base = useRef<HTMLDivElement>(null);
   const pointer = useRef<number | null>(null);
   const reset = () => {
@@ -117,7 +118,7 @@ function Joystick({ engine }: { engine: VectorZeroEngine | null }): JSX.Element 
     engine.input.brake = dy > radius * .3;
   };
   return <div ref={base} className="touchbar__cluster touchbar__cluster--left joystick" role="group" aria-label="Flight joystick: drag up to thrust, left or right to turn, down to brake" tabIndex={0}
-    onPointerDown={event => { if (pointer.current !== null) return; event.preventDefault(); pointer.current = event.pointerId; event.currentTarget.setPointerCapture(event.pointerId); update(event); }}
+    onPointerDown={event => { if (pointer.current !== null) return; event.preventDefault(); onEngage?.(); pointer.current = event.pointerId; event.currentTarget.setPointerCapture(event.pointerId); update(event); }}
     onPointerMove={update} onPointerUp={event => { if (pointer.current === event.pointerId) reset(); }} onPointerCancel={reset} onLostPointerCapture={reset} onBlur={reset}
     onKeyDown={event => { const key = ({ ArrowUp: 'thrust', ArrowDown: 'brake', ArrowLeft: 'left', ArrowRight: 'right' } as const)[event.key as 'ArrowUp']; if (key && engine) { event.preventDefault(); engine.input[key] = true; } }}
     onKeyUp={event => { if (event.key.startsWith('Arrow')) { event.preventDefault(); reset(); } }} onContextMenu={event => event.preventDefault()}>
@@ -125,7 +126,7 @@ function Joystick({ engine }: { engine: VectorZeroEngine | null }): JSX.Element 
   </div>;
 }
 
-export function TouchControls({ engine, onEngage }: { engine: VectorZeroEngine | null; onEngage?: () => void }): JSX.Element {
+export function TouchControls({ engine, onEngage, showJoystick = true }: { engine: VectorZeroEngine | null; onEngage?: () => void; showJoystick?: boolean }): JSX.Element {
   useEffect(() => () => {
     if (engine) {
       engine.input.left = engine.input.right = engine.input.thrust = engine.input.fire = engine.input.brake = false;
@@ -138,7 +139,7 @@ export function TouchControls({ engine, onEngage }: { engine: VectorZeroEngine |
 
   return (
     <div className="touchbar" aria-label="Touch flight controls" onPointerDownCapture={onEngage}>
-      <Joystick engine={engine} />
+      {showJoystick ? <Joystick engine={engine} /> : null}
       <div className="touchbar__cluster touchbar__cluster--right">
         <HoldButton
           label="✷"
@@ -158,6 +159,7 @@ export function GameStage({
   phase,
   snapshot,
   showTouchControls,
+  dockJoystick = false,
   onLaunch,
   onResume,
   onRestart,
@@ -300,7 +302,7 @@ export function GameStage({
         </div>
       ) : null}
 
-      {showTouchControls && (phase === 'playing' || phase === 'respawn') ? <TouchControls engine={engine} onEngage={onFocusGame} /> : null}
+      {showTouchControls && (phase === 'playing' || phase === 'respawn') ? <TouchControls engine={engine} onEngage={onFocusGame} showJoystick={!dockJoystick} /> : null}
       {coach ? <CoachBubble className="coach-bubble--stage" message={coach.message} hint={coach.hint} onDismiss={coach.onDismiss} /> : null}
       {children}
     </div>

@@ -7,7 +7,7 @@ import { type FeedbackStatus } from '../../components/FeedbackPanel';
 import { UnlockBurst, type UnlockToken } from '../../components/UnlockBurst';
 import { SettingsDialog } from '../../components/SettingsDialog';
 import { DebugPanel } from '../../components/DebugPanel';
-import { GameStage } from '../../components/GameStage';
+import { GameStage, Joystick } from '../../components/GameStage';
 import { applyModToEditor } from '../../editor/CodeEditor';
 import { normalizeVariableSpacing } from '../../editor/languageEditing';
 import type { ModInsertMode } from '../../editor/modEditing';
@@ -112,6 +112,8 @@ export function VectorZeroScreen({ gameId, missionId, debugFlag }: GameScreenPro
   }, []);
 
   const touch = useMediaQuery('(any-pointer: coarse)');
+  const tabletViewport = useMediaQuery('(min-width: 601px) and (min-height: 600px)');
+  const dockJoystick = touch && tabletViewport;
   const debugVisible = debugFlag || progress.settings.debug;
 
   /* ------------------------------------------------------------ live parsing */
@@ -437,10 +439,15 @@ export function VectorZeroScreen({ gameId, missionId, debugFlag }: GameScreenPro
       collapsed: modStripCollapsed, onToggleCollapsed: () => setModStripCollapsed(v => !v), onInsert: handleInsertCode,
       onOpenLibrary: () => setLibraryOpen(true), coach: libraryCoach,
       onDismissCoach: () => setDismissedCoachKey(coachKey), language }}
+    modAreaExtras={dockJoystick ? <div className="lab__joystickDock">
+      {phase === 'playing' || phase === 'respawn'
+        ? <Joystick engine={engineRef.current} onEngage={focusGame} />
+        : <span className="lab__joystickStandby" aria-hidden="true">FLIGHT</span>}
+    </div> : undefined}
     library={{ open: libraryOpen, onClose: () => { setLibraryOpen(false); focusEditor(); },
       onInsert: (snippet, mode) => { setLibraryOpen(false); handleInsertCode(snippet, mode); } }}
     stageRef={stageRef}
-    stage={<GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={touch} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} missionReady={missionPassed && Boolean(nextMission(mission.id))} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} missionName={mission.kind === 'sandbox' ? mission.code : `MISSION ${String(mission.order).padStart(2, '0')} · ${mission.code}`} coach={coach && !guidance.targetId && !missionComplete ? { ...coach, onDismiss: () => setDismissedCoachKey(coachKey) } : undefined}>
+    stage={<GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={touch} dockJoystick={dockJoystick} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} missionReady={missionPassed && Boolean(nextMission(mission.id))} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} missionName={mission.kind === 'sandbox' ? mission.code : `MISSION ${String(mission.order).padStart(2, '0')} · ${mission.code}`} coach={coach && !guidance.targetId && !missionComplete ? { ...coach, onDismiss: () => setDismissedCoachKey(coachKey) } : undefined}>
                 {previousMission(mission.id) ? <button type="button" className="stage__missionBack" onClick={event => { event.stopPropagation(); handleBack(); }}>← Previous mission</button> : null}
                 {missionPassed && nextMission(mission.id) ? (
                   <div className="stage__missionNext">

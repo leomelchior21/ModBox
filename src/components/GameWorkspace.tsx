@@ -15,6 +15,7 @@ export interface GameWorkspaceProps {
   editorToolbar: ReactNode;
   feedback: FeedbackPanelProps;
   modStrip: ModStripProps;
+  modAreaExtras?: ReactNode;
   library: { open: boolean; onClose: () => void; onInsert: ModStripProps['onInsert'] };
   stage: ReactNode;
   stageRef?: RefObject<HTMLDivElement>;
@@ -23,7 +24,7 @@ export interface GameWorkspaceProps {
 }
 
 /** Shared responsive workspace. Games supply their own simulation and controls. */
-export function GameWorkspace({ gameId, gameTitle, touch, coding, header, editor, editorToolbar, feedback, modStrip, library, stage, stageRef, stageExtras, overlays }: GameWorkspaceProps): JSX.Element {
+export function GameWorkspace({ gameId, gameTitle, touch, coding, header, editor, editorToolbar, feedback, modStrip, modAreaExtras, library, stage, stageRef, stageExtras, overlays }: GameWorkspaceProps): JSX.Element {
   return <div className={`lab crt-cabinet ${touch ? 'lab--touch' : ''} ${coding ? 'lab--coding' : 'lab--flying'}`} data-game-id={gameId}>
     <CrtGlass />
     {header}
@@ -35,7 +36,10 @@ export function GameWorkspace({ gameId, gameTitle, touch, coding, header, editor
             <CodeEditor {...editor} />
           </div>
           <FeedbackPanel {...feedback} />
-          <ModStrip {...modStrip} />
+          <div className={`lab__modArea ${modAreaExtras ? 'lab__modArea--controls' : ''}`}>
+            {modAreaExtras}
+            <ModStrip {...modStrip} />
+          </div>
         </div>
       </section>
       <section id="flight-panel" className="lab__right" aria-label={`${gameTitle} game`}>

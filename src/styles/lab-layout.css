@@ -4,6 +4,7 @@
 .lab .lab__editorZone { min-width:0; overflow:hidden; }
 .lab .lab__editor,.lab .editor-shell,.lab .modstrip,.lab .modstrip__row { min-width:0; min-height:0; }
 .lab .modstrip { overflow:hidden; }
+.lab .lab__modArea { min-width:0; display:flex; flex-direction:column; }
 .lab .modstrip__row { overflow-x:auto; overflow-y:hidden; touch-action:pan-x; }
 .lab .modtile { touch-action:pan-x; }
 .lab .modcard__insert,.lab .mod-options__tree button { touch-action:pan-y; }
@@ -34,6 +35,7 @@
   align-items:flex-end; padding:16px; gap:16px; background:none; border:0; pointer-events:none;
 }
 .lab .stage .touchbar__cluster { pointer-events:auto; }
+.lab .stage .touchbar__cluster--right { margin-left:auto; }
 .lab .stage .joystick { width:clamp(64px,9vw,100px); flex-shrink:0; }
 .lab .stage .touch--fire { width:clamp(54px,8vw,84px); }
 .lab .stage .touch--fire .touch__label { font-size:clamp(36px,5vw,62px); }
@@ -70,4 +72,48 @@
   .lab .stage .touchbar { padding:12px; }
   .lab .mission__next--ready { min-height:44px; padding:10px 14px; font-size:12px; }
   .lab--touch .stage--missionReady .touchbar__cluster--right { margin-bottom:58px; }
+}
+
+/* Tablets share one bottom-left box: flight stick beside scrolling mods. */
+@media(min-width:601px) and (min-height:600px) {
+  .lab--touch { --modstrip-base-height:127.5px; --tablet-stick-size:clamp(80px,8.5vw,104px); }
+  .lab--touch .modstrip:not(.modstrip--collapsed) {
+    height:calc(var(--modstrip-base-height) * 1.2); display:flex; flex-direction:column;
+  }
+  .lab--touch .modstrip__head { flex-shrink:0; }
+  .lab--touch .modstrip__row { flex:1; }
+  .lab .lab__modArea--controls {
+    height:calc(var(--modstrip-base-height) * 1.2); min-height:calc(var(--tablet-stick-size) + 22px);
+    display:grid; grid-template-columns:calc(var(--tablet-stick-size) + 30px) minmax(0,1fr);
+    border:1px solid var(--panel-line); border-radius:9px; overflow:hidden;
+    background:#0a1c0d; box-shadow:var(--panel-glow);
+  }
+  .lab .lab__modArea--controls:has(.modstrip--collapsed) { height:calc(var(--tablet-stick-size) + 22px); }
+  .lab .lab__modArea--controls .modstrip {
+    height:100%; border:0; border-left:1px solid #526c48; border-radius:0; box-shadow:none;
+    display:flex; flex-direction:column;
+  }
+  .lab .lab__modArea--controls .modstrip__head { flex-wrap:wrap; gap:0 5px; padding:5px 7px; }
+  .lab .lab__modArea--controls .modstrip__toggle { min-width:0; }
+  .lab .lab__modArea--controls .modstrip__count { display:none; }
+  .lab .lab__modArea--controls .modstrip__row { padding:0 6px 6px; }
+  .lab .lab__joystickDock {
+    position:relative; min-width:0; height:100%; display:grid; place-items:center;
+    background:radial-gradient(ellipse at center,#28472b,#0a1c0d 75%);
+  }
+  .lab .lab__joystickDock .joystick { width:var(--tablet-stick-size); flex-shrink:0; }
+  .lab .lab__joystickStandby {
+    width:var(--tablet-stick-size); aspect-ratio:1; display:grid; place-items:center;
+    border:1px dashed #779367; border-radius:50%; color:#92b17e;
+    background:#06160a; font:700 9px var(--font-mono); letter-spacing:.16em;
+  }
+}
+@media(min-width:601px) and (min-height:600px) and (max-width:1050px) {
+  .lab--touch { --modstrip-base-height:126px; }
+}
+@media(min-width:601px) and (min-height:600px) and (max-width:850px) {
+  .lab--touch { --modstrip-base-height:116px; }
+}
+@media(min-width:601px) and (min-height:600px) and (max-height:650px) and (orientation:landscape) {
+  .lab--touch { --modstrip-base-height:72px; --tablet-stick-size:64px; }
 }
