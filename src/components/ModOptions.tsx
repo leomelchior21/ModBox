@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import type { ModDefinition } from '../interpreter/core/mods';
-import { NUMERIC_LIMITS } from '../interpreter/core/limits';
+import type { ModDefinition } from '../mods/types';
 import {
   beginModDrag,
   endModDrag,
@@ -25,17 +24,17 @@ export function ModOptions({ mod, anchor, onClose, onInsert, language }: ModOpti
   const onCloseRef = useRef(onClose);
   const drag = useTouchModDrag(onInsert);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
-  const [value, setValue] = useState(mod.type === 'int' ? '3' : "Brian's ship");
+  const [value, setValue] = useState(String(mod.defaultValue ?? (mod.type === 'int' ? mod.limits?.min ?? 1 : 'My game')));
   onCloseRef.current = onClose;
 
-  const limit = NUMERIC_LIMITS[mod.id as keyof typeof NUMERIC_LIMITS];
+  const limit = mod.limits;
   const options =
     mod.values ??
     (mod.type === 'bool'
       ? ['true', 'false']
       : mod.type === 'int'
-        ? [...new Set([limit?.min ?? 1, 3, limit?.max ?? 10])].map(String)
-        : ["Brian's ship", 'Voyager', 'Apollo']);
+        ? [...new Set([limit?.min ?? 1, Number(mod.defaultValue ?? limit?.min ?? 3), limit?.max ?? 10])].map(String)
+        : [String(mod.defaultValue ?? 'My game'), 'Custom', 'Arcade']);
   const snippet = (nextValue: string) => formatCodeForLanguage(
     `${mod.type} ${mod.name} = ${mod.type === 'string' ? JSON.stringify(nextValue) : nextValue};`,
     language,
@@ -153,7 +152,7 @@ export function ModOptions({ mod, anchor, onClose, onInsert, language }: ModOpti
               min={limit?.min}
               max={limit?.max}
               step={1}
-              maxLength={32}
+              maxLength={mod.maxLength ?? 64}
               value={value}
               onChange={(event) => setValue(event.target.value)}
             />

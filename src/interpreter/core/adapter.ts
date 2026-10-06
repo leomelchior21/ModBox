@@ -48,8 +48,8 @@ export const LANGUAGES: LanguageMeta[] = [
     label: 'Python',
     short: 'PY',
     status: 'play',
-    blurb: 'Fly with Python',
-    detail: 'Clean syntax, meaningful indentation, and the full Vector Zero campaign.',
+    blurb: 'Mod with Python',
+    detail: 'Clean syntax, meaningful indentation, and live game changes.',
     support: 1,
   },
   {
@@ -57,7 +57,7 @@ export const LANGUAGES: LanguageMeta[] = [
     label: 'Swift',
     short: 'SW',
     status: 'play',
-    blurb: 'Launch with Swift',
+    blurb: 'Mod with Swift',
     detail: 'Type-safe variables and rules with native Swift syntax.',
     support: 1,
   },
@@ -67,7 +67,7 @@ export const LANGUAGES: LanguageMeta[] = [
     short: 'C#',
     status: 'play',
     blurb: 'Ship it in C#',
-    detail: 'Variables, booleans and rules — the full Vector Zero campaign.',
+    detail: 'Variables, booleans and rules that change your game as you play.',
     support: 1,
   },
 ];

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { LandingScreen } from './screens/LandingScreen';
 import { LanguageScreen } from './screens/LanguageScreen';
 import { ArcadeScreen } from './screens/ArcadeScreen';
@@ -6,16 +6,12 @@ import { SettingsDialog } from '../components/SettingsDialog';
 import { VhsBoot } from '../components/VhsBoot';
 import { navigate, useRoute } from './router';
 import { useProgress } from '../state/progressStore';
-import { getMission } from '../learning/missions';
+import { gameRegistry } from '../games/registry';
+import type { GameRegistry } from '../games/createRegistry';
+import { DEFAULT_GAME_ID, type PlayableGame } from '../games/types';
 
-/* The Lab carries the code editor and the game engine, so it is loaded on
-   demand: the landing page stays instant (spec §37). */
-const LabScreen = lazy(() =>
-  import('./screens/LabScreen').then((module) => ({ default: module.LabScreen })),
-);
-
-function LoadingCabinet(): JSX.Element {
-  return <VhsBoot mode="game" title="VECTOR ZERO" />;
+function UnavailableGame(): JSX.Element {
+  return <main className="screen"><h1>This game is unavailable.</h1><button className="btn btn--primary" onClick={() => navigate({ name: 'landing' })}>BACK TO GAMES</button></main>;
 }
 
 /* ============================================================================
@@ -23,11 +19,23 @@ function LoadingCabinet(): JSX.Element {
    Pick a game on the landing page or arcade, then its language, then play.
    ========================================================================== */
 
-export function App(): JSX.Element {
+export function App({ registry = gameRegistry }: { registry?: GameRegistry } = {}): JSX.Element {
   const route = useRoute();
   const progress = useProgress();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [siteBooting, setSiteBooting] = useState(true);
+  const gameId = 'gameId' in route ? route.gameId ?? DEFAULT_GAME_ID : undefined;
+  const selected = gameId ? registry.get(gameId) : undefined;
+  const selectedGame = selected?.status === 'play' ? selected : undefined;
+  const screens = useMemo(() => new Map(registry.games.filter((game): game is PlayableGame => game.status === 'play').map(game => [game.id, lazy(game.loadScreen)])), [registry]);
+
+  useEffect(() => {
+    if (!selectedGame) return;
+    const store = useProgress.getState();
+    store.selectGame(selectedGame.id, selectedGame.starterMissionId, selectedGame.languages[0]);
+    if (!selectedGame.languages.includes(useProgress.getState().activeLanguage)) store.setLanguage(selectedGame.languages[0]);
+  }, [selectedGame]);
+
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSiteBooting(false), 1250);
@@ -41,38 +49,28 @@ export function App(): JSX.Element {
       landing: 'MODBOX — Mod the game. Learn the code.',
       languages: 'MODBOX — Choose a language',
       arcade: 'MODBOX — The arcade',
-      lab: 'MODBOX — VECTOR ZERO',
+      lab: `MODBOX — ${selectedGame?.title ?? 'Game unavailable'}`,
     };
     document.title = names[route.name] ?? 'MODBOX';
-  }, [route.name]);
+  }, [route.name, selectedGame?.title]);
 
   if (route.name === 'lab') {
-    return (
-      <>
-        <Suspense fallback={<LoadingCabinet />}>
-          <LabScreen
-            key={`${progress.activeLanguage}-${route.missionId ?? 'current'}-${route.debug ? 'debug' : 'clean'}`}
-            missionId={route.missionId}
-            debugFlag={route.debug}
-          />
-        </Suspense>
-        {siteBooting ? <VhsBoot /> : null}
-      </>
-    );
+    const Screen = selectedGame ? screens.get(selectedGame.id) : undefined;
+    if (!selectedGame || !Screen) return <UnavailableGame />;
+    if (progress.activeGameId !== selectedGame.id) return <VhsBoot mode="game" title={selectedGame.title} />;
+    return <>
+      <Suspense fallback={<VhsBoot mode="game" title={selectedGame.title} />}>
+        <Screen key={`${selectedGame.id}-${progress.activeLanguage}-${route.missionId ?? 'current'}-${route.debug}`} gameId={selectedGame.id} missionId={route.missionId} debugFlag={route.debug} />
+      </Suspense>
+      {siteBooting ? <VhsBoot /> : null}
+    </>;
   }
 
-  const currentMission = getMission(progress.currentMissionId);
-  const hasProgress =
-    progress.completed.length > 0 ||
-    Object.values(progress.codes).some((code) => code.trim().length > 0);
-
-  const openMission = (missionId: string, debug = false) => {
-    useProgress.getState().setMission(missionId);
-    navigate({ name: 'lab', missionId, debug });
-  };
-
-  const chooseLanguage = (missionId: string) => {
-    navigate({ name: 'languages', missionId, from: route.name === 'arcade' ? 'arcade' : 'landing' });
+  const getProgress = (game: PlayableGame) => progress.getGameProgress(game.id, game.starterMissionId);
+  const chooseLanguage = (game: PlayableGame, missionId?: string) => {
+    const saved = getProgress(game);
+    const target = missionId ?? (game.missions.some(mission => mission.id === saved.currentMissionId) ? saved.currentMissionId : game.starterMissionId);
+    navigate({ name: 'languages', gameId: game.id, missionId: target, from: route.name === 'arcade' ? 'arcade' : 'landing' });
   };
 
   const settingsDialog = (
@@ -95,12 +93,16 @@ export function App(): JSX.Element {
   );
 
   if (route.name === 'languages') {
+    if (!selectedGame) return <UnavailableGame />;
     return (
       <>
         <LanguageScreen
+          game={selectedGame}
           onSelect={(language) => {
             useProgress.getState().setLanguage(language);
-            openMission(route.missionId ?? 'm00');
+            const missionId = selectedGame.missions.some(mission => mission.id === route.missionId) ? route.missionId! : selectedGame.starterMissionId;
+            useProgress.getState().setMission(missionId);
+            navigate({ name: 'lab', gameId: selectedGame.id, missionId, debug: false });
           }}
           onBack={() => navigate({ name: route.from ?? 'landing' })}
         />
@@ -114,15 +116,9 @@ export function App(): JSX.Element {
     return (
       <>
         <ArcadeScreen
-          completed={progress.completed}
-          currentMission={currentMission}
-          bestScore={progress.bestScore}
-          freeModeUnlocked={progress.freeModeUnlocked}
+          games={registry.games} getProgress={getProgress} onSelectGame={chooseLanguage}
           onBack={() => navigate({ name: 'landing' })}
           onSettings={() => setSettingsOpen(true)}
-          onPlay={() => chooseLanguage('m00')}
-          onContinue={() => chooseLanguage(currentMission.id)}
-          onFreeMod={() => chooseLanguage('free')}
         />
         {settingsDialog}
         {siteBooting ? <VhsBoot /> : null}
@@ -133,9 +129,7 @@ export function App(): JSX.Element {
   return (
     <>
       <LandingScreen
-        hasProgress={hasProgress}
-        onContinue={() => chooseLanguage(currentMission.id)}
-        onPlay={() => chooseLanguage('m00')}
+        games={registry.games} getProgress={getProgress} onSelectGame={chooseLanguage}
         onArcade={() => navigate({ name: 'arcade' })}
         onProfile={() => setSettingsOpen(true)}
         studentName={progress.studentName}

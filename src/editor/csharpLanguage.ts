@@ -1,7 +1,7 @@
 import { StreamLanguage, syntaxHighlighting } from '@codemirror/language';
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete';
 import { csharp } from '@codemirror/legacy-modes/mode/clike';
-import { MODS, RUNTIME_LABELS } from '../interpreter/core/mods';
+import type { ModDefinition } from '../mods/types';
 import { modboxHighlightStyle } from './theme';
 
 /* ============================================================================
@@ -20,21 +20,21 @@ export const SUPPORTED_SNIPPETS: { label: string; type: string; detail?: string 
   { label: 'if', type: 'keyword', detail: 'rule that reacts while playing' },
   { label: 'true', type: 'keyword' },
   { label: 'false', type: 'keyword' },
-  { label: 'Console.WriteLine', type: 'function', detail: 'send a message to Flight Log' },
+  { label: 'Console.WriteLine', type: 'function', detail: 'send a message to the game log' },
 ];
 
-export function csharpCompletions(context: CompletionContext): CompletionResult | null {
+export function csharpCompletions(context: CompletionContext, mods: readonly ModDefinition[], runtimeLabels: Readonly<Record<string, string>>): CompletionResult | null {
   const word = context.matchBefore(/[A-Za-z_][\w.]*/);
   if (!word || (word.from === word.to && !context.explicit)) return null;
 
   const options = [
     ...SUPPORTED_SNIPPETS,
-    ...MODS.map((mod) => ({
+    ...mods.map((mod) => ({
       label: mod.name,
       type: 'variable',
       detail: `${mod.type} · ${mod.blurb}`,
     })),
-    ...Object.entries(RUNTIME_LABELS).map(([name, label]) => ({
+    ...Object.entries(runtimeLabels).map(([name, label]) => ({
       label: name,
       type: 'property',
       detail: `live value · ${label}`,

@@ -1,8 +1,8 @@
 import type { LanguageId, QuickInsertToken } from './core/adapter';
 import type { Diagnostic, VarType } from './core/types';
 import type { Mission } from '../learning/missions/types';
-import type { ModDefinition } from './core/mods';
-import type { CodeToolDefinition } from '../learning/copilot';
+import type { ModDefinition } from '../mods/types';
+import type { CodeToolDefinition } from '../mods/types';
 
 const TYPE_WORD: Record<LanguageId, Record<VarType, string>> = {
   csharp: { string: 'string', int: 'int', bool: 'bool' },
@@ -244,7 +244,7 @@ export function localizeMission(mission: Mission, language: LanguageId): Mission
   };
 }
 
-export function localizeMod(mod: ModDefinition, language: LanguageId): ModDefinition {
+export function localizeMod<Key extends string>(mod: ModDefinition<Key>, language: LanguageId): ModDefinition<Key> {
   return { ...mod, type: mod.type, example: formatCodeForLanguage(mod.example, language) };
 }
 

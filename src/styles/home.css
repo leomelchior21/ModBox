@@ -1,4 +1,7 @@
 ﻿.home { margin:18px auto; width:calc(100% - 36px); max-width:1560px; padding:25px 38px 16px; }
+.home__games { min-height:0; max-height:50dvh; display:flex; flex-direction:column; }
+.home__sectionHead { flex-shrink:0; }
+.home__gameGrid { min-height:0; overflow-y:auto; overscroll-behavior-y:contain; }
 .home button { cursor:pointer; font-family:var(--font-mono); }
 .home svg { width:26px; height:26px; flex-shrink:0; }
 .home__skip { position:fixed; left:30px; top:-80px; z-index:100; padding:14px; background:#ddffe4; color:#03170f; }

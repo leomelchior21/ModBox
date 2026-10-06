@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ModOptions } from './ModOptions';
 import { beginModDrag, endModDrag, MOD_DRAG_TYPE, type ModInsertMode } from '../editor/modEditing';
 import { useTouchModDrag } from './useTouchModDrag';
-import type { ModDefinition } from '../interpreter/core/mods';
+import type { ModDefinition } from '../mods/types';
 import { modGlyph } from './modGlyph';
 import type { LanguageId } from '../interpreter/core/adapter';
 import { typeLabelForLanguage } from '../interpreter/languageSyntax';
@@ -21,13 +21,15 @@ export function ModLibrary({
   totalMods,
   onInsert,
   language,
+  runtimeLabels = {},
 }: {
   open: boolean;
   onClose: () => void;
-  unlocked: ModDefinition[];
+  unlocked: readonly ModDefinition[];
   totalMods: number;
   onInsert: (code: string, mode?: ModInsertMode) => void;
   language: LanguageId;
+  runtimeLabels?: Readonly<Record<string, string>>;
 }): JSX.Element | null {
   const locked = Math.max(0, totalMods - unlocked.length);
   const [options, setOptions] = useState<{ mod: ModDefinition; anchor: HTMLElement } | null>(null);
@@ -104,13 +106,12 @@ export function ModLibrary({
           </div>
         ) : null}
 
-        <div className="modlib__foot">
+        {Object.keys(runtimeLabels).length ? <div className="modlib__foot">
           <p className="eyebrow">LIVE VALUES INSIDE A RULE</p>
           <p className="modlib__runtime">
-            <span className="mono">score</span>, <span className="mono">health</span>,{' '}
-            <span className="mono">wave</span>, <span className="mono">enemiesRemaining</span>
+            {Object.entries(runtimeLabels).map(([name, label], index) => <span key={name} title={label}>{index ? ', ' : ''}<span className="mono">{name}</span></span>)}
           </p>
-        </div>
+        </div> : null}
       </div>
       {options ? <ModOptions mod={options.mod} anchor={options.anchor} onClose={() => setOptions(null)} onInsert={(snippet, mode) => { setOptions(null); onInsert(snippet, mode); }} language={language} /> : null}
       {drag.ghost}

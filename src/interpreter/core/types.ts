@@ -134,19 +134,19 @@ export interface RuntimeValues {
 
 export type RuntimeKey = keyof RuntimeValues;
 
-export interface RuleAction {
-  target: ConfigKey;
+export interface RuleAction<Key extends string = ConfigKey> {
+  target: Key;
   value: Expr;
   /** Pretty text, used by the debug panel and rule traces */
   text: string;
 }
 
-export interface GameRule {
+export interface GameRule<Key extends string = ConfigKey> {
   id: string;
   line: number;
   condition: Expr;
   conditionText: string;
-  actions: RuleAction[];
+  actions: RuleAction<Key>[];
   /** Console.WriteLine inside the if body: evaluated live when the rule fires */
   writes: RuleWrite[];
 }
@@ -156,14 +156,14 @@ export interface RuleWrite {
   text: string;
 }
 
-export interface SymbolInfo {
+export interface SymbolInfo<Key extends string = ConfigKey> {
   name: string;
   type: VarType;
   value: LiteralValue;
   text: string;
   line: number;
   /** true when a supported system name is bound to game config */
-  mod?: ConfigKey;
+  mod?: Key;
   /** true for a name the student invented, bound only to a value */
   userOnly?: boolean;
 }
@@ -174,15 +174,15 @@ export interface CommsLine {
   source: 'startup' | 'rule' | 'system';
 }
 
-export interface ProgramResult {
+export interface ProgramResult<Config extends object = GameConfig> {
   ok: boolean;
   ast: ProgramNode;
   source: string;
   diagnostics: Diagnostic[];
   notices: Notice[];
-  symbols: SymbolInfo[];
-  config: Partial<GameConfig>;
-  rules: GameRule[];
+  symbols: SymbolInfo<Extract<keyof Config, string>>[];
+  config: Partial<Config>;
+  rules: GameRule<Extract<keyof Config, string>>[];
   comms: CommsLine[];
 }
 

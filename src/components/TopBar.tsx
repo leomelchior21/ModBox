@@ -1,9 +1,9 @@
 import { Logo } from '../brand/Logo';
-import type { Mission } from '../learning/missions/types';
+import type { GameMissionMeta } from '../games/types';
 
 export interface TopBarProps {
   gameName: string;
-  missions: Mission[];
+  missions: readonly GameMissionMeta[];
   completed: string[];
   paused: boolean;
   sound: boolean;

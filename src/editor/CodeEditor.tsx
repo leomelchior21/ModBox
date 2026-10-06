@@ -38,9 +38,7 @@ import { swift } from '@codemirror/legacy-modes/mode/swift';
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete';
 import type { LanguageId } from '../interpreter/core/adapter';
 import { modboxEditorTheme } from './theme';
-import { MODS, MOD_BY_ID } from '../interpreter/core/mods';
-import type { ConfigKey } from '../interpreter/core/types';
-import type { CopilotTargetId } from '../learning/copilot';
+import type { ModDefinition } from '../mods/types';
 import { CoachBubble } from '../components/CoachBubble';
 import { normalizeVariableSpacing, placeLanguageSnippet } from './languageEditing';
 
@@ -192,16 +190,22 @@ export interface CodeEditorProps {
   onFocusChange?: (focused: boolean) => void;
   onViewReady?: (view: EditorView | null) => void;
   ariaLabel?: string;
-  coach?: { key: string; message: string; hint?: string; targetId: CopilotTargetId };
+  coach?: { key: string; message: string; hint?: string; targetId: string };
   onDismissCoach?: () => void;
   language?: LanguageId;
+  mods: readonly ModDefinition[];
+  runtimeLabels?: Readonly<Record<string, string>>;
+  coachTargets?: Readonly<Record<string, RegExp>>;
 }
 
 const pythonLanguage = StreamLanguage.define(python);
 const swiftLanguage = StreamLanguage.define(swift);
 
-function languageCompletions(language: LanguageId) {
-  if (language === 'csharp') return csharpCompletions;
+const EMPTY_LABELS: Readonly<Record<string, string>> = {};
+const EMPTY_TARGETS: Readonly<Record<string, RegExp>> = {};
+
+function languageCompletions(language: LanguageId, mods: readonly ModDefinition[], runtimeLabels: Readonly<Record<string, string>>) {
+  if (language === 'csharp') return (context: CompletionContext) => csharpCompletions(context, mods, runtimeLabels);
   const keywords = language === 'python'
     ? ['if', 'True', 'False', 'print']
     : ['var', 'let', 'String', 'Int', 'Bool', 'if', 'true', 'false', 'print'];
@@ -210,20 +214,14 @@ function languageCompletions(language: LanguageId) {
     if (!word || (word.from === word.to && !context.explicit)) return null;
     return {
       from: word.from,
-      options: [...keywords.map((label) => ({ label, type: label === 'print' ? 'function' : 'keyword' })), ...MODS.map((mod) => ({ label: mod.name, type: 'variable', detail: mod.blurb }))],
+      options: [...keywords.map((label) => ({ label, type: label === 'print' ? 'function' : 'keyword' })), ...mods.map((mod) => ({ label: mod.name, type: 'variable', detail: mod.blurb })), ...Object.entries(runtimeLabels).map(([label, detail]) => ({ label, detail, type: 'property' }))],
       validFor: /^\w*$/,
     };
   };
 }
 
-function coachTargetPosition(view: EditorView, targetId: CopilotTargetId): number | null {
-  const modName = MOD_BY_ID[targetId as ConfigKey]?.name;
-  const patterns: Partial<Record<CopilotTargetId, RegExp>> = {
-    writeline: /\b(?:Console\.WriteLine|print)\b/,
-    'power-math': /^\s*laserPower\s*=/,
-    'score-rule': /^\s*if\s*\(?[^\n]*\bscore\b/,
-    'health-rule': /^\s*if\s*\(?[^\n]*\bhealth\b/,
-  };
+function coachTargetPosition(view: EditorView, targetId: string, mods: readonly ModDefinition[], patterns: Readonly<Record<string, RegExp>>): number | null {
+  const modName = mods.find(mod => mod.id === targetId)?.name;
   const pattern = patterns[targetId] ?? (modName ? new RegExp(`\\b${modName}\\b`) : null);
   if (!pattern) return null;
   for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
@@ -243,6 +241,9 @@ export function CodeEditor({
   coach,
   onDismissCoach,
   language = 'csharp',
+  mods,
+  runtimeLabels = EMPTY_LABELS,
+  coachTargets = EMPTY_TARGETS,
 }: CodeEditorProps): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -275,7 +276,7 @@ export function CodeEditor({
           indentUnit.of('    '),
           bracketMatching(),
           closeBrackets(),
-          autocompletion({ override: [languageCompletions(language)], activateOnTyping: true }),
+          autocompletion({ override: [languageCompletions(language, mods, runtimeLabels)], activateOnTyping: true }),
           EditorState.tabSize.of(4),
           keymap.of([
             ...closeBracketsKeymap,
@@ -338,7 +339,7 @@ export function CodeEditor({
       onViewReadyRef.current?.(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [language, mods, runtimeLabels]);
 
   // external value changes (mission switches, quick inserts)
   useEffect(() => {
@@ -359,10 +360,10 @@ export function CodeEditor({
   useEffect(() => {
     const view = viewRef.current;
     if (!view || !coach) return;
-    const position = coachTargetPosition(view, coach.targetId);
+    const position = coachTargetPosition(view, coach.targetId, mods, coachTargets);
     if (position === null) return;
     view.dispatch({ effects: EditorView.scrollIntoView(position, { y: 'center' }) });
-  }, [coach?.key]);
+  }, [coach?.key, mods, coachTargets]);
 
   return (
     <div className={`editor-shell ${coach ? 'editor-shell--coaching' : ''}`}>

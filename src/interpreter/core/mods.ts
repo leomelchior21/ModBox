@@ -1,5 +1,5 @@
-import type { ConfigKey, VarType } from './types';
-import { BACKGROUND_COLORS, ENEMY_KINDS, NUMERIC_LIMITS, ROCK_SHAPES, SHIP_TYPES, WEAPON_KINDS } from './limits';
+import type { ConfigKey } from './types';
+import { BACKGROUND_COLORS, ENEMY_KINDS, NUMERIC_LIMITS, ROCK_SHAPES, SHIP_TYPES, WEAPON_KINDS, DEFAULT_CONFIG } from './limits';
 
 /* ============================================================================
    MODBOX — MODS (the programmable controls of a game)
@@ -8,26 +8,10 @@ import { BACKGROUND_COLORS, ENEMY_KINDS, NUMERIC_LIMITS, ROCK_SHAPES, SHIP_TYPES
    variable declaration into a game value.
    ========================================================================== */
 
-export interface ModDefinition {
-  id: ConfigKey;
-  /** variable name used in student code */
-  name: string;
-  type: VarType;
-  /** UI label */
-  label: string;
-  /** one-line description for the Mod Library */
-  blurb: string;
-  /** example line shown in the library */
-  example: string;
-  /** for string mods: allowed values */
-  values?: readonly string[];
-  /** for numeric mods: human readable range */
-  range?: string;
-  /** mission index in which this Mod is discovered */
-  unlockAt: number;
-}
+import type { ModDefinition as CatalogMod } from '../../mods/types';
+export type ModDefinition = CatalogMod<ConfigKey>;
 
-export const MODS: ModDefinition[] = [
+const VECTOR_ZERO_MODS: ModDefinition[] = [
   {
     id: 'enemyType',
     name: 'enemy',
@@ -178,6 +162,31 @@ export const MODS: ModDefinition[] = [
     unlockAt: 100,
   },
 ];
+
+const VECTOR_ZERO_GLYPHS: Record<string, string> = {
+  shipType: '△',
+  backgroundColor: '◉',
+  rockShape: '◇',
+  enemyType: '☄',
+  shipName: '✦',
+  enemyCount: '☰',
+  laserPower: '✹',
+  enemySpeed: '»',
+  shieldEnabled: '⬡',
+  rapidFireEnabled: '⚡',
+  homingEnabled: '➤',
+  lives: '♥',
+  scoreMultiplier: '×2',
+  worldGravity: '↓',
+  weaponType: '†',
+};
+
+export const MODS: ModDefinition[] = VECTOR_ZERO_MODS.map(mod => ({
+  ...mod,
+  limits: NUMERIC_LIMITS[mod.id as keyof typeof NUMERIC_LIMITS],
+  defaultValue: DEFAULT_CONFIG[mod.id],
+  glyph: VECTOR_ZERO_GLYPHS[mod.id],
+}));
 
 export const MOD_BY_NAME: Record<string, ModDefinition> = Object.fromEntries(
   MODS.map((mod) => [mod.name, mod]),

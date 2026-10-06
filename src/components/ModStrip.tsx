@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { useTouchModDrag } from './useTouchModDrag';
 import { ModOptions } from './ModOptions';
 import { beginModDrag, endModDrag, MOD_DRAG_TYPE, type ModInsertMode } from '../editor/modEditing';
-import type { ModDefinition } from '../interpreter/core/mods';
-import type { CodeToolDefinition, CopilotTargetId } from '../learning/copilot';
+import type { ModDefinition } from '../mods/types';
+import type { CodeToolDefinition } from '../mods/types';
 import { modGlyph } from './modGlyph';
 import { CoachBubble } from './CoachBubble';
 import type { LanguageId } from '../interpreter/core/adapter';
@@ -15,6 +15,20 @@ import { typeLabelForLanguage } from '../interpreter/languageSyntax';
    Every unlocked Mod stays in one horizontally scrolling row. The co-pilot
    pulses the next useful tile; dragging it reveals its editor destination.
    ========================================================================== */
+
+export interface ModStripProps {
+  mods: readonly ModDefinition[];
+  tools: readonly CodeToolDefinition[];
+  activeTargetId?: string;
+  totalMods: number;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  onInsert: (code: string, mode?: ModInsertMode) => void;
+  onOpenLibrary: () => void;
+  coach?: { message: string; hint?: string };
+  onDismissCoach?: () => void;
+  language: LanguageId;
+}
 
 export function ModStrip({
   mods,
@@ -28,19 +42,7 @@ export function ModStrip({
   coach,
   onDismissCoach,
   language,
-}: {
-  mods: ModDefinition[];
-  tools: CodeToolDefinition[];
-  activeTargetId?: CopilotTargetId;
-  totalMods: number;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-  onInsert: (code: string, mode?: ModInsertMode) => void;
-  onOpenLibrary: () => void;
-  coach?: { message: string; hint?: string };
-  onDismissCoach?: () => void;
-  language: LanguageId;
-}): JSX.Element {
+}: ModStripProps): JSX.Element {
   const [options, setOptions] = useState<{ mod: ModDefinition; anchor: HTMLElement } | null>(null);
   const drag = useTouchModDrag(onInsert);
   const guidedTileRef = useRef<HTMLDivElement | null>(null);

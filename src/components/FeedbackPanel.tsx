@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Diagnostic } from '../interpreter/core/types';
-import type { CopilotStep } from '../learning/copilot';
+import type { CopilotGuidance } from '../mods/types';
 
 export type FeedbackStatus = 'ready' | 'updated' | 'error' | 'complete';
 
@@ -8,7 +8,7 @@ export interface FeedbackPanelProps {
   status: FeedbackStatus;
   diagnostic?: Diagnostic;
   ruleCount: number;
-  guidance: CopilotStep;
+  guidance: CopilotGuidance;
 }
 
 export function FeedbackPanel({

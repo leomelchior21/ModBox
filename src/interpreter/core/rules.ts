@@ -16,19 +16,19 @@ import { evalExpr, makeScope, type EvalScope } from './evaluate';
    and predictable for the student.
    ========================================================================== */
 
-export interface RuleTrace {
+export interface RuleTrace<Key extends string = ConfigKey> {
   ruleId: string;
   line: number;
   text: string;
-  targets: ConfigKey[];
+  targets: Key[];
   writes: RuleWrite[];
 }
 
-export interface RuleFrame {
+export interface RuleFrame<Key extends string = ConfigKey> {
   /** values produced by currently-true rules */
-  overrides: Partial<Record<ConfigKey, LiteralValue>>;
+  overrides: Partial<Record<Key, LiteralValue>>;
   activeRuleIds: string[];
-  traces: RuleTrace[];
+  traces: RuleTrace<Key>[];
   errors: string[];
 }
 
@@ -46,7 +46,11 @@ export function evaluateRules(
   constants: Record<string, LiteralValue> = {},
 ): RuleFrame {
   const scope: EvalScope = makeScope(baseConfig, runtime, constants);
-  const frame: RuleFrame = { overrides: {}, activeRuleIds: [], traces: [], errors: [] };
+  return evaluateRulesInScope(rules, scope);
+}
+
+export function evaluateRulesInScope<Key extends string>(rules: readonly GameRule<Key>[], scope: EvalScope): RuleFrame<Key> {
+  const frame: RuleFrame<Key> = { overrides: {}, activeRuleIds: [], traces: [], errors: [] };
 
   for (const rule of rules) {
     const condition = evalExpr(rule.condition, scope);
@@ -57,7 +61,7 @@ export function evaluateRules(
     if (condition.value !== true) continue;
 
     frame.activeRuleIds.push(rule.id);
-    const targets: ConfigKey[] = [];
+    const targets: Key[] = [];
     for (const action of rule.actions) {
       const evaluated = evalExpr(action.value, scope);
       if (!evaluated.ok) {

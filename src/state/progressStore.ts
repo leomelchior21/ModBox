@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { clearPersisted, loadPersisted, savePersisted, type PersistedState } from './storage';
 import type { LanguageId } from '../interpreter/core/adapter';
+import { emptyGameProgress, type GameProgress } from './gameProgress';
+import { DEFAULT_GAME_ID } from '../games/types';
 
 /* ============================================================================
    MODBOX — PROGRESS STORE
@@ -13,6 +15,9 @@ export interface Settings {
 }
 
 interface ProgressState {
+  activeGameId: string;
+  starterMissionId: string;
+  games: Record<string, GameProgress>;
   studentName: string;
   currentMissionId: string;
   activeLanguage: LanguageId;
@@ -30,11 +35,18 @@ interface ProgressState {
   setBestScore: (score: number) => void;
   setSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   resetProgress: () => void;
+  resetCurrentGame: () => void;
+  selectGame: (gameId: string, starterMissionId: string, defaultLanguage?: LanguageId) => void;
+  getGameProgress: (gameId: string, starterMissionId?: string) => GameProgress;
+  setGameCode: (gameId: string, key: string, code: string) => void;
 }
 
 const initial = loadPersisted();
 
 export const useProgress = create<ProgressState>()((set, get) => ({
+  activeGameId: initial.activeGameId,
+  starterMissionId: initial.games[initial.activeGameId]?.starterMissionId ?? 'm00',
+  games: initial.games,
   studentName: initial.studentName,
   currentMissionId: initial.currentMissionId,
   activeLanguage: initial.activeLanguage,
@@ -72,10 +84,47 @@ export const useProgress = create<ProgressState>()((set, get) => ({
     clearPersisted();
     set({ ...initialReset() });
   },
+
+  selectGame: (activeGameId, starterMissionId, defaultLanguage = 'csharp') => {
+    const state = get();
+    if (state.activeGameId === activeGameId) {
+      if (state.starterMissionId !== starterMissionId) set({ starterMissionId });
+      return;
+    }
+    const games = { ...state.games, [state.activeGameId]: snapshotGame(state) };
+    const next = Object.prototype.hasOwnProperty.call(games, activeGameId) ? games[activeGameId] : emptyGameProgress(starterMissionId, defaultLanguage);
+    set({ ...next, starterMissionId, activeGameId, games });
+  },
+
+  getGameProgress: (gameId, starterMissionId = 'm00') => {
+    const state = get();
+    return state.activeGameId === gameId ? snapshotGame(state) : Object.prototype.hasOwnProperty.call(state.games, gameId) ? state.games[gameId] : emptyGameProgress(starterMissionId);
+  },
+
+  resetCurrentGame: () => {
+    const state = get();
+    const next = emptyGameProgress(state.starterMissionId, state.activeLanguage);
+    set({ ...next, games: { ...state.games, [state.activeGameId]: next } });
+  },
+
+  setGameCode: (gameId, key, code) => {
+    const state = get();
+    const previous = state.getGameProgress(gameId);
+    const next = { ...previous, codes: { ...previous.codes, [key]: code } };
+    set({ games: { ...state.games, [gameId]: next }, ...(gameId === state.activeGameId ? { codes: next.codes } : {}) });
+  },
 }));
+
+function snapshotGame(state: ProgressState): GameProgress {
+  return { starterMissionId: state.starterMissionId, currentMissionId: state.currentMissionId, activeLanguage: state.activeLanguage,
+    completed: state.completed, freeModeUnlocked: state.freeModeUnlocked, bestScore: state.bestScore, codes: state.codes };
+}
 
 function initialReset(): Partial<ProgressState> {
   return {
+    activeGameId: DEFAULT_GAME_ID,
+    starterMissionId: 'm00',
+    games: {},
     studentName: '',
     currentMissionId: 'm00',
     activeLanguage: 'csharp',
@@ -89,7 +138,9 @@ function initialReset(): Partial<ProgressState> {
 
 function toPersisted(state: ProgressState): PersistedState {
   return {
-    version: 1,
+    version: 2,
+    activeGameId: state.activeGameId,
+    games: { ...state.games, [state.activeGameId]: snapshotGame(state) },
     studentName: state.studentName,
     currentMissionId: state.currentMissionId,
     activeLanguage: state.activeLanguage,

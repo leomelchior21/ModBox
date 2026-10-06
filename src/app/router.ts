@@ -8,9 +8,9 @@ import { useEffect, useState } from 'react';
 
 export type Route =
   | { name: 'landing' }
-  | { name: 'languages'; missionId?: string; from?: 'landing' | 'arcade' }
+  | { name: 'languages'; gameId?: string; missionId?: string; from?: 'landing' | 'arcade' }
   | { name: 'arcade' }
-  | { name: 'lab'; missionId?: string; debug: boolean };
+  | { name: 'lab'; gameId?: string; missionId?: string; debug: boolean };
 
 export function parseHash(hash: string): Route {
   const clean = hash.replace(/^#\/?/, '');
@@ -18,14 +18,15 @@ export function parseHash(hash: string): Route {
   const params = new URLSearchParams(query ?? '');
   const debug = params.get('debug') === '1';
   const missionId = params.get('mission') ?? undefined;
+  const gameId = params.get('game') ?? undefined;
 
   switch (path) {
     case 'languages':
-      return { name: 'languages', missionId, from: params.get('from') === 'arcade' ? 'arcade' : 'landing' };
+      return { name: 'languages', gameId, missionId, from: params.get('from') === 'arcade' ? 'arcade' : 'landing' };
     case 'arcade':
       return { name: 'arcade' };
     case 'lab':
-      return { name: 'lab', missionId, debug };
+      return { name: 'lab', gameId, missionId, debug };
     default:
       return { name: 'landing' };
   }
@@ -36,6 +37,7 @@ export function routeToHash(route: Route): string {
     case 'languages': {
       const params = new URLSearchParams();
       if (route.missionId) params.set('mission', route.missionId);
+      if (route.gameId) params.set('game', route.gameId);
       if (route.from) params.set('from', route.from);
       return `#/languages${params.size ? `?${params}` : ''}`;
     }
@@ -44,6 +46,7 @@ export function routeToHash(route: Route): string {
     case 'lab': {
       const params = new URLSearchParams();
       if (route.missionId) params.set('mission', route.missionId);
+      if (route.gameId) params.set('game', route.gameId);
       if (route.debug) params.set('debug', '1');
       const query = params.toString();
       return `#/lab${query ? `?${query}` : ''}`;

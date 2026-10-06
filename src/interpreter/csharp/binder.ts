@@ -13,7 +13,9 @@ import type {
   SymbolInfo,
   VarType,
 } from '../core/types';
-import { MOD_BY_NAME, RUNTIME_LABELS, type ModDefinition } from '../core/mods';
+import { MODS, RUNTIME_LABELS } from '../core/mods';
+import type { ModDefinition } from '../../mods/types';
+import type { BindingSchema } from '../core/schema';
 import { coerceModValue, coerceUserValue, type ReportFn } from '../core/modBinding';
 import { MOD_CODES, csharpTechnical, formatValue, makeDiagnostic, prettyExpr } from '../core/diagnostics';
 
@@ -26,7 +28,7 @@ import { MOD_CODES, csharpTechnical, formatValue, makeDiagnostic, prettyExpr } f
      • comms         — Console.WriteLine output for the COMMS feed
    ========================================================================== */
 
-const RUNTIME_NAMES = Object.keys(RUNTIME_LABELS) as (keyof typeof RUNTIME_LABELS)[];
+const VECTOR_ZERO_BINDINGS: BindingSchema<ConfigKey> = { mods: MODS, runtimeNames: Object.keys(RUNTIME_LABELS), coerceValue: coerceModValue };
 
 type InferredType = VarType | 'runtime';
 
@@ -37,25 +39,25 @@ interface Analysis {
   known: boolean;
 }
 
-interface Binding {
+interface Binding<Key extends string> {
   name: string;
   type: VarType;
   value: LiteralValue;
   line: number;
-  mod?: ConfigKey;
+  mod?: Key;
 }
 
-export interface BindResult {
-  config: Partial<Record<ConfigKey, LiteralValue>>;
-  symbols: SymbolInfo[];
-  rules: GameRule[];
+export interface BindResult<Key extends string = ConfigKey> {
+  config: Partial<Record<Key, LiteralValue>>;
+  symbols: SymbolInfo<Key>[];
+  rules: GameRule<Key>[];
   comms: CommsLine[];
   notices: Notice[];
 }
 
-interface Branch {
+interface Branch<Key extends string> {
   conditions: Expr[];
-  actions: RuleAction[];
+  actions: RuleAction<Key>[];
   writes: RuleWrite[];
 }
 
@@ -64,22 +66,20 @@ interface Pos {
   column: number;
 }
 
-export function bindProgram(
-  program: ProgramNode,
-  source: string,
-  diagnostics: Diagnostic[],
-): BindResult {
-  const binder = new Binder(source, diagnostics);
-  return binder.run(program);
+export function bindProgram(program: ProgramNode, source: string, diagnostics: Diagnostic[]): BindResult;
+export function bindProgram<Key extends string>(program: ProgramNode, source: string, diagnostics: Diagnostic[], schema: BindingSchema<Key>): BindResult<Key>;
+export function bindProgram(program: ProgramNode, source: string, diagnostics: Diagnostic[], schema: BindingSchema = VECTOR_ZERO_BINDINGS): BindResult<string> {
+  return new Binder(source, diagnostics, schema).run(program);
 }
 
-class Binder {
-  private readonly env = new Map<string, Binding>();
-  private readonly config: Partial<Record<ConfigKey, LiteralValue>> = {};
-  private readonly symbols: SymbolInfo[] = [];
-  private readonly rules: GameRule[] = [];
+class Binder<Key extends string> {
+  private readonly env = new Map<string, Binding<Key>>();
+  private readonly config: Partial<Record<Key, LiteralValue>> = {};
+  private readonly symbols: SymbolInfo<Key>[] = [];
+  private readonly rules: GameRule<Key>[] = [];
   private readonly comms: CommsLine[] = [];
   private readonly notices: Notice[] = [];
+  private readonly modsByName: Map<string, ModDefinition<Key>>;
   private ruleCounter = 0;
   private commsCounter = 0;
   private warnedUserOnlyRule = false;
@@ -87,9 +87,10 @@ class Binder {
   constructor(
     private readonly source: string,
     private readonly diagnostics: Diagnostic[],
-  ) {}
+    private readonly schema: BindingSchema<Key>,
+  ) { this.modsByName = new Map(schema.mods.map(mod => [mod.name, mod])); }
 
-  run(program: ProgramNode): BindResult {
+  run(program: ProgramNode): BindResult<Key> {
     for (const statement of program.statements) {
       this.bindTopLevel(statement);
     }
@@ -149,14 +150,12 @@ class Binder {
     if (!statement.name) return;
 
     const existing = this.env.get(statement.name);
-    const mod = MOD_BY_NAME[statement.name];
+    const mod = this.modsByName.get(statement.name);
     if (existing && mod && existing.type === mod.type && statement.varType === mod.type) {
       this.handleAssign(statement.name, statement.init, statement.pos);
       this.notice(
         `mod-repeated:${mod.id}`,
-        statement.name === 'enemy'
-          ? 'The last enemy line sets the rock type. Use enemies to choose how many rocks spawn.'
-          : `You added ${mod.name} again. The last ${mod.name} line controls the game.`,
+        `You added ${mod.name} again. The last ${mod.name} line controls the game.`,
       );
       return;
     }
@@ -190,7 +189,7 @@ class Binder {
     let finalValue: LiteralValue | null = null;
 
     if (mod) {
-      const coerced = coerceModValue(mod, rawValue, this.pushDiag, statement.init.pos, this.source);
+      const coerced = this.schema.coerceValue(mod, rawValue, this.pushDiag, statement.init.pos, this.source);
       if (coerced) {
         finalValue = coerced.value;
         this.config[mod.id] = coerced.value;
@@ -236,7 +235,7 @@ class Binder {
         `${name} has not been created yet.`,
         suggestion
           ? `Did you mean ${suggestion}? A variable is created once with its type: ${
-              MOD_BY_NAME[suggestion]?.example ?? `int ${suggestion} = 2;`
+              this.modsByName.get(suggestion)?.example ?? `int ${suggestion} = 2;`
             }`
           : `Create it above with its type, for example: int ${name} = 2;`,
         csharpTechnical('unknownName'),
@@ -248,9 +247,9 @@ class Binder {
     const rawValue = analysis.value ?? binding.value;
 
     if (binding.mod) {
-      const mod = MOD_BY_NAME[binding.name] as ModDefinition | undefined;
+      const mod = this.modsByName.get(binding.name);
       if (!mod) return;
-      const coerced = coerceModValue(mod, rawValue, this.pushDiag, pos, this.source);
+      const coerced = this.schema.coerceValue(mod, rawValue, this.pushDiag, pos, this.source);
       if (!coerced) return;
       binding.value = coerced.value;
       this.config[mod.id] = coerced.value;
@@ -300,7 +299,7 @@ class Binder {
         MOD_CODES.expectedValue,
         statement.condition.pos,
         'A condition must be a question with an answer of true or false.',
-        'Try: if (score >= 300) { … }',
+        'Compare a game value inside the condition, for example with == or >=.',
         csharpTechnical('expectedExpression'),
       );
     }
@@ -330,9 +329,9 @@ class Binder {
   }
 
   /** Flattens nested if statements into separate reactive rules joined with &&. */
-  private collectBranches(conditions: Expr[], body: Statement[]): Branch[] {
-    const branches: Branch[] = [];
-    let current: Branch = { conditions: [...conditions], actions: [], writes: [] };
+  private collectBranches(conditions: Expr[], body: Statement[]): Branch<Key>[] {
+    const branches: Branch<Key>[] = [];
+    let current: Branch<Key> = { conditions: [...conditions], actions: [], writes: [] };
 
     for (const statement of body) {
       switch (statement.kind) {
@@ -353,11 +352,11 @@ class Binder {
           }
           const analysis = this.analyze(statement.value, true);
           if (binding.mod) {
-            const mod = MOD_BY_NAME[binding.name] as ModDefinition;
+            const mod = this.modsByName.get(binding.name)!;
             const compatible =
               (mod.type === 'bool' && (analysis.type === 'bool' || analysis.type === 'runtime')) ||
               (mod.type === 'int' && (analysis.type === 'int' || analysis.type === 'runtime')) ||
-              (mod.type === 'string' && analysis.type === 'string');
+              (mod.type === 'string' && (analysis.type === 'string' || analysis.type === 'runtime'));
             if (!compatible) {
               const expected =
                 mod.type === 'string'
@@ -366,7 +365,7 @@ class Binder {
                     ? 'a whole number'
                     : 'true or false';
               const example =
-                mod.type === 'string' ? '"big-rock"' : mod.type === 'int' ? '4' : 'true';
+                mod.type === 'string' ? JSON.stringify(mod.defaultValue ?? mod.values?.[0] ?? 'example') : mod.type === 'int' ? String(mod.defaultValue ?? 4) : 'true';
               this.report(
                 MOD_CODES.typeMismatch,
                 statement.value.pos,
@@ -385,7 +384,7 @@ class Binder {
             this.warnedUserOnlyRule = true;
             this.notice(
               'rule:useronly',
-              `${binding.name} is your own variable. Rules can change game values such as enemySpeed or shield.`,
+              `${binding.name} is your own variable. Rules can change the game values listed in the Mod Library.`,
               'info',
             );
           }
@@ -412,7 +411,7 @@ class Binder {
               MOD_CODES.expectedValue,
               statement.condition.pos,
               'A condition must be a question with an answer of true or false.',
-              'Try: if (score >= 300 && health <= 50) { … }',
+              'Compare a game value with a number, text or true/false inside the condition.',
               csharpTechnical('expectedExpression'),
             );
           }
@@ -447,13 +446,13 @@ class Binder {
     const binding = this.env.get(name);
     if (binding) return { type: binding.type, value: binding.value, known: true };
 
-    if ((RUNTIME_NAMES as string[]).includes(name)) {
+    if (this.schema.runtimeNames.includes(name)) {
       if (!allowRuntime) {
         this.report(
           MOD_CODES.unknownName,
           pos,
           `${name} only exists while the game is running.`,
-          `Put it inside a rule: if (${name} >= 300) { enemySpeed = 4; }`,
+          `Read ${name} inside an if condition, then change a mod inside the rule.`,
           csharpTechnical('unknownName'),
         );
       }
@@ -465,7 +464,7 @@ class Binder {
       MOD_CODES.unknownName,
       pos,
       `${name} has not been created yet.`,
-      suggestion ? `Did you mean ${suggestion}?` : 'Create it first, for example: int enemies = 3;',
+      suggestion ? `Did you mean ${suggestion}?` : `Create it first, for example: int ${name} = 3;`,
       csharpTechnical('unknownName'),
     );
     return { type: 'int', known: false };
@@ -487,7 +486,7 @@ class Binder {
               MOD_CODES.typeMismatch,
               expr.pos,
               '! flips true and false, so it needs a bool after it.',
-              'Example: if (!shield) { … }',
+              'Use ! with a bool variable or a true/false condition.',
               csharpTechnical('typeMismatch'),
             );
           }
@@ -499,7 +498,7 @@ class Binder {
             MOD_CODES.typeMismatch,
             expr.pos,
             'The minus sign needs a number after it.',
-            'Example: laserPower = laserPower - 1;',
+            'Use minus with a number, for example: -1.',
             csharpTechnical('typeMismatch'),
           );
         }
@@ -520,7 +519,7 @@ class Binder {
               MOD_CODES.typeMismatch,
               node.pos,
               `${expr.op} joins two questions that are true or false.`,
-              'Example: if (score >= 300 && health > 20) { … }',
+              'Compare game values first, then join those conditions with && or ||.',
               csharpTechnical('typeMismatch'),
             );
           }
@@ -590,7 +589,7 @@ class Binder {
             'Compare numbers with numbers, and text with text.',
             csharpTechnical('typeMismatch'),
           );
-        } else if (textual && left.type !== right.type) {
+        } else if (textual && left.type !== right.type && left.type !== 'runtime' && right.type !== 'runtime') {
           this.report(
             MOD_CODES.badComparison,
             expr.pos,
@@ -603,7 +602,7 @@ class Binder {
             MOD_CODES.badComparison,
             expr.pos,
             `${expr.op} compares numbers. Text can use == or !=.`,
-            'Try: if (shipName == "Brian\'s ship") { … }',
+            'Use == to check matching text or != to check different text.',
             csharpTechnical('typeMismatch'),
           );
         }
@@ -621,7 +620,7 @@ class Binder {
   }
 
   private suggest(name: string): string | undefined {
-    const candidates = [...new Set([...Object.keys(MOD_BY_NAME), ...this.env.keys()])];
+    const candidates = [...new Set([...this.modsByName.keys(), ...this.env.keys()])];
     const lower = name.toLowerCase();
     const caseMatch = candidates.find((candidate) => candidate.toLowerCase() === lower);
     if (caseMatch) return caseMatch;

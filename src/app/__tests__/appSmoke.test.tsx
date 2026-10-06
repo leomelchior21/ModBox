@@ -5,6 +5,9 @@ import { act } from 'react';
 import { App } from '../App';
 import { useProgress } from '../../state/progressStore';
 import { EditorView } from '@codemirror/view';
+import { createGameRegistry } from '../../games/createRegistry';
+import { gameRegistry } from '../../games/registry';
+import { gardenGame } from '../../games/__tests__/fixtures/gardenGame';
 
 /* ============================================================================
    MODBOX — APP SMOKE TEST
@@ -119,6 +122,68 @@ async function waitFor(check: () => boolean, attempts = 160): Promise<boolean> {
 }
 
 describe('MODBOX app shell', () => {
+  it('registers another game with its own languages, mods, game design and isolated saves', async () => {
+    useProgress.getState().setCode('csharp:m00', 'string enemy = "big-rock";');
+    const registry = createGameRegistry([...gameRegistry.games, gardenGame]);
+    window.location.hash = '#/';
+    const { host, root } = mount();
+    await act(async () => root.render(<App registry={registry} />));
+    await act(async () => host.querySelector<HTMLButtonElement>('.home-game--garden-test')?.click());
+    await flush();
+    expect(window.location.hash).toContain('game=garden-test');
+    expect([...host.querySelectorAll('.langcard h2')].map(card => card.textContent)).toEqual(['Python', 'C#']);
+    await act(async () => host.querySelector<HTMLButtonElement>('.langcard:first-child button')?.click());
+    expect(await waitFor(() => Boolean(host.querySelector('.garden-stage')))).toBe(true);
+    expect(host.querySelector('.lab')?.getAttribute('data-game-id')).toBe('garden-test');
+    expect(host.querySelector('.lab__filename')?.textContent).toBe('main.py');
+    expect(host.querySelector('.lab__left .cm-editor')).toBeTruthy();
+    expect(host.querySelector('.lab__left .feedback')).toBeTruthy();
+    expect(host.querySelector('.lab__left .modstrip')).toBeTruthy();
+    expect(host.querySelectorAll('.lab__right .garden-tile')).toHaveLength(3);
+    expect(host.querySelector('canvas')).toBeNull();
+    expect(host.querySelector('.modstrip')?.textContent).not.toContain('enemy');
+
+    // A tap chooses a catalog value through the same popup used by Vector Zero.
+    await act(async () => host.querySelector<HTMLButtonElement>('.modtile__options')?.click());
+    const max = [...host.querySelectorAll<HTMLButtonElement>('.mod-options__tree button')].find(button => button.textContent?.includes('12'));
+    await act(async () => max?.click());
+    expect(host.querySelectorAll('.garden-tile')).toHaveLength(12);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('tiles = 12');
+
+    // A drop uses the same code insertion path with an unrelated control name.
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', { value: { getData: () => 'rain = True', types: ['application/x-modbox-mod'] } });
+    await act(async () => host.querySelector('.cm-content')?.dispatchEvent(drop));
+    expect(host.querySelector('.garden-stage')?.getAttribute('data-rain')).toBe('true');
+    expect(useProgress.getState().getGameProgress('garden-test').codes['python:m00']).toContain('tiles = 12');
+
+    await act(async () => { window.location.hash = '#/lab?game=vector-zero&mission=m00'; });
+    expect(await waitFor(() => Boolean(host.querySelector('.lab[data-game-id="vector-zero"] .cm-editor')))).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('big-rock');
+    expect(host.querySelector('.cm-content')?.textContent).not.toContain('tiles');
+
+    // Leaving immediately after typing must preserve the latest source.
+    const vectorEditor = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
+    await act(async () => {
+      vectorEditor!.dispatch({ changes: { from: 0, to: vectorEditor!.state.doc.length, insert: 'string enemy = "small-rock";' } });
+      window.location.hash = '#/lab?game=garden-test&mission=m00';
+    });
+    expect(await waitFor(() => Boolean(host.querySelector('.garden-stage')))).toBe(true);
+    expect(useProgress.getState().getGameProgress('vector-zero').codes['csharp:m00']).toContain('small-rock');
+    expect(host.querySelectorAll('.garden-tile')).toHaveLength(12);
+  }, 15000);
+
+  it('does not launch Vector Zero for an unknown or unfinished game', async () => {
+    window.location.hash = '#/lab?game=missing-game';
+    const { host, root } = mount();
+    await act(async () => root.render(<App />));
+    expect(host.textContent).toContain('This game is unavailable');
+    expect(host.querySelector('.cm-editor')).toBeNull();
+    await act(async () => { window.location.hash = '#/lab?game=runner'; });
+    await flush();
+    expect(host.textContent).toContain('This game is unavailable');
+  });
+
   it('renders the landing screen', async () => {
     window.location.hash = '#/';
     const { host, root } = mount();

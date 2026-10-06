@@ -8,7 +8,7 @@ import { MODS } from './mods';
    ========================================================================== */
 
 export interface EvalScope {
-  runtime: RuntimeValues;
+  runtime: RuntimeValues | Record<string, LiteralValue>;
   /** base config expressed with the student-facing mod names */
   modValues: Record<string, LiteralValue>;
   /** student-invented variables that are not bound to the game */
@@ -60,15 +60,15 @@ function display(value: LiteralValue): string {
 }
 
 export function resolveIdentifier(name: string, scope: EvalScope): EvalResult {
-  if (name in scope.runtime) {
+  if (Object.prototype.hasOwnProperty.call(scope.runtime, name)) {
     const value = scope.runtime[name as keyof RuntimeValues];
-    return { ok: true, value, type: 'int' };
+    return { ok: true, value, type: typeOf(value) };
   }
-  if (name in scope.modValues) {
+  if (Object.prototype.hasOwnProperty.call(scope.modValues, name)) {
     const value = scope.modValues[name];
     return { ok: true, value, type: typeOf(value) };
   }
-  if (name in scope.constants) {
+  if (Object.prototype.hasOwnProperty.call(scope.constants, name)) {
     const value = scope.constants[name];
     return { ok: true, value, type: typeOf(value) };
   }

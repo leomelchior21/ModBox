@@ -2,6 +2,7 @@ import { CrtGlass } from '../../components/CrtGlass';
 import { Logo } from '../../brand/Logo';
 import { LANGUAGES } from '../../interpreter/core/adapter';
 import type { LanguageId } from '../../interpreter/core/adapter';
+import type { PlayableGame } from '../../games/types';
 
 /* ============================================================================
    MODBOX — LANGUAGE SELECT
@@ -11,9 +12,11 @@ import type { LanguageId } from '../../interpreter/core/adapter';
 export function LanguageScreen({
   onSelect,
   onBack,
+  game,
 }: {
   onSelect: (id: LanguageId) => void;
   onBack: () => void;
+  game: PlayableGame;
 }): JSX.Element {
   return (
     <main className="screen languages crt-cabinet">
@@ -23,12 +26,12 @@ export function LanguageScreen({
           ← Back
         </button>
         <Logo height={26} />
-        <span className="eyebrow">VECTOR ZERO · PICK A LANGUAGE</span>
+        <span className="eyebrow">{game.title} · PICK A LANGUAGE</span>
       </header>
 
-      <div className="languages__intro"><p className="eyebrow">VECTOR ZERO</p><h1>CHOOSE YOUR FLIGHT LANGUAGE.</h1><p>Which language do you want to use to mod this game?</p></div>
+      <div className="languages__intro"><p className="eyebrow">{game.title}</p><h1>CHOOSE YOUR CODING LANGUAGE.</h1><p>Which language do you want to use to mod this game?</p></div>
       <div className="languages__grid">
-        {LANGUAGES.map((language) => {
+        {LANGUAGES.filter(language => game.languages.includes(language.id)).map((language) => {
           const playable = language.status === 'play';
           return (
             <article
@@ -52,7 +55,7 @@ export function LanguageScreen({
                   className="btn btn--primary btn--block"
                   onClick={() => onSelect(language.id)}
                 >
-                  PLAY VECTOR ZERO
+                  PLAY {game.title}
                 </button>
               ) : (
                 <button type="button" className="btn btn--ghost btn--block" onClick={() => onSelect(language.id)}>

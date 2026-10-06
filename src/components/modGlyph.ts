@@ -1,4 +1,4 @@
-import type { ModDefinition } from '../interpreter/core/mods';
+import type { ModDefinition } from '../mods/types';
 
 /* ============================================================================
    MODBOX — MOD GLYPHS
@@ -6,24 +6,6 @@ import type { ModDefinition } from '../interpreter/core/mods';
    rather than a list of variables. Shared so both surfaces stay in step.
    ========================================================================== */
 
-const MOD_GLYPH: Record<string, string> = {
-  shipType: '△',
-  backgroundColor: '◉',
-  rockShape: '◇',
-  enemyType: '☄',
-  shipName: '✦',
-  enemyCount: '☰',
-  laserPower: '✹',
-  enemySpeed: '»',
-  shieldEnabled: '⬡',
-  rapidFireEnabled: '⚡',
-  homingEnabled: '➤',
-  lives: '♥',
-  scoreMultiplier: '×2',
-  worldGravity: '↓',
-  weaponType: '†',
-};
-
 export function modGlyph(mod: ModDefinition): string {
-  return MOD_GLYPH[mod.id] ?? (mod.type === 'bool' ? '⬡' : mod.type === 'int' ? '#' : '“”');
+  return mod.glyph ?? (mod.type === 'bool' ? '⬡' : mod.type === 'int' ? '#' : '“”');
 }
