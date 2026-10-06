@@ -25,6 +25,7 @@ export interface GameStageProps {
   overlayExtras?: ReactNode;
   statusNote?: string;
   missionName?: string;
+  missionReady?: boolean;
   coach?: { message: string; hint?: string; onDismiss: () => void };
 }
 
@@ -165,12 +166,15 @@ export function GameStage({
   overlayExtras,
   statusNote,
   missionName,
+  missionReady = false,
   coach,
 }: GameStageProps): JSX.Element {
   const config = snapshot.config;
 
   return (
-    <div className="stage" onClick={onFocusGame} role="presentation">
+    <div className={`stage ${missionReady ? 'stage--missionReady' : ''}`} onClick={event => {
+      if (!(event.target as HTMLElement).closest('button, .joystick, .coach-bubble')) onFocusGame();
+    }} role="presentation">
       <canvas ref={canvasRef} className="stage__canvas" tabIndex={0} aria-label="Vector Zero game view. Focus to fly: arrows to steer, space to fire." />
 
       {phase === 'launch' ? (
@@ -296,7 +300,7 @@ export function GameStage({
         </div>
       ) : null}
 
-      {showTouchControls && (phase === 'playing' || phase === 'respawn') ? <TouchControls engine={engine} /> : null}
+      {showTouchControls && (phase === 'playing' || phase === 'respawn') ? <TouchControls engine={engine} onEngage={onFocusGame} /> : null}
       {coach ? <CoachBubble className="coach-bubble--stage" message={coach.message} hint={coach.hint} onDismiss={coach.onDismiss} /> : null}
       {children}
     </div>

@@ -1,0 +1,73 @@
+/* Keep the two panels in their grid cells through every mission and hint. */
+.lab .lab__body { isolation:isolate; }
+.lab .lab__left,.lab .lab__right { position:relative; z-index:0; overflow:hidden; }
+.lab .lab__editorZone { min-width:0; overflow:hidden; }
+.lab .lab__editor,.lab .editor-shell,.lab .modstrip,.lab .modstrip__row { min-width:0; min-height:0; }
+.lab .modstrip { overflow:hidden; }
+.lab .modstrip__row { overflow-x:auto; overflow-y:hidden; touch-action:pan-x; }
+.lab .modtile { touch-action:pan-x; }
+.lab .modcard__insert,.lab .mod-options__tree button { touch-action:pan-y; }
+.lab .modlib { height:100%; min-height:0; }
+.lab .modlib__head,.lab .modlib__hint { flex-shrink:0; }
+.lab .modlib__list { min-height:0; overflow-y:auto; overscroll-behavior-y:contain; }
+.lab .modcard { flex-shrink:0; }
+
+/* Mission navigation uses the game viewport instead of a footer row. */
+.lab .stage__missionNext { position:absolute; z-index:4; right:18px; bottom:18px; max-width:calc(100% - 36px); }
+.lab .mission__next--ready {
+  min-height:58px; padding:14px 22px; border:1px solid #baff4a; border-radius:9px;
+  background:linear-gradient(135deg,#caff52,#8eea31); color:#112709;
+  box-shadow:0 0 5px #caff52,0 0 20px #8dff4a99,inset 0 0 0 1px #baff4a88;
+  font:900 clamp(13px,1.4vw,19px)/1.1 var(--font-mono); opacity:1; cursor:pointer;
+}
+.lab .mission__next--ready:hover { filter:brightness(1.12); }
+.lab .mission__next--ready:focus-visible { outline:2px solid #f0ffe4; outline-offset:4px; }
+.lab .stage__missionBack {
+  position:absolute; z-index:3; top:10px; left:50%; transform:translateX(-50%);
+  padding:5px 8px; border:1px solid #718568; border-radius:5px;
+  background:#06170de8; color:#cfe5be; font:700 9px var(--font-mono); cursor:pointer;
+}
+
+/* Touch controls sit over the bottom corners of the expanded flight field. */
+.lab .stage .touchbar {
+  position:absolute; z-index:3; inset:auto 0 0; display:flex; justify-content:space-between;
+  align-items:flex-end; padding:16px; gap:16px; background:none; border:0; pointer-events:none;
+}
+.lab .stage .touchbar__cluster { pointer-events:auto; }
+.lab .stage .joystick { width:clamp(64px,9vw,100px); flex-shrink:0; }
+.lab .stage .touch--fire { width:clamp(54px,8vw,84px); }
+.lab .stage .touch--fire .touch__label { font-size:clamp(36px,5vw,62px); }
+.lab--touch .stage--missionReady .touchbar__cluster--right { margin-bottom:72px; }
+
+/* Only the popup enters the browser top layer; its panel never gets raised. */
+.lab .coach-position { position:absolute; display:block; width:min(280px,100%); height:30px; pointer-events:none; }
+.lab .coach-position.coach-bubble--editor { position:relative; }
+.lab .coach-position.coach-bubble--mod { position:relative; left:auto; top:auto; }
+.lab .coach-position.coach-bubble--stage { top:12px; right:12px; }
+.lab .coach-position.coach-bubble--mission { right:18px; bottom:90px; }
+.lab--touch .coach-position.coach-bubble--mission { top:38px; right:12px; bottom:auto; }
+.lab .coach-portal { z-index:auto; }
+.lab .coach-bubble--floating:is(:popover-open,[data-layer-fallback]) {
+  position:fixed; display:flex; inset:auto; margin:0; z-index:2147483000;
+  width:max-content; max-width:calc(100vw - 20px); animation:none; white-space:normal; pointer-events:none;
+}
+.lab .coach-bubble--floating .coach-bubble__close { pointer-events:auto; }
+.lab .coach-bubble--floating .coach-bubble__copy { overflow:visible; line-height:1.35; }
+.lab .coach-bubble--floating::before { content:none; }
+.lab .mod-options:is(:popover-open,[data-layer-fallback]) { z-index:2147483000; }
+
+@media(max-width:600px) and (orientation:portrait) {
+  .lab .lab__body { grid-template-rows:minmax(0,1fr) minmax(0,1fr); }
+  .lab .stage .touchbar { padding:12px; }
+  .lab .stage__missionNext { right:12px; bottom:12px; }
+  .lab .mission__next--ready { min-height:46px; padding:10px 13px; font-size:12px; }
+  .lab--touch .stage--missionReady .touchbar__cluster--right { margin-bottom:60px; }
+  .lab .stage__missionBack { top:5px; font-size:7px; }
+}
+@media(max-height:650px) and (orientation:landscape) {
+  .lab .stage .joystick { width:64px; }
+  .lab .stage .touch--fire { width:54px; }
+  .lab .stage .touchbar { padding:12px; }
+  .lab .mission__next--ready { min-height:44px; padding:10px 14px; font-size:12px; }
+  .lab--touch .stage--missionReady .touchbar__cluster--right { margin-bottom:58px; }
+}

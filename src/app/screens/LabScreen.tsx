@@ -3,14 +3,14 @@ import { CodeOrder } from '../../components/CodeOrder';
 import { CrtGlass } from '../../components/CrtGlass';
 import { VhsBoot } from '../../components/VhsBoot';
 import { TopBar } from '../../components/TopBar';
-import { MissionPanel } from '../../components/MissionPanel';
+import { CoachBubble } from '../../components/CoachBubble';
 import { FeedbackPanel, type FeedbackStatus } from '../../components/FeedbackPanel';
 import { ModLibrary } from '../../components/ModLibrary';
 import { ModStrip } from '../../components/ModStrip';
 import { UnlockBurst, type UnlockToken } from '../../components/UnlockBurst';
 import { SettingsDialog } from '../../components/SettingsDialog';
 import { DebugPanel } from '../../components/DebugPanel';
-import { GameStage, TouchControls } from '../../components/GameStage';
+import { GameStage } from '../../components/GameStage';
 import { CodeEditor, applyModToEditor } from '../../editor/CodeEditor';
 import { normalizeVariableSpacing } from '../../editor/languageEditing';
 import type { ModInsertMode } from '../../editor/modEditing';
@@ -240,6 +240,10 @@ export function LabScreen({
   }, [progress.settings.sound]);
 
   useEffect(() => {
+    engineRef.current?.setTouchControls(touch);
+  }, [touch]);
+
+  useEffect(() => {
     engineRef.current?.setKeyEnabled(!editorFocused && !libraryOpen && !settingsOpen && !orderOpen);
   }, [editorFocused, libraryOpen, settingsOpen, orderOpen]);
 
@@ -358,16 +362,18 @@ export function LabScreen({
   const handleBack = useCallback(() => {
     const previous = previousMission(mission.id);
     if (!previous) return;
+    useProgress.getState().setCode(codeKey(language, mission.id), code);
     useProgress.getState().setMission(previous.id);
     navigate({ name: 'lab', missionId: previous.id, debug: debugFlag });
-  }, [mission.id, debugFlag]);
+  }, [mission.id, debugFlag, language, code]);
 
   const handleNext = useCallback(() => {
     const next = nextMission(mission.id);
     if (!next) return;
+    useProgress.getState().setCode(codeKey(language, mission.id), code);
     useProgress.getState().setMission(next.id);
     navigate({ name: 'lab', missionId: next.id, debug: debugFlag });
-  }, [mission.id, debugFlag]);
+  }, [mission.id, debugFlag, language, code]);
 
   const handleResetFullGame = useCallback(() => {
     const confirmed = window.confirm(
@@ -449,20 +455,20 @@ export function LabScreen({
         <section id="flight-panel" className="lab__right" aria-label="Vector Zero game">
           <div className="lab__stageHost" ref={stageRef}>
             <div className="stage-frame">
-              <GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={false} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} missionName={mission.kind === 'sandbox' ? mission.code : `MISSION ${String(mission.order).padStart(2, '0')} · ${mission.code}`} coach={coach && !guidance.targetId && !missionComplete ? { ...coach, onDismiss: () => setDismissedCoachKey(coachKey) } : undefined} />
+              <GameStage canvasRef={canvasRef} engine={engineRef.current} phase={phase} snapshot={snapshot} showTouchControls={touch} onLaunch={handleLaunch} onResume={() => engineRef.current?.resume()} onRestart={() => engineRef.current?.restart()} onFocusGame={focusGame} missionReady={missionPassed && Boolean(nextMission(mission.id))} statusNote={mission.kind === 'sandbox' ? 'Every Mod you discovered is unlocked. Change anything.' : pipeline} missionName={mission.kind === 'sandbox' ? mission.code : `MISSION ${String(mission.order).padStart(2, '0')} · ${mission.code}`} coach={coach && !guidance.targetId && !missionComplete ? { ...coach, onDismiss: () => setDismissedCoachKey(coachKey) } : undefined}>
+                {previousMission(mission.id) ? <button type="button" className="stage__missionBack" onClick={event => { event.stopPropagation(); handleBack(); }}>← Previous mission</button> : null}
+                {missionPassed && nextMission(mission.id) ? (
+                  <div className="stage__missionNext">
+                    <button type="button" className="mission__next mission__next--ready" onClick={event => { event.stopPropagation(); handleNext(); }}>NEXT MISSION <span aria-hidden="true">→</span></button>
+                  </div>
+                ) : null}
+                {coach && missionComplete && nextMission(mission.id) ? <CoachBubble className="coach-bubble--mission" message={coach.message} onDismiss={() => setDismissedCoachKey(coachKey)} /> : null}
+              </GameStage>
             </div>
             <ModLibrary open={libraryOpen} onClose={() => { setLibraryOpen(false); focusEditor(); }} unlocked={unlockedModList} totalMods={MODS.length} onInsert={(snippet, mode) => { setLibraryOpen(false); handleInsertCode(snippet, mode); }} language={language} />
             {unlockTokens.length ? <UnlockBurst tokens={unlockTokens} onDone={() => setUnlockTokens([])} /> : null}
           </div>
         </section>
-      </div>
-      <div className="lab__console">
-        {touch ? <TouchControls engine={engineRef.current} onEngage={focusGame} /> : null}
-        <div className="lab__briefing">
-          <div className="lab__missionZone">
-            <MissionPanel mission={mission} complete={missionPassed} onBack={handleBack} onNext={handleNext} hasPrevious={Boolean(previousMission(mission.id))} hasNext={Boolean(nextMission(mission.id))} coach={coach && missionComplete ? coach : undefined} onDismissCoach={() => setDismissedCoachKey(coachKey)} />
-          </div>
-        </div>
       </div>
       {orderOpen ? <CodeOrder code={code} onClose={() => { setOrderOpen(false); focusEditor(); }} onChange={next => { const view = editorViewRef.current; if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } }); }} /> : null}
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} bestScore={progress.bestScore} completedCount={progress.completed.length}

@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { describe, expect, it, beforeAll, afterEach } from 'vitest';
+import { describe, expect, it, beforeAll, beforeEach, afterEach } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { App } from '../App';
+import { useProgress } from '../../state/progressStore';
+import { EditorView } from '@codemirror/view';
 
 /* ============================================================================
    MODBOX — APP SMOKE TEST
@@ -29,6 +31,7 @@ function fakeContext(): CanvasRenderingContext2D {
 }
 
 beforeAll(() => {
+  (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   HTMLCanvasElement.prototype.getContext = function getContext() {
     return fakeContext();
   } as unknown as HTMLCanvasElement['getContext'];
@@ -76,6 +79,8 @@ beforeAll(() => {
 
 const roots: Root[] = [];
 
+beforeEach(() => useProgress.getState().resetProgress());
+
 afterEach(() => {
   for (const root of roots.splice(0)) {
     act(() => root.unmount());
@@ -121,9 +126,10 @@ describe('MODBOX app shell', () => {
       root.render(<App />);
     });
     await flush();
-    expect(host.textContent).toContain('MOD THE GAME');
+    expect(host.textContent).toContain('MOD IT. CODE IT. PLAY IT.');
     expect(host.textContent).toContain('ENTER MODBOX');
-    expect(host.querySelector('canvas')).toBeTruthy();
+    expect(host.querySelector('.home__games')).toBeTruthy();
+    expect(host.querySelector('.home__languages')).toBeNull();
   });
 
   it('renders Python, Swift, and C# as playable languages in the right order', async () => {
@@ -135,7 +141,22 @@ describe('MODBOX app shell', () => {
     await flush();
     const cards = [...host.querySelectorAll('.langcard')];
     expect(cards.map((card) => card.querySelector('h2')?.textContent)).toEqual(['Python', 'Swift', 'C#']);
-    expect(cards.every((card) => card.textContent?.includes('ENTER THE ARCADE'))).toBe(true);
+    expect(cards.every((card) => card.textContent?.includes('PLAY VECTOR ZERO'))).toBe(true);
+  });
+
+  it('asks for a language after choosing a game and launches that game in Swift', async () => {
+    window.location.hash = '#/';
+    const { host, root } = mount();
+    await act(async () => root.render(<App />));
+    await act(async () => host.querySelector<HTMLButtonElement>('.home-game--vector')?.click());
+    await flush();
+    expect(window.location.hash).toContain('/languages?mission=m00');
+    expect(host.querySelector('.languages')).toBeTruthy();
+    await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(2) button')?.click());
+    expect(await waitFor(() => Boolean(host.querySelector('.cm-editor')))).toBe(true);
+    expect(useProgress.getState().activeLanguage).toBe('swift');
+    expect(window.location.hash).toContain('/lab?mission=m00');
+    expect(host.querySelector('.lab__filename')?.textContent).toBe('main.swift');
   });
 
   it('renders the arcade with VECTOR ZERO and locked future cabinets', async () => {
@@ -171,11 +192,37 @@ describe('MODBOX app shell', () => {
     expect(host.textContent).toContain('Change the enemy type to "big-rock".');
     expect(host.querySelector('[data-guided="true"]')).toBeTruthy();
     expect(host.querySelector('.feedback__checks')).toBeNull();
-    expect(host.textContent).toContain('NEXT MISSION');
-    expect(host.querySelector<HTMLButtonElement>('.mission__next')?.disabled).toBe(true);
+    expect(host.querySelector('.mission__next')).toBeNull();
+    expect(host.querySelector('.lab__console')).toBeNull();
     // the launch overlay offers the real controls
     expect(host.textContent).toContain('LAUNCH');
     expect(host.querySelector('.overlay__mission')?.textContent).toContain('MISSION 00');
     expect(host.textContent).toContain('rotate left');
+  });
+
+  it('shows Next Mission in the stage after passing and carries edited code through missions 01 and 02', async () => {
+    window.location.hash = '#/lab?mission=m00';
+    const { host, root } = mount();
+    await act(async () => root.render(<App />));
+    expect(await waitFor(() => Boolean(host.querySelector('.cm-editor')))).toBe(true);
+    const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
+    expect(view).toBeTruthy();
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'string enemy = "big-rock";' } }));
+    expect(await waitFor(() => Boolean(host.querySelector('.stage .mission__next--ready')))).toBe(true);
+    await act(async () => host.querySelector<HTMLButtonElement>('.mission__next')?.click());
+    expect(await waitFor(() => host.querySelector('.overlay__mission')?.textContent?.includes('MISSION 01') ?? false)).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('big-rock');
+    expect(useProgress.getState().codes['csharp:m00']).toContain('big-rock');
+    expect(host.querySelector('.lab__console')).toBeNull();
+
+    const nextView = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
+    const namedShip = 'string enemy = "big-rock";\nstring shipName = "Voyager";\nConsole.WriteLine(shipName);';
+    await act(async () => nextView!.dispatch({ changes: { from: 0, to: nextView!.state.doc.length, insert: namedShip } }));
+    expect(await waitFor(() => Boolean(host.querySelector('.stage .mission__next--ready')))).toBe(true);
+    await act(async () => host.querySelector<HTMLButtonElement>('.mission__next')?.click());
+    expect(await waitFor(() => host.querySelector('.overlay__mission')?.textContent?.includes('MISSION 02') ?? false)).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('Voyager');
+    expect(host.querySelector('.modstrip__row')).toBeTruthy();
+    expect(host.querySelector('.lab__console')).toBeNull();
   });
 });

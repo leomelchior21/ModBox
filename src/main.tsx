@@ -11,6 +11,7 @@ import './styles/lab-polish.css';
 import './styles/home.css';
 import './styles/crt.css';
 import './styles/crt-refinements.css';
+import './styles/lab-layout.css';
 import './styles/vhs-boot.css';
 
 const host = document.getElementById('root');

@@ -71,6 +71,7 @@ export class VectorZeroEngine {
   private canvas: HTMLCanvasElement;
   private width = 800;
   private height = 600;
+  private touchControls = false;
   private dpr = 1;
 
   private rafId = 0;
@@ -303,6 +304,10 @@ export class VectorZeroEngine {
     window.removeEventListener('blur', this.onBlur);
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('resize', this.resize);
+  }
+
+  setTouchControls(enabled: boolean): void {
+    this.touchControls = enabled;
   }
 
   resize = (): void => {
@@ -1306,6 +1311,7 @@ export class VectorZeroEngine {
       toasts: this.toasts,
       banner: this.banner,
       shipNamePulse: this.shipNamePulse,
+      touchControls: this.touchControls,
     };
     drawHud(ctx, width, height, view);
   }

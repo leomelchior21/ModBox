@@ -69,7 +69,7 @@ export function ArcadeScreen({
         </button>
         <Logo height={26} />
         <div className="row">
-          <span className="tag tag--blue">C# · PLAY</span>
+          <span className="tag tag--blue">PICK A GAME</span>
           <button
             type="button"
             className="btn btn--ghost btn--icon"

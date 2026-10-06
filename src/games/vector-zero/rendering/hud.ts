@@ -31,6 +31,7 @@ export interface HudView {
   toasts: Toast[];
   banner: { text: string; sub: string; life: number; maxLife: number } | null;
   shipNamePulse: number;
+  touchControls?: boolean;
 }
 
 function shipGlyph(
@@ -165,13 +166,15 @@ export function drawHud(
 
   /* ------------------------------------------------------------------ comms */
   if (view.comms.length) {
-    const visibleLines = Math.max(1, Math.min(HUD.commsLines, Math.floor((height - 140) / 21)));
+    const bottomInset = view.touchControls ? (width <= 600 || height <= 420 ? 100 : 136) : 0;
+    const fontSize = Math.max(9, Math.min(HUD.comms, width / 42));
+    const lineHeight = fontSize + 7;
+    const visibleLines = Math.max(1, Math.min(HUD.commsLines, Math.floor((height - bottomInset - 150) / lineHeight)));
     const lines = view.comms.slice(-visibleLines);
-    const lineHeight = 21;
     const boxHeight = 26 + lines.length * lineHeight;
-    const boxWidth = Math.min(width * 0.62, 285);
-    const boxY = Math.max(pad, height - boxHeight - pad - 8);
-    const boxX = width - pad - boxWidth;
+    const boxWidth = Math.min(width * 0.43, 285);
+    const boxY = Math.max(pad + 105, height - bottomInset - boxHeight - pad - 8);
+    const boxX = pad;
 
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(6,22,11,0.9)';
@@ -182,9 +185,9 @@ export function drawHud(
 
     ctx.font = `600 ${HUD.label}px ${HUD.font}`;
     ctx.fillStyle = PALETTE.blueBright;
-    ctx.fillText('FLIGHT LOG', boxX, boxY + 2);
+    ctx.fillText('PILOT LOG', boxX, boxY + 2);
 
-    ctx.font = `500 ${Math.max(13, HUD.comms)}px ${HUD.font}`;
+    ctx.font = `500 ${fontSize}px ${HUD.font}`;
     lines.forEach((line, index) => {
       ctx.fillStyle = line.tone === 'system' ? PALETTE.flareBright : PALETTE.cream;
       ctx.fillText(clipText(ctx, `› ${line.text}`, boxWidth - 16), boxX, boxY + 24 + index * lineHeight);

@@ -1,11 +1,8 @@
 import { CrtGlass } from '../../components/CrtGlass';
-﻿import { useEffect, useRef, useState } from 'react';
-import { LandingDemo } from '../../components/LandingDemo';
+import { useEffect, useRef, useState } from 'react';
 import { Logo } from '../../brand/Logo';
 import { VectorZeroCover } from './ArcadeScreen';
 import { GameTeaser } from '../../components/GameTeaser';
-import type { Mission } from '../../learning/missions/types';
-import type { LanguageId } from '../../interpreter/core/adapter';
 
 function Icon({ code = false }: { code?: boolean }): JSX.Element {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">{code ? <path d="m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18" /> : <path d="M7 7h10l3 3 2 9-3 1-4-4H9l-4 4-3-1 2-9zm0 3v6m-3-3h6m5-2h2m1 3h2" />}</svg>;
@@ -17,13 +14,11 @@ const HERO_SLIDES = [
   { src: '/art/neon-maze-hero.png', title: 'NEON MAZE', alt: 'A glowing probe racing through a vast neon labyrinth' },
   { src: '/art/devil-floor-hero.png', title: 'DEVIL FLOOR', alt: 'An explorer jumping over a volcanic energy chasm' },
 ] as const;
-export function LandingScreen({ onEnter, onContinue, onPlay, onArcade, onProfile, onLanguage, hasProgress, bestScore, completedCount, currentMission, studentName, activeLanguage }: {
-  onEnter: () => void; onContinue: () => void; onPlay: () => void; onArcade: () => void; onProfile: () => void;
-  onLanguage: (language: LanguageId) => void;
-  hasProgress: boolean; bestScore: number; completedCount: number; currentMission: Mission; studentName: string; activeLanguage: LanguageId;
+export function LandingScreen({ onContinue, onPlay, onArcade, onProfile, hasProgress, studentName }: {
+  onContinue: () => void; onPlay: () => void; onArcade: () => void; onProfile: () => void;
+  hasProgress: boolean; studentName: string;
 }): JSX.Element {
   const games = useRef<HTMLElement>(null);
-  const learn = useRef<HTMLElement>(null);
   const [heroIndex, setHeroIndex] = useState(0);
   const hero = HERO_SLIDES[heroIndex];
   useEffect(() => {
@@ -54,7 +49,7 @@ export function LandingScreen({ onEnter, onContinue, onPlay, onArcade, onProfile
         <Logo height={200} className="home__wordmark" layout="hero" />
         <h1>MOD IT. CODE IT. PLAY IT.</h1>
         <p>Your code. Your rules. Your next high score.</p>
-        <button className="home__enter" onClick={hasProgress ? onContinue : onEnter}>{hasProgress ? 'CONTINUE YOUR MISSION' : 'ENTER MODBOX'} <span aria-hidden="true">↗</span></button>
+        <button className="home__enter" onClick={() => scrollTo(games.current)}>ENTER MODBOX <span aria-hidden="true">↗</span></button>
       </div>
       <span className="home__sector" aria-hidden="true">ARCADE SIGNAL / {hero.title}</span>
     </section>
@@ -67,14 +62,5 @@ export function LandingScreen({ onEnter, onContinue, onPlay, onArcade, onProfile
         {UPCOMING.map(game => <article key={game.type} className={`home-game home-game--${game.type}`} aria-label={`${game.title}, coming soon`}><h3>{game.title}</h3><GameTeaser kind={game.type} /><span className="home-game__status">COMING SOON</span></article>)}
       </div>
     </section>
-    <section className="home__languages crt-panel" ref={learn} aria-label="Choose a language">
-      <h2><Icon code /> LANGUAGES</h2>
-      <button className={`home__languageChoice ${activeLanguage === 'python' ? 'home__languageChoice--active' : ''}`} onClick={() => onLanguage('python')}><img src="/brand/python.svg" alt="" /><strong>Python</strong><span>PLAY</span></button>
-      <button className={`home__languageChoice ${activeLanguage === 'swift' ? 'home__languageChoice--active' : ''}`} onClick={() => onLanguage('swift')}><img src="/brand/swift.svg" alt="" /><strong>Swift</strong><span>PLAY</span></button>
-      <button className={`home__languageChoice ${activeLanguage === 'csharp' ? 'home__languageChoice--active' : ''}`} onClick={() => onLanguage('csharp')}><strong>C#</strong><span>PLAY</span></button>
-    </section>
-    {hasProgress ? <aside className="home__resume"><span><span className="signal-dot" /> WELCOME BACK, PILOT</span><strong>MISSION {String(currentMission.order).padStart(2, '0')} · {currentMission.code}</strong><span>{completedCount} CLEARED / BEST {bestScore.toLocaleString()}</span><button onClick={onContinue}>RESUME →</button></aside> : null}
-    <details className="home__demo"><summary><span>CURIOUS? <strong>MOD THE GAME. LEARN THE CODE.</strong></span><span>TRY A LIVE DEMO +</span></summary><LandingDemo /></details>
-    <footer className="home__footer"><span><span className="signal-dot" /> ALL SYSTEMS READY</span><p>SMALL CHANGES. BIG POSSIBILITIES.</p><button onClick={onProfile}>PROGRESS & SETTINGS ↗</button></footer>
   </main>;
 }

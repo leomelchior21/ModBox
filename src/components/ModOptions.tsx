@@ -21,7 +21,7 @@ interface ModOptionsProps {
 }
 
 export function ModOptions({ mod, anchor, onClose, onInsert, language }: ModOptionsProps): JSX.Element {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   const drag = useTouchModDrag(onInsert);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
@@ -44,7 +44,9 @@ export function ModOptions({ mod, anchor, onClose, onInsert, language }: ModOpti
   useLayoutEffect(() => {
     const node = dialog.current;
     if (!node) return;
-    if (!node.open) node.show();
+    node.setAttribute('popover', 'manual');
+    if (typeof node.showPopover === 'function') node.showPopover();
+    else node.setAttribute('data-layer-fallback', '');
     setPosition(null);
 
     const updatePosition = () => {
@@ -71,7 +73,7 @@ export function ModOptions({ mod, anchor, onClose, onInsert, language }: ModOpti
       window.cancelAnimationFrame(frame);
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
-      if (node.open) node.close();
+      if (typeof node.hidePopover === 'function' && node.matches(':popover-open')) node.hidePopover();
     };
   }, [anchor, mod]);
 
@@ -90,8 +92,9 @@ export function ModOptions({ mod, anchor, onClose, onInsert, language }: ModOpti
     : { left: 0, top: 0, visibility: 'hidden' };
 
   return createPortal(
-    <dialog
+    <div
       ref={dialog}
+      role="dialog"
       className={`mod-options mod-options--${mod.type}`}
       style={positionStyle}
       aria-label={`${mod.name} options`}
@@ -159,7 +162,7 @@ export function ModOptions({ mod, anchor, onClose, onInsert, language }: ModOpti
         </form>
       ) : null}
       {drag.ghost}
-    </dialog>,
+    </div>,
     document.querySelector('.lab') ?? document.body,
   );
 }

@@ -123,7 +123,7 @@ export function ModStrip({
                 <button
                   type="button"
                   className={`modtile modtile--${mod.type} ${guided ? 'modtile--required' : ''}`}
-                  {...drag.handlers(mod.example, (anchor) => setOptions({ mod, anchor }))}
+                  {...drag.handlers(mod.example, (anchor) => setOptions({ mod, anchor }), 'x')}
                   draggable
                   onDragStart={(event) => beginNativeDrag(event, mod.example)}
                   onDragEnd={endModDrag}
@@ -165,7 +165,7 @@ export function ModStrip({
                 <button
                   type="button"
                   className={`modtile modtile--tool modtile--${tool.type} ${guided ? 'modtile--required' : ''}`}
-                  {...drag.handlers(tool.example, () => undefined)}
+                  {...drag.handlers(tool.example, () => undefined, 'x')}
                   draggable
                   onDragStart={(event) => beginNativeDrag(event, tool.example)}
                   onDragEnd={endModDrag}

@@ -23,10 +23,10 @@ export function LanguageScreen({
           ← Back
         </button>
         <Logo height={26} />
-        <span className="eyebrow">STEP 1 · PICK A LANGUAGE</span>
+        <span className="eyebrow">VECTOR ZERO · PICK A LANGUAGE</span>
       </header>
 
-      <div className="languages__intro"><p className="eyebrow">CHOOSE YOUR TOOLKIT</p><h1>IT STARTS WITH A LINE OF CODE.</h1><p>Choose a language. Make a small change. See what happens.</p></div>
+      <div className="languages__intro"><p className="eyebrow">VECTOR ZERO</p><h1>CHOOSE YOUR FLIGHT LANGUAGE.</h1><p>Which language do you want to use to mod this game?</p></div>
       <div className="languages__grid">
         {LANGUAGES.map((language) => {
           const playable = language.status === 'play';
@@ -52,7 +52,7 @@ export function LanguageScreen({
                   className="btn btn--primary btn--block"
                   onClick={() => onSelect(language.id)}
                 >
-                  ENTER THE ARCADE
+                  PLAY VECTOR ZERO
                 </button>
               ) : (
                 <button type="button" className="btn btn--ghost btn--block" onClick={() => onSelect(language.id)}>

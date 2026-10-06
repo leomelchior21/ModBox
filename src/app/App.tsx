@@ -20,7 +20,7 @@ function LoadingCabinet(): JSX.Element {
 
 /* ============================================================================
    MODBOX — APP SHELL
-   Four screens, hash routed: landing → language → arcade → lab.
+   Pick a game on the landing page or arcade, then its language, then play.
    ========================================================================== */
 
 export function App(): JSX.Element {
@@ -71,6 +71,10 @@ export function App(): JSX.Element {
     navigate({ name: 'lab', missionId, debug });
   };
 
+  const chooseLanguage = (missionId: string) => {
+    navigate({ name: 'languages', missionId, from: route.name === 'arcade' ? 'arcade' : 'landing' });
+  };
+
   const settingsDialog = (
     <SettingsDialog
       open={settingsOpen}
@@ -96,9 +100,9 @@ export function App(): JSX.Element {
         <LanguageScreen
           onSelect={(language) => {
             useProgress.getState().setLanguage(language);
-            navigate({ name: 'arcade' });
+            openMission(route.missionId ?? 'm00');
           }}
-          onBack={() => navigate({ name: 'landing' })}
+          onBack={() => navigate({ name: route.from ?? 'landing' })}
         />
         {settingsDialog}
         {siteBooting ? <VhsBoot /> : null}
@@ -116,9 +120,9 @@ export function App(): JSX.Element {
           freeModeUnlocked={progress.freeModeUnlocked}
           onBack={() => navigate({ name: 'landing' })}
           onSettings={() => setSettingsOpen(true)}
-          onPlay={() => openMission('m00')}
-          onContinue={() => openMission(currentMission.id)}
-          onFreeMod={() => openMission('free')}
+          onPlay={() => chooseLanguage('m00')}
+          onContinue={() => chooseLanguage(currentMission.id)}
+          onFreeMod={() => chooseLanguage('free')}
         />
         {settingsDialog}
         {siteBooting ? <VhsBoot /> : null}
@@ -130,20 +134,11 @@ export function App(): JSX.Element {
     <>
       <LandingScreen
         hasProgress={hasProgress}
-        bestScore={progress.bestScore}
-        completedCount={progress.completed.length}
-        onEnter={() => navigate({ name: 'languages' })}
-        onContinue={() => openMission(currentMission.id)}
-        onPlay={() => openMission('m00')}
+        onContinue={() => chooseLanguage(currentMission.id)}
+        onPlay={() => chooseLanguage('m00')}
         onArcade={() => navigate({ name: 'arcade' })}
         onProfile={() => setSettingsOpen(true)}
-        currentMission={currentMission}
         studentName={progress.studentName}
-        activeLanguage={progress.activeLanguage}
-        onLanguage={(language) => {
-          useProgress.getState().setLanguage(language);
-          navigate({ name: 'arcade' });
-        }}
       />
       {settingsDialog}
       {siteBooting ? <VhsBoot /> : null}

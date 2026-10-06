@@ -14,7 +14,7 @@ export function useTouchModDrag(onInsert: ModInsertHandler) {
     return Boolean(rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
   };
   const reset = () => { gesture.current = null; setPreview(null); endModDrag(); };
-  const handlers = (code: string, onTap?: (anchor: HTMLButtonElement) => void) => ({
+  const handlers = (code: string, onTap?: (anchor: HTMLButtonElement) => void, scrollAxis: 'x' | 'y' = 'y') => ({
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       if (event.pointerType === 'mouse') return;
       gesture.current = { x: event.clientX, y: event.clientY, id: event.pointerId, dragging: false };
@@ -23,6 +23,10 @@ export function useTouchModDrag(onInsert: ModInsertHandler) {
     onPointerMove: (event: PointerEvent<HTMLButtonElement>) => {
       const active = gesture.current;
       if (!active || active.id !== event.pointerId) return;
+      const dx = Math.abs(event.clientX - active.x), dy = Math.abs(event.clientY - active.y);
+      // Let the browser scroll the library along its axis. Dragging across it
+      // still moves a mod toward the editor.
+      if (!active.dragging && (scrollAxis === 'x' ? dx > dy : dy > dx)) return;
       if (Math.hypot(event.clientX - active.x, event.clientY - active.y) > 8 && !active.dragging) {
         active.dragging = true;
         beginModDrag(code);

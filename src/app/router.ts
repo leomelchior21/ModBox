@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 
 export type Route =
   | { name: 'landing' }
-  | { name: 'languages' }
+  | { name: 'languages'; missionId?: string; from?: 'landing' | 'arcade' }
   | { name: 'arcade' }
   | { name: 'lab'; missionId?: string; debug: boolean };
 
@@ -21,7 +21,7 @@ export function parseHash(hash: string): Route {
 
   switch (path) {
     case 'languages':
-      return { name: 'languages' };
+      return { name: 'languages', missionId, from: params.get('from') === 'arcade' ? 'arcade' : 'landing' };
     case 'arcade':
       return { name: 'arcade' };
     case 'lab':
@@ -33,8 +33,12 @@ export function parseHash(hash: string): Route {
 
 export function routeToHash(route: Route): string {
   switch (route.name) {
-    case 'languages':
-      return '#/languages';
+    case 'languages': {
+      const params = new URLSearchParams();
+      if (route.missionId) params.set('mission', route.missionId);
+      if (route.from) params.set('from', route.from);
+      return `#/languages${params.size ? `?${params}` : ''}`;
+    }
     case 'arcade':
       return '#/arcade';
     case 'lab': {
