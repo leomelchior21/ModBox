@@ -74,14 +74,14 @@
   .lab--touch .stage--missionReady .touchbar__cluster--right { margin-bottom:58px; }
 }
 
-/* Tablets share one bottom-left box: flight stick beside scrolling mods. */
-@media(min-width:601px) and (min-height:600px) {
-  .lab--touch { --modstrip-base-height:127.5px; --tablet-stick-size:clamp(80px,8.5vw,104px); }
-  .lab--touch .modstrip:not(.modstrip--collapsed) {
+/* Taller desktop/tablet mods; tablets share the box with their flight stick. */
+@media(min-width:601px) and (min-height:600px), (min-width:601px) and (any-pointer:fine) {
+  .lab { --modstrip-base-height:127.5px; --tablet-stick-size:clamp(80px,8.5vw,104px); }
+  .lab .modstrip:not(.modstrip--collapsed) {
     height:calc(var(--modstrip-base-height) * 1.2); display:flex; flex-direction:column;
   }
-  .lab--touch .modstrip__head { flex-shrink:0; }
-  .lab--touch .modstrip__row { flex:1; }
+  .lab .modstrip__head { flex-shrink:0; }
+  .lab .modstrip__row { flex:1; }
   .lab .lab__modArea--controls {
     height:calc(var(--modstrip-base-height) * 1.2); min-height:calc(var(--tablet-stick-size) + 22px);
     display:grid; grid-template-columns:calc(var(--tablet-stick-size) + 30px) minmax(0,1fr);
@@ -108,12 +108,15 @@
     background:#06160a; font:700 9px var(--font-mono); letter-spacing:.16em;
   }
 }
-@media(min-width:601px) and (min-height:600px) and (max-width:1050px) {
-  .lab--touch { --modstrip-base-height:126px; }
+@media(min-width:601px) and (max-width:1050px) {
+  .lab { --modstrip-base-height:126px; }
 }
-@media(min-width:601px) and (min-height:600px) and (max-width:850px) {
-  .lab--touch { --modstrip-base-height:116px; }
+@media(min-width:601px) and (max-width:850px) {
+  .lab { --modstrip-base-height:116px; }
 }
-@media(min-width:601px) and (min-height:600px) and (max-height:650px) and (orientation:landscape) {
-  .lab--touch { --modstrip-base-height:72px; --tablet-stick-size:64px; }
+@media(min-width:601px) and (max-height:650px) and (orientation:landscape) {
+  .lab { --modstrip-base-height:72px; --tablet-stick-size:64px; }
+}
+@media(min-width:601px) and (max-height:450px) and (orientation:landscape) {
+  .lab { --modstrip-base-height:52px; }
 }
