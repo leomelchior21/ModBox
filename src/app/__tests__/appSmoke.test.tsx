@@ -126,6 +126,44 @@ async function waitFor(check: () => boolean, attempts = 160): Promise<boolean> {
 }
 
 describe('MODBOX app shell', () => {
+  it('opens Neon Maze from the library with its own languages, mods and independent progress', async () => {
+    useProgress.getState().setCode('csharp:m00', 'string enemy = "big-rock";');
+    window.location.hash = '#/';
+    const { host, root } = mount();
+    await act(async () => root.render(<App />));
+    const maze = host.querySelector<HTMLButtonElement>('.home-game--maze');
+    expect(maze?.textContent).toContain('AVAILABLE NOW');
+    await act(async () => maze?.click());
+    expect(await waitFor(() => Boolean(host.querySelector('.languages')))).toBe(true);
+    expect(window.location.hash).toContain('game=maze');
+    expect(host.querySelectorAll('.langcard')).toHaveLength(3);
+    await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(3) button')?.click());
+    expect(await waitFor(() => Boolean(host.querySelector('.neon-stage')))).toBe(true);
+    expect(host.querySelector('.lab')?.getAttribute('data-game-id')).toBe('maze');
+    expect(host.querySelector('.lab__left .cm-editor')).toBeTruthy();
+    expect(host.querySelector('.lab__left .feedback')).toBeTruthy();
+    expect(host.querySelector('.lab__right canvas')).toBeTruthy();
+    expect(host.querySelector('.modstrip')?.textContent).toContain('wallColor');
+    expect(host.querySelector('.modstrip')?.textContent).not.toContain('laserPower');
+    const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'string wallColor = "amber";' } }));
+    expect(await waitFor(() => Boolean(host.querySelector('.neon-stage .mission__next')))).toBe(true);
+    expect(useProgress.getState().getGameProgress('maze').completed).toContain('m00');
+    const resetCode = [...host.querySelectorAll<HTMLButtonElement>('.topbar__more button')].find(button => button.textContent === 'Reset code');
+    await act(async () => resetCode?.click());
+    expect(useProgress.getState().getGameProgress('maze').codes['csharp:m00']).toBe('string wallColor = "cyan";');
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'string wallColor = "amber";' } }));
+    await act(async () => host.querySelector<HTMLButtonElement>('.mission__next')?.click());
+    expect(await waitFor(() => useProgress.getState().currentMissionId === 'm01')).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('amber');
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', { value: { getData: () => 'string runnerName = "Sparrow";', types: ['application/x-modbox-mod'] } });
+    await act(async () => host.querySelector('.cm-content')?.dispatchEvent(drop));
+    expect(await waitFor(() => host.querySelector('.neon__hud')?.textContent?.includes('Sparrow') ?? false)).toBe(true);
+    expect(useProgress.getState().getGameProgress('vector-zero').codes['csharp:m00']).toBe('string enemy = "big-rock";');
+    expect(useProgress.getState().getGameProgress('vector-zero').completed).toEqual([]);
+  });
+
   it('celebrates mission eight only after passing and opens the fully unlocked game', async () => {
     for (const id of ['m00', 'm01', 'm02', 'm03', 'm04', 'm05', 'm06']) useProgress.getState().completeMission(id);
     useProgress.getState().setCode('csharp:final', [

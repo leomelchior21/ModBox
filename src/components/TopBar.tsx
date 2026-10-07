@@ -16,6 +16,7 @@ export interface TopBarProps {
   onFullscreen: () => void;
   onSettings: () => void;
   onOpenLibrary: () => void;
+  restartLabel?: string;
 }
 
 export function TopBar({
@@ -33,6 +34,7 @@ export function TopBar({
   onFullscreen,
   onSettings,
   onOpenLibrary,
+  restartLabel = 'Restart flight',
 }: TopBarProps): JSX.Element {
   const learning = missions.filter((mission) => mission.kind !== 'sandbox');
   const done = completed.filter((id) => learning.some((mission) => mission.id === id)).length;
@@ -56,7 +58,7 @@ export function TopBar({
         <Logo height={60} />
       </button>
       <div className="topbar__right">
-        <button className="console-button" onClick={onRestart} aria-label="Restart flight">
+        <button className="console-button" onClick={onRestart} aria-label={restartLabel}>
           <span className="console-button__icon">⟳</span>
           <span className="topbar__controlLabel">RESET</span>
         </button>

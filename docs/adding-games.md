@@ -2,7 +2,7 @@
 
 Each game owns its simulation, art, controls, mods, missions and co-pilot instructions. `GameWorkspace` owns the common screen: editor, co-pilot and mods on the left; game on the right. Its responsive layout, library scrolling and popup behavior are shared.
 
-Vector Zero uses it in `src/games/vector-zero/VectorZeroScreen.tsx`. A complete independent example is `src/games/__tests__/fixtures/gardenGame.tsx`: a DOM garden with unrelated mods, exercised by the integration tests. This example is not listed as a public game.
+Vector Zero uses it in `src/games/vector-zero/VectorZeroScreen.tsx`. NEON MAZE uses it in `src/games/neon-maze/NeonMazeScreen.tsx`, with its own pure maze simulation, rendering, mods, eight missions and touch controls. Its touch joystick sits at the bottom right of the game view, with PHASE at the bottom left. The registered cabinet keeps the original `maze` game ID. A smaller independent example is `src/games/__tests__/fixtures/gardenGame.tsx`: a DOM garden with unrelated mods, exercised by the integration tests. This example is not listed as a public game.
 
 ## Define your controls
 
