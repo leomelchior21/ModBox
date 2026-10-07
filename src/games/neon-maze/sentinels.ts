@@ -13,7 +13,8 @@ function closestFloor(maze: Maze, target: Cell): Cell {
 
 /** Each hunter has a different target, but all navigate the actual corridors. */
 export function sentinelTargets(maze: Maze, player: Cell, facing: Direction, sentinels: readonly Cell[], collected: ReadonlySet<string>, elapsed: number): Cell[] {
-  const corners = [{ x: maze.size - 2, y: 1 }, { x: 1, y: 1 }, { x: maze.size - 2, y: maze.size - 2 }, { x: 1, y: maze.size - 2 }];
+  const bottom = maze.tiles.length - 2;
+  const corners = [{ x: maze.size - 2, y: 1 }, { x: 1, y: 1 }, { x: maze.size - 2, y: bottom }, { x: 1, y: bottom }];
   let ahead = { ...player };
   for (let i = 0; i < 4; i++) {
     const next = { x: ahead.x + DIRECTIONS[facing].x, y: ahead.y + DIRECTIONS[facing].y };

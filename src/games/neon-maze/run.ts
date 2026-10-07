@@ -8,13 +8,13 @@ import { sentinelInterval, sentinelMode, sentinelTargets, steerSentinels } from 
 
 export type MazePhase = 'launch' | 'playing' | 'paused' | 'cleared' | 'gameover';
 export interface MazeInput { up: boolean; right: boolean; down: boolean; left: boolean; phase: boolean }
-export interface MazeMetrics { cores: number; exits: number; phases: number; hits: number; steps: number; minEnergy: number; ruleTraces: string[] }
+export interface MazeMetrics { cores: number; dots: number; exits: number; phases: number; hits: number; steps: number; minEnergy: number; ruleTraces: string[] }
 export interface MazeSnapshot {
   phase: MazePhase; config: MazeConfig; score: number; energy: number; lives: number; level: number;
-  cores: number; phaseCooldown: number; shieldReady: boolean; metrics: MazeMetrics; messages: string[];
+  cores: number; dots: number; stunRemaining: number; phaseCooldown: number; shieldReady: boolean; metrics: MazeMetrics; messages: string[];
 }
-export type MazeEvent = 'core' | 'phase' | 'hit' | 'shield' | 'clear';
-const emptyMetrics = (): MazeMetrics => ({ cores: 0, exits: 0, phases: 0, hits: 0, steps: 0, minEnergy: 100, ruleTraces: [] });
+export type MazeEvent = 'dot' | 'core' | 'phase' | 'hit' | 'shield' | 'clear';
+const emptyMetrics = (): MazeMetrics => ({ cores: 0, dots: 0, exits: 0, phases: 0, hits: 0, steps: 0, minEnergy: 100, ruleTraces: [] });
 
 /** Pure simulation: no timers, DOM or globals. The screen owns its lifecycle. */
 export class NeonMazeRun {
@@ -30,6 +30,9 @@ export class NeonMazeRun {
   sentinelAge = 1;
   elapsed = 0;
   collected = new Set<string>();
+  dots = new Set<string>();
+  collectedDots = new Set<string>();
+  stunRemaining = 0;
   visited = new Set<string>();
   trail: Cell[] = [];
   score = 0;
@@ -40,7 +43,7 @@ export class NeonMazeRun {
   invulnerable = 1.5;
   shieldCooldown = 0;
   metrics = emptyMetrics();
-  messages = ['SIGNAL ONLINE · Collect 3 cores to open the exit.'];
+  messages = ['KEEP ROLLING · Dots score points. Gems stun sentinels.'];
   events: MazeEvent[] = [];
   private program: ProgramResult<MazeConfig> | null = null;
   private base = { ...MAZE_DEFAULTS };
@@ -72,11 +75,13 @@ export class NeonMazeRun {
   advance(): void {
     if (this.phase !== 'cleared') return;
     this.level++; this.energy = Math.min(100, this.energy + 25);
-    this.resetSector(); this.phase = 'playing'; this.log(`SECTOR ${String(this.level).padStart(2, '0')} ONLINE · Link 3 new cores.`);
+    const stun = this.stunRemaining;
+    this.resetSector(); this.stunRemaining = stun; this.phase = 'playing';
+    this.log(`SECTOR ${String(this.level).padStart(2, '0')} · Keep rolling. Find 3 new gems.`);
   }
   snapshot(): MazeSnapshot {
     return { phase: this.phase, config: { ...this.config }, score: this.score, energy: this.energy, lives: this.lives,
-      level: this.level, cores: this.collected.size, phaseCooldown: this.phaseCooldown,
+      level: this.level, cores: this.collected.size, dots: this.collectedDots.size, stunRemaining: this.stunRemaining, phaseCooldown: this.phaseCooldown,
       shieldReady: this.config.shield && this.shieldCooldown <= 0,
       metrics: { ...this.metrics, ruleTraces: [...this.metrics.ruleTraces] }, messages: [...this.messages] };
   }
@@ -85,16 +90,22 @@ export class NeonMazeRun {
     this.player = { ...this.maze.start }; this.playerFrom = { ...this.player }; this.moveAge = 1;
     this.facing = this.openDirections()[0] ?? 'right'; this.queuedTurn = null;
     this.sentinels = []; this.sentinelFrom = []; this.sentinelAge = 1; this.elapsed = 0; this.hunterMode = 'chase';
-    this.collected.clear(); this.visited.clear(); this.trail = [];
+    this.collected.clear(); this.collectedDots.clear(); this.dots.clear(); this.stunRemaining = 0;
+    this.visited.clear(); this.trail = [];
+    const gems = new Set(this.maze.cores.map(cellKey));
+    for (const key of distances(this.maze, this.maze.start).keys()) {
+      if (key !== cellKey(this.maze.start) && key !== cellKey(this.maze.exit) && !gems.has(key)) this.dots.add(key);
+    }
     this.phaseCooldown = 0; this.invulnerable = 1.5; this.shieldCooldown = 0;
     this.moveTimer = 1 / (this.config.moveSpeed + 1); this.hunterTimer = sentinelInterval(this.config.sentinelSpeed); this.syncSentinels(); this.explore();
   }
   private syncSentinels(): void {
     this.sentinels = this.sentinels.slice(0, this.config.sentinelCount);
     this.sentinelFrom = this.sentinelFrom.slice(0, this.config.sentinelCount);
-    const far = [...distances(this.maze, this.player)].filter(([, d]) => d >= 6).sort((a, b) => b[1] - a[1]);
+    const occupied = new Set(this.sentinels.map(cellKey));
+    const far = [...distances(this.maze, this.player)].filter(([key, d]) => d >= 6 && d <= 16 && !occupied.has(key)).sort((a, b) => b[1] - a[1]);
     while (this.sentinels.length < this.config.sentinelCount && far.length) {
-      const candidate = far[(this.sentinels.length * 11 + this.level * 3) % far.length][0];
+      const candidate = far.splice((this.sentinels.length * 5 + this.level * 3) % far.length, 1)[0][0];
       const [x, y] = candidate.split(',').map(Number); this.sentinels.push({ x, y }); this.sentinelFrom.push({ x, y });
     }
   }
@@ -117,7 +128,11 @@ export class NeonMazeRun {
   step(dt: number, input: MazeInput): void {
     if (this.phase !== 'playing') return;
     dt = Math.max(0, Math.min(dt, 0.1));
-    this.elapsed += dt; this.moveAge += dt; this.sentinelAge += dt; this.moveTimer -= dt; this.hunterTimer -= dt;
+    this.elapsed += dt; this.moveAge += dt; this.moveTimer -= dt;
+    // Stunned hunters finish their current visual step, then stay still and harmless.
+    this.sentinelAge += dt;
+    const hunterDt = Math.max(0, dt - this.stunRemaining);
+    this.stunRemaining = Math.max(0, this.stunRemaining - dt); this.hunterTimer -= hunterDt;
     this.phaseCooldown = Math.max(0, this.phaseCooldown - dt);
     this.invulnerable = Math.max(0, this.invulnerable - dt);
     this.shieldCooldown = Math.max(0, this.shieldCooldown - dt);
@@ -130,7 +145,7 @@ export class NeonMazeRun {
       else if (this.moveTimer <= 0) { const remainder = this.moveTimer; this.cruise(); this.moveTimer += remainder; }
     }
     this.resolveContact();
-    if (dt > 0 && this.hunterTimer <= 0 && this.phase === 'playing') {
+    if (dt > 0 && this.hunterTimer <= 0 && this.phase === 'playing' && this.stunRemaining <= 0) {
       this.hunterTimer += sentinelInterval(this.config.sentinelSpeed);
       const before = this.sentinels;
       this.sentinels = steerSentinels(this.maze, before, this.sentinelFrom,
@@ -157,21 +172,27 @@ export class NeonMazeRun {
     this.player = target; this.moveAge = 0; this.moveTimer = 1 / (this.config.moveSpeed + 1);
     this.metrics.steps++; this.explore();
     if (phase) { this.phaseCooldown = 2.4; this.invulnerable = 0.65; this.metrics.phases++; this.events.push('phase'); }
+    if (this.dots.has(cellKey(this.player)) && !this.collectedDots.has(cellKey(this.player))) {
+      this.collectedDots.add(cellKey(this.player)); this.score += 5; this.metrics.dots++; this.events.push('dot');
+    }
     if (this.maze.cores.some(core => sameCell(core, this.player)) && !this.collected.has(cellKey(this.player))) {
       this.collected.add(cellKey(this.player)); this.score += this.config.coreValue; this.metrics.cores++;
-      this.log(this.collected.size === 3 ? 'ALL CORES LINKED · Exit is open.' : `CORE LINKED · ${this.collected.size}/3`); this.events.push('core');
+      this.stunRemaining = this.config.gemDuration;
+      this.log(`GEM ${this.collected.size}/3 · SENTINELS STUNNED ${this.stunRemaining}s${this.collected.size === 3 ? ' · EXIT OPEN' : ''}`); this.events.push('core');
     }
     if (this.collected.size === 3 && sameCell(this.player, this.maze.exit)) {
-      this.score += 100; this.metrics.exits++; this.phase = 'cleared'; this.log('SECTOR CLEAR · +100'); this.events.push('clear');
+      this.score += 100; this.metrics.exits++; this.phase = 'cleared'; this.events.push('clear');
+      // Crossing a gate rolls directly into another sector; the run never stops for a menu.
+      this.evaluate(); this.advance();
     }
     this.evaluate(); return true;
   }
   private resolveContact(): void {
-    if (this.phase !== 'playing' || this.invulnerable > 0 || !this.sentinels.some(s => sameCell(s, this.player))) return;
+    if (this.phase !== 'playing' || this.invulnerable > 0 || this.stunRemaining > 0 || !this.sentinels.some(s => sameCell(s, this.player))) return;
     this.takeHit();
   }
   private takeHit(): void {
-    if (this.phase !== 'playing' || this.invulnerable > 0) return;
+    if (this.phase !== 'playing' || this.invulnerable > 0 || this.stunRemaining > 0) return;
     if (this.config.shield && this.shieldCooldown <= 0) {
       this.shieldCooldown = 8; this.invulnerable = 1.5; this.log('SHIELD ABSORBED AN IMPACT'); this.events.push('shield'); return;
     }
@@ -191,7 +212,7 @@ export class NeonMazeRun {
     if (!this.program) return;
     const before = this.config;
     const { config, frame } = evaluateGameScript(this.program, this.base, {
-      score: this.score, energy: this.energy, cores: this.collected.size, level: this.level, steps: this.metrics.steps,
+      score: this.score, energy: this.energy, cores: this.collected.size, level: this.level, steps: this.metrics.steps, dots: this.collectedDots.size, stun: this.stunRemaining,
     }, mazeSchema);
     this.config = config;
     if (config.shield && !before.shield) this.shieldCooldown = 0;
@@ -202,7 +223,7 @@ export class NeonMazeRun {
         this.log(`RULE LIVE · ${trace.text}`);
         for (const write of trace.writes) {
           const value = evalExpr(write.arg, {
-            runtime: { score: this.score, energy: this.energy, cores: this.collected.size, level: this.level, steps: this.metrics.steps },
+            runtime: { score: this.score, energy: this.energy, cores: this.collected.size, level: this.level, steps: this.metrics.steps, dots: this.collectedDots.size, stun: this.stunRemaining },
             modValues: Object.fromEntries(MAZE_MODS.map(mod => [mod.name, this.base[mod.id]])),
             constants: Object.fromEntries(this.program.symbols.filter(s => s.userOnly).map(s => [s.name, s.value])),
           });

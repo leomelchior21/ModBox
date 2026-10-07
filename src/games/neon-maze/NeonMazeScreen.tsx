@@ -161,29 +161,30 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
     library={{ open: libraryOpen, onClose: () => { setLibraryOpen(false); focusGame(); }, onInsert: (snippet, mode) => { setLibraryOpen(false); insert(snippet, mode); } }}
     stageRef={stage}
     stage={<div className={`stage neon-stage ${passed && next ? 'stage--missionReady' : ''} ${fullGameReady ? 'stage--fullGameReady' : ''}`} style={{ '--maze-neon': MAZE_COLORS[snapshot.config.wallColor] } as React.CSSProperties}>
-      <canvas ref={canvas} className="stage__canvas" tabIndex={0} onPointerDown={focusGame} aria-label="Neon Maze game. Your runner moves continuously. Arrow keys or WASD to steer; Space to phase jump; P to pause." />
+      <canvas ref={canvas} className="stage__canvas" tabIndex={0} onPointerDown={focusGame} aria-label="Neon Maze scrolling labyrinth. Keep rolling and collect dots. Amber gems stun sentinels. Arrow keys or WASD to steer; Space to phase jump; P to pause." />
       <div className="neon__hud" aria-label="Maze status">
         <div><small>SECTOR {String(snapshot.level).padStart(2, '0')} · {snapshot.config.runnerName}</small><strong>{String(snapshot.score).padStart(5, '0')}</strong></div>
-        <div className="neon__hudRight"><span>◆ {snapshot.cores}/3 <b>CORES</b> · {snapshot.lives} <b>LIVES</b></span><label>ENERGY <meter min={0} max={100} low={40} high={70} optimum={100} value={snapshot.energy} /> {snapshot.energy}%</label></div>
+        <div className="neon__hudRight"><span>◆ {snapshot.cores}/3 <b>GEMS</b> · {snapshot.lives} <b>LIVES</b></span><label>ENERGY <meter min={0} max={100} low={40} high={70} optimum={100} value={snapshot.energy} /> {snapshot.energy}%</label></div>
       </div>
+      {snapshot.stunRemaining > 0 ? <span className="neon__stun">SENTINELS STUNNED · {snapshot.stunRemaining.toFixed(1)}s</span> : null}
       {playing && focused ? <span className="neon__editing">EDITING · MAZE CLOCK HELD</span> : null}
       <div className="neon__log" aria-label="Signal log"><small>SIGNAL FEED</small>{snapshot.messages.slice(0, touch ? 1 : 2).map((message, i) => <p key={`${i}:${message}`}>{message}</p>)}</div>
       {playing ? <div className="touchbar neon__controls">
-        {!touch ? <span className="neon__keys">ALWAYS MOVING · WASD / ARROWS TO STEER · SPACE TO PHASE</span> : null}
+        {!touch ? <span className="neon__keys">KEEP ROLLING · WASD / ARROWS TO STEER · SPACE TO PHASE</span> : null}
         <div className={`touchbar__cluster ${touch ? 'touchbar__cluster--left' : 'touchbar__cluster--right'}`}><PhaseButton cooldown={snapshot.phaseCooldown} onPhase={onPhase} /></div>
         {touch ? <MazeJoystick input={input.current} onEngage={focusGame} onTurn={direction => run.requestTurn(direction)} /> : null}
       </div> : null}
       {snapshot.phase !== 'playing' ? <div className={`overlay neon__overlay neon__overlay--${snapshot.phase}`}>
         <div className="neon__panel">
           <span className="neon__eyebrow">{mission.kind === 'sandbox' ? 'EVERY MOD UNLOCKED' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</span>
-          <div className="neon__emblem" aria-hidden="true">◈</div>
+          <div className="neon__emblem" aria-hidden="true">◉</div>
           <h1>{snapshot.phase === 'launch' ? 'NEON MAZE' : snapshot.phase === 'cleared' ? 'SECTOR CLEAR' : snapshot.phase === 'paused' ? 'SIGNAL HELD' : 'SIGNAL LOST'}</h1>
-          <p>{snapshot.phase === 'cleared' ? 'Three cores linked. One way out. Your next labyrinth awaits.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and run it again.` : 'Keep moving. Queue your turns, link three cores, and outsmart the sentinels to reach the exit.'}</p>
-          <div className="neon__legend"><span><i className="neon__legendRunner" /> YOU</span><span><i className="neon__legendCore" /> CORE</span><span><i className="neon__legendHunter" /> SENTINEL</span></div>
+          <p>{snapshot.phase === 'cleared' ? 'Three gems collected. Roll into your next labyrinth.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and roll again.` : 'Keep rolling through the neon lines. Collect dots for points and amber gems to stun the sentinels. Three gems open the next sector.'}</p>
+          <div className="neon__legend"><span><i className="neon__legendRunner" /> YOU</span><span><i className="neon__legendDot" /> DOT +5</span><span><i className="neon__legendCore" /> STUN GEM</span><span><i className="neon__legendHunter" /> SENTINEL</span></div>
           <button className="btn neon__enter" onClick={() => {
             if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch();
             update(); focusGame();
-          }}>{snapshot.phase === 'paused' ? 'RESUME RUN' : snapshot.phase === 'cleared' ? 'NEXT SECTOR →' : snapshot.phase === 'gameover' ? 'RUN AGAIN →' : 'ENTER THE MAZE →'}</button>
+          }}>{snapshot.phase === 'paused' ? 'RESUME RUN' : snapshot.phase === 'cleared' ? 'NEXT SECTOR →' : snapshot.phase === 'gameover' ? 'ROLL AGAIN →' : 'START ROLLING →'}</button>
           <small>{touch ? 'ALWAYS MOVING · JOYSTICK TO STEER · PHASE TO JUMP' : 'ALWAYS MOVING · WASD / ARROWS TO STEER · SPACE TO PHASE · P TO PAUSE'}</small>
         </div>
       </div> : null}

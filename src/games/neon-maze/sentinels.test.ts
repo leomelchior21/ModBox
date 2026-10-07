@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellKey, neighbors, type Cell, type Maze } from './maze';
+import { cellKey, generateMaze, neighbors, type Cell, type Maze } from './maze';
 import { sentinelInterval, sentinelMode, sentinelTargets, steerSentinels } from './sentinels';
 
 function openMaze(): Maze {
@@ -23,6 +23,12 @@ describe('Sentinel squad', () => {
     expect([0, 11.9, 12, 15.9, 16, 28].map(sentinelMode)).toEqual(['chase', 'chase', 'scatter', 'scatter', 'chase', 'scatter']);
     const maze = openMaze(), hunters = Array<Cell>(4).fill({ x: 5, y: 5 });
     expect(sentinelTargets(maze, { x: 3, y: 3 }, 'right', hunters, new Set(), 12)).toEqual([{ x: 9, y: 1 }, { x: 1, y: 1 }, { x: 9, y: 9 }, { x: 1, y: 9 }]);
+  });
+  it('patrols the full height of a rolling sector when scattering', () => {
+    const maze = generateMaze(5, 7), squad = Array<Cell>(4).fill(maze.start);
+    const targets = sentinelTargets(maze, maze.start, 'down', squad, new Set(), 12);
+    expect(targets[2]).toEqual({ x: maze.size - 2, y: maze.tiles.length - 2 });
+    expect(targets[3]).toEqual({ x: 1, y: maze.tiles.length - 2 });
   });
   it('avoids reversing at junctions, but can reverse at dead ends or on mode changes', () => {
     const maze = openMaze(), hunter = { x: 4, y: 4 }, previous = { x: 3, y: 4 };

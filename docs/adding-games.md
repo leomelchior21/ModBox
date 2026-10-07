@@ -4,6 +4,8 @@ Each game owns its simulation, art, controls, mods, missions and co-pilot instru
 
 Vector Zero uses it in `src/games/vector-zero/VectorZeroScreen.tsx`. NEON MAZE uses it in `src/games/neon-maze/NeonMazeScreen.tsx`, with its own pure maze simulation, rendering, mods, eight missions and touch controls. Its touch joystick sits at the bottom right of the game view, with PHASE at the bottom left. The registered cabinet keeps the original `maze` game ID. A smaller independent example is `src/games/__tests__/fixtures/gardenGame.tsx`: a DOM garden with unrelated mods, exercised by the integration tests. This example is not listed as a public game.
 
+NEON MAZE follows a rolling orb through tall, connected sectors drawn with continuous neon lines. The camera shows more than 20 columns on typical game views; braided corridors remove dead ends and create frequent junctions and alternate routes. Each dot scores 5 points; each amber gem freezes all sentinels for `gemDuration` seconds (6 by default) and awards `coreValue` points. Three gems open the gate, which immediately starts the next sector while preserving score, lives and remaining stun. The existing `cores` runtime variable and mission metrics count gems so saved code keeps working. `dots` and `stun` expose the sector’s collected dots and remaining stun time to live rules. `revealMap` also shows an overview on larger game views.
+
 ## Define your controls
 
 Create `src/games/<game-id>/mods.ts`. Import `ModDefinition` from `src/mods/types.ts`; keep your catalog separate from Vector Zero's.
@@ -97,6 +99,8 @@ export const myGame: PlayableGame = {
 ```
 
 Add it to `src/games/registry.tsx`. Both libraries automatically show its cover and hero art, offer its languages and resume its progress. Its runtime loads only when selected. New games require no edits to `App`, the router, shared workspace, editor or mod library.
+
+The libraries list games with `status: 'play'` first and label them “Available now”; upcoming games follow with “Coming soon” and cannot be launched. Registration order is preserved within each group. `hero.src` supplies the full-frame library artwork and selected-game language preview, with `Cover` as the fallback if the image fails to load. Keep the main subject within the central part of the image so it fits the shared landscape thumbnail and mobile crops.
 
 URLs include the game ID: `#/lab?game=my-game&mission=m00`. Older URLs still open Vector Zero. Unknown and unfinished games show an unavailable screen. List only supported languages, and use a `coming-soon` definition until the game is playable.
 

@@ -3,11 +3,11 @@ import { useRef, useState, useEffect } from 'react';
 import { Logo } from '../../brand/Logo';
 import type { GameDefinition, PlayableGame } from '../../games/types';
 import type { GameProgress } from '../../state/gameProgress';
+import { GameArtwork, GameAvailability } from '../../components/GameArtwork';
 
 /* ============================================================================
    MODBOX — ARCADE LIBRARY
-   Cabinets, not course cards. VECTOR ZERO is live; the rest are promised
-   without pretending to exist (spec §30).
+   Registered playable games come first; upcoming games remain previews.
    ========================================================================== */
 
 export function ArcadeScreen({ games, getProgress, onSelectGame, onBack, onSettings }: {
@@ -72,16 +72,15 @@ export function ArcadeScreen({ games, getProgress, onSelectGame, onBack, onSetti
       <div className="arcade__browse"><span>SCROLL OR SWIPE TO EXPLORE →</span><div><button aria-label="Previous games" disabled={scroll.index === 1} onClick={() => browse(-1)}>←</button><span aria-live="polite">{scroll.index} / {games.length}</span><button aria-label="Next games" disabled={scroll.end} onClick={() => browse(1)}>→</button></div></div>
       <div className="arcade__grid" ref={rail} tabIndex={0} role="region" aria-label="Game carousel, scroll horizontally for more games" onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) { event.preventDefault(); browse(event.key === 'ArrowLeft' ? -1 : 1); } }}>
         {games.map(game => {
-          const Cover = game.Cover;
           if (game.status !== 'play') return <article key={game.id} className={`cabinet cabinet--locked cabinet--${game.id}`}>
-            <div className="cabinet__art cabinet__art--locked"><Cover /><span className="cabinet__lock mono">LOCKED</span></div>
+            <div className="cabinet__art cabinet__art--locked"><GameArtwork game={game} /><GameAvailability ready={false} /></div>
             <div className="cabinet__body"><h2 className="cabinet__title">{game.title}</h2><p className="cabinet__genre">{game.genre}</p><p className="cabinet__note mono">IN DEVELOPMENT</p></div>
           </article>;
           const saved = getProgress(game);
           const hasProgress = saved.completed.length > 0 || Object.values(saved.codes).some(code => code.trim());
           const currentMission = game.missions.find(mission => mission.id === saved.currentMissionId)?.id ?? game.starterMissionId;
           return <article key={game.id} className={`cabinet cabinet--live cabinet--${game.id}`}>
-            <div className="cabinet__art"><Cover /></div>
+            <div className="cabinet__art"><GameArtwork game={game} /><GameAvailability ready /></div>
             <div className="cabinet__body">
               <h2 className="cabinet__title">{game.title}</h2><p className="cabinet__genre">{game.genre}</p>
               <p className="cabinet__note mono">{saved.completed.length} MISSIONS CLEARED · BEST {saved.bestScore}</p>

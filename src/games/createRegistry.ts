@@ -13,7 +13,7 @@ export function createGameRegistry(definitions: readonly GameDefinition[]) {
     byId.set(game.id, game);
   }
   return {
-    games: Object.freeze([...definitions]),
+    games: Object.freeze([...definitions].sort((a, b) => Number(b.status === 'play') - Number(a.status === 'play'))),
     get: (id: string) => byId.get(id),
   };
 }

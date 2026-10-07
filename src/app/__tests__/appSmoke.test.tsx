@@ -291,6 +291,11 @@ describe('MODBOX app shell', () => {
     expect(host.textContent).toContain('ENTER MODBOX');
     expect(host.querySelector('.home__games')).toBeTruthy();
     expect(host.querySelector('.home__languages')).toBeNull();
+    const games = [...host.querySelectorAll('.home-game')];
+    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'RUNNER', 'DEVIL FLOOR']);
+    expect(games.slice(0, 2).every(card => card.tagName === 'BUTTON' && card.textContent?.includes('AVAILABLE NOW'))).toBe(true);
+    expect(games.slice(2).every(card => card.tagName === 'ARTICLE' && card.textContent?.includes('COMING SOON'))).toBe(true);
+    expect(games.every(card => card.querySelector('.home-game__art .game-art'))).toBe(true);
   });
 
   it('renders Python, Swift, and C# as playable languages in the right order', async () => {
@@ -302,7 +307,9 @@ describe('MODBOX app shell', () => {
     await flush();
     const cards = [...host.querySelectorAll('.langcard')];
     expect(cards.map((card) => card.querySelector('h2')?.textContent)).toEqual(['Python', 'Swift', 'C#']);
-    expect(cards.every((card) => card.textContent?.includes('PLAY VECTOR ZERO'))).toBe(true);
+    expect(cards.map(card => card.querySelector('button')?.getAttribute('aria-label'))).toEqual(['Play VECTOR ZERO in Python', 'Play VECTOR ZERO in Swift', 'Play VECTOR ZERO in C#']);
+    expect(host.querySelector('.languages__game h2')?.textContent).toBe('VECTOR ZERO');
+    expect(cards.every(card => card.querySelector('.langcard__example code'))).toBe(true);
   });
 
   it('asks for a language after choosing a game and launches that game in Swift', async () => {
@@ -320,7 +327,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.lab__filename')?.textContent).toBe('main.swift');
   });
 
-  it('renders the arcade with VECTOR ZERO and locked future cabinets', async () => {
+  it('renders the arcade with playable games first and clear upcoming previews', async () => {
     window.location.hash = '#/arcade';
     const { host, root } = mount();
     await act(async () => {
@@ -329,7 +336,9 @@ describe('MODBOX app shell', () => {
     await flush();
     expect(host.textContent).toContain('VECTOR ZERO');
     expect(host.textContent).toContain('RUNNER');
-    expect(host.textContent).toContain('LOCKED');
+    expect(host.textContent).toContain('COMING SOON');
+    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'RUNNER', 'DEVIL FLOOR']);
+    expect(host.querySelectorAll('.cabinet--locked button')).toHaveLength(0);
   });
 
   it('lazy-loads the Lab with editor, HUD and mission 00 code', async () => {

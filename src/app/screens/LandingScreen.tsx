@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Logo } from '../../brand/Logo';
 import type { GameDefinition, PlayableGame } from '../../games/types';
 import type { GameProgress } from '../../state/gameProgress';
+import { GameArtwork, GameAvailability } from '../../components/GameArtwork';
 
 function Icon({ code = false }: { code?: boolean }): JSX.Element {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">{code ? <path d="m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18" /> : <path d="M7 7h10l3 3 2 9-3 1-4-4H9l-4 4-3-1 2-9zm0 3v6m-3-3h6m5-2h2m1 3h2" />}</svg>;
@@ -14,6 +15,7 @@ export function LandingScreen({ games: catalog, onSelectGame, getProgress, onArc
   onArcade: () => void; onProfile: () => void; studentName: string;
 }): JSX.Element {
   const games = useRef<HTMLElement>(null);
+  const readyCount = catalog.filter(game => game.status === 'play').length;
   const [heroIndex, setHeroIndex] = useState(0);
   const hero = catalog[heroIndex % catalog.length];
   useEffect(() => {
@@ -45,16 +47,19 @@ export function LandingScreen({ games: catalog, onSelectGame, getProgress, onArc
       <span className="home__sector" aria-hidden="true">ARCADE SIGNAL / {hero?.title}</span>
     </section>
     <section className="home__games crt-panel" id="games" ref={games} tabIndex={-1} aria-label="Our games">
-      <header className="home__sectionHead"><h2><button onClick={onArcade}><Icon /> GAMES</button></h2><button onClick={onArcade}>VIEW ALL <span aria-hidden="true">→</span></button></header>
+      <header className="home__sectionHead"><div><h2><button onClick={onArcade}><Icon /> YOUR NEXT GAME</button></h2><p className="home__catalogMeta">{readyCount} ready to play · {catalog.length - readyCount} coming soon</p></div><button onClick={onArcade}>VIEW ALL <span aria-hidden="true">→</span></button></header>
       <div className="home__gameGrid">
         {catalog.map(game => {
-          const Cover = game.Cover;
           const className = `home-game home-game--${game.cardStyle ?? game.id}`;
-          if (game.status !== 'play') return <article key={game.id} className={className} aria-label={`${game.title}, coming soon`}><h3>{game.title}</h3><Cover /><span className="home-game__status">COMING SOON</span></article>;
+          if (game.status !== 'play') return <article key={game.id} className={`${className} home-game--soon`} aria-label={`${game.title}, coming soon`}>
+            <div className="home-game__art"><GameArtwork game={game} /><GameAvailability ready={false} /></div>
+            <div className="home-game__body"><h3>{game.title}</h3><p>{game.genre}</p><span className="home-game__status">In development <span aria-hidden="true">◷</span></span></div>
+          </article>;
           const saved = getProgress(game);
           const hasProgress = saved.completed.length > 0 || Object.values(saved.codes).some(code => code.trim());
-          return <button key={game.id} className={className} onClick={() => onSelectGame(game)} aria-label={`Play ${game.title.toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase())}`}>
-            <h3>{game.title}</h3><Cover /><span className="home-game__status">{hasProgress ? 'CONTINUE MISSION' : 'AVAILABLE NOW'} <span aria-hidden="true">&#x2197;</span></span>
+          return <button key={game.id} className={`${className} home-game--ready`} onClick={() => onSelectGame(game)} aria-label={`Play ${game.title.toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase())}`}>
+            <div className="home-game__art"><GameArtwork game={game} eager /><GameAvailability ready /></div>
+            <div className="home-game__body"><h3>{game.title}</h3><p>{game.genre}</p><span className="home-game__status">{hasProgress ? 'CONTINUE MISSION' : 'PLAY GAME'} <span aria-hidden="true">→</span></span></div>
           </button>;
         })}
       </div>
