@@ -71,10 +71,10 @@ export function mazeGuidance(mission: MazeMission, program: ProgramResult<MazeCo
   switch (mission.id) {
     case 'm01': if (program.symbols.some(s => s.mod === 'runnerName')) return { message: 'Add SIGNAL LOG to broadcast your runnerName.', targetId: 'maze-log' }; break;
     case 'm02': if (program.symbols.some(s => s.mod === 'moveSpeed')) return { message: 'Add SPEED MATH, or write your own expression to reach moveSpeed 6.', targetId: 'maze-math' }; break;
-    case 'm03': if (config.sentinelCount >= 3) return { message: 'Enter the maze. Collect one amber core while avoiding the pink sentinels.' }; break;
+    case 'm03': if (config.sentinelCount >= 3) return { message: 'Steer through the maze. Collect one amber core while avoiding the sentinel squad.' }; break;
     case 'm04': if (config.shield) return { message: 'Use SPACE or PHASE to jump. Aim along a corridor or across a single wall.' }; break;
     case 'm05': if (program.rules.some(r => r.conditionText.includes('score'))) return { message: 'Collect two amber cores. Watch your shield switch on when score reaches 100.' }; break;
-    case 'm06': if (program.rules.some(r => r.conditionText.includes('energy'))) return { message: `Energy is ${snapshot.energy}%. Stand in a sentinel’s path; at 40 or less, your escape rule boosts PHASE.` }; break;
+    case 'm06': if (program.rules.some(r => r.conditionText.includes('energy'))) return { message: `Energy is ${snapshot.energy}%. Cross a sentinel’s path; at 40 or less, your escape rule boosts PHASE.` }; break;
   }
   return { message: mission.message, targetId: mission.targetId };
 }

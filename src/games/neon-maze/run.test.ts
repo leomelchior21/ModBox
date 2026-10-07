@@ -3,10 +3,20 @@ import { parseGameScript } from '../../interpreter/gameScript';
 import { formatCodeForLanguage } from '../../interpreter/languageSyntax';
 import type { LanguageId } from '../../interpreter/core/adapter';
 import { mazeSchema, type MazeConfig } from './mods';
-import { cellKey, DIRECTIONS, neighbors, sameCell, type Cell, type Direction } from './maze';
+import { cellKey, DIRECTIONS, neighbors, sameCell, type Cell, type Direction, type Maze } from './maze';
 import { NeonMazeRun, type MazeInput } from './run';
 const idle: MazeInput = { up: false, right: false, down: false, left: false, phase: false };
 const parse = (source: string, language: LanguageId = 'csharp') => parseGameScript<MazeConfig>(formatCodeForLanguage(source, language), language, mazeSchema);
+function corridorRun(branch = false): NeonMazeRun {
+  const run = new NeonMazeRun(1); run.setProgram(parse('int sentinels = 0;')); run.launch();
+  const tiles = Array.from({ length: 9 }, () => Array<boolean>(9).fill(false));
+  for (const [x, y] of [[1, 1], [2, 1], [3, 1], [3, 2], [3, 3]]) tiles[y][x] = true;
+  if (branch) for (let x = 4; x <= 7; x++) tiles[1][x] = true;
+  run.maze = { size: 9, tiles, start: { x: 1, y: 1 }, exit: { x: 3, y: 3 }, cores: [] } satisfies Maze;
+  run.player = { ...run.maze.start }; run.playerFrom = { ...run.player }; run.facing = 'right';
+  return run;
+}
+function tick(run: NeonMazeRun, input = idle) { run.step(0.1, input); run.step(0.1, input); }
 function travel(run: NeonMazeRun, goal: Cell) {
   const queue = [run.player], previous = new Map<string, Cell | null>([[cellKey(run.player), null]]);
   for (let i = 0; i < queue.length && !previous.has(cellKey(goal)); i++) for (const next of neighbors(run.maze, queue[i])) {
@@ -20,6 +30,37 @@ function travel(run: NeonMazeRun, goal: Cell) {
   }
 }
 describe('Neon Maze gameplay', () => {
+  it('starts cruising without input and keeps moving after steering is released', () => {
+    const run = corridorRun(true);
+    tick(run); expect(run.player).toEqual({ x: 2, y: 1 });
+    tick(run, { ...idle, right: true }); expect(run.player).toEqual({ x: 3, y: 1 });
+    tick(run); expect(run.player).toEqual({ x: 4, y: 1 });
+  });
+  it('remembers an early turn until its corridor opens, even after key release', () => {
+    const run = corridorRun(true); run.requestTurn('down');
+    tick(run); expect(run.player).toEqual({ x: 2, y: 1 }); expect(run.facing).toBe('right');
+    tick(run); expect(run.player).toEqual({ x: 3, y: 1 });
+    tick(run); expect(run.player).toEqual({ x: 3, y: 2 }); expect(run.facing).toBe('down');
+  });
+  it('flows around corners and reverses at dead ends without stalling', () => {
+    const run = corridorRun();
+    for (const expected of [{ x: 2, y: 1 }, { x: 3, y: 1 }, { x: 3, y: 2 }, { x: 3, y: 3 }, { x: 3, y: 2 }, { x: 3, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 1 }]) {
+      const steps = run.metrics.steps; tick(run); expect(run.player).toEqual(expected); expect(run.metrics.steps).toBe(steps + 1);
+    }
+  });
+  it('preserves its heading on a blocked turn and can phase toward a queued turn', () => {
+    const run = corridorRun(true); run.maze.tiles[3][1] = true;
+    expect(run.move('down')).toBe(false); expect(run.facing).toBe('right');
+    run.requestTurn('down'); expect(run.phaseJump()).toBe(true); expect(run.player).toEqual({ x: 1, y: 3 });
+  });
+  it('honors speed mods throughout a continuous run', () => {
+    const slow = corridorRun(), fast = corridorRun();
+    slow.setProgram(parse('int sentinels = 0; int moveSpeed = 2;'));
+    fast.setProgram(parse('int sentinels = 0; int moveSpeed = 8;'));
+    for (let i = 0; i < 100; i++) { slow.step(0.02, idle); fast.step(0.02, idle); }
+    expect(slow.metrics.steps).toBeGreaterThanOrEqual(5); expect(fast.metrics.steps).toBeGreaterThanOrEqual(17);
+    expect(fast.metrics.steps).toBeGreaterThan(slow.metrics.steps * 2);
+  });
   it('blocks walls and the maze boundary', () => {
     const run = new NeonMazeRun(2); run.launch();
     expect(run.move('up')).toBe(false); expect(run.move('left')).toBe(false);
@@ -63,6 +104,17 @@ describe('Neon Maze gameplay', () => {
     expect(run.energy).toBe(100); expect(run.shieldCooldown).toBe(8);
     run.invulnerable = 0; run.sentinels = [{ ...run.player }]; run.step(0, idle);
     expect(run.energy).toBe(75); expect(run.metrics.hits).toBe(1);
+  });
+  it('respawns into continuous movement with a grace period and hunters away from the start', () => {
+    const run = new NeonMazeRun(8); run.setProgram(parse('int sentinels = 4;')); run.launch();
+    travel(run, run.maze.cores[0]);
+    const collected = run.collected.size;
+    run.energy = 25; run.invulnerable = 0; run.sentinels = [{ ...run.player }];
+    run.step(0, idle);
+    expect(run.lives).toBe(2); expect(run.energy).toBe(100); expect(run.invulnerable).toBe(2);
+    expect(run.player).toEqual(run.maze.start); expect(run.collected.size).toBe(collected);
+    expect(run.sentinels).toHaveLength(4); expect(run.sentinels.every(cell => !sameCell(cell, run.player))).toBe(true);
+    tick(run); expect(run.player).not.toEqual(run.maze.start); expect(run.lives).toBe(2);
   });
   it('changes live mods without teleporting the runner and keeps the last valid program', () => {
     const run = new NeonMazeRun(1); run.launch(); const position = { ...run.player }, maze = run.maze;

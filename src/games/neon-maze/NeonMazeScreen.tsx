@@ -108,7 +108,15 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
     const typing = () => Boolean((document.activeElement as HTMLElement | null)?.closest('input,textarea,select,[contenteditable="true"],.cm-editor,button,summary'));
     const keydown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || blocked.current || modInteractionOpen() || typing()) return;
-      if (KEY_INPUT[e.code] && run.phase === 'playing') { e.preventDefault(); input.current[KEY_INPUT[e.code]] = true; }
+      if (KEY_INPUT[e.code] && run.phase === 'playing') {
+        e.preventDefault();
+        const direction = KEY_INPUT[e.code];
+        if (direction !== 'phase') {
+          input.current.up = input.current.right = input.current.down = input.current.left = false;
+          run.requestTurn(direction);
+        }
+        input.current[direction] = true;
+      }
       if (e.code === 'KeyP') { e.preventDefault(); clearInput(); run.phase === 'paused' ? run.resume() : run.pause(); update(); }
       if (e.code === 'Enter' && run.phase === 'launch') { e.preventDefault(); launch(); }
     };
@@ -132,7 +140,7 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
   const tools = useMemo(() => MAZE_TOOLS.filter(tool => mission.kind === 'sandbox' || progress.freeModeUnlocked || tool.unlockAt <= mission.order)
     .map(tool => localizeTool(tool, language)), [mission.kind, mission.order, progress.freeModeUnlocked, language]);
   const playing = snapshot.phase === 'playing';
-  const onPhase = () => { focusGame(); run.move(run.facing, true); update(); };
+  const onPhase = () => { focusGame(); run.phaseJump(); update(); };
 
   return <GameWorkspace gameId={gameId} gameTitle="NEON MAZE" touch={touch} coding={focused}
     header={<TopBar gameName="NEON MAZE" missions={MAZE_MISSIONS} completed={progress.completed} paused={snapshot.phase === 'paused'} sound={progress.settings.sound}
@@ -153,7 +161,7 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
     library={{ open: libraryOpen, onClose: () => { setLibraryOpen(false); focusGame(); }, onInsert: (snippet, mode) => { setLibraryOpen(false); insert(snippet, mode); } }}
     stageRef={stage}
     stage={<div className={`stage neon-stage ${passed && next ? 'stage--missionReady' : ''} ${fullGameReady ? 'stage--fullGameReady' : ''}`} style={{ '--maze-neon': MAZE_COLORS[snapshot.config.wallColor] } as React.CSSProperties}>
-      <canvas ref={canvas} className="stage__canvas" tabIndex={0} onPointerDown={focusGame} aria-label="Neon Maze game. Arrow keys or WASD to move; Space to phase jump; P to pause." />
+      <canvas ref={canvas} className="stage__canvas" tabIndex={0} onPointerDown={focusGame} aria-label="Neon Maze game. Your runner moves continuously. Arrow keys or WASD to steer; Space to phase jump; P to pause." />
       <div className="neon__hud" aria-label="Maze status">
         <div><small>SECTOR {String(snapshot.level).padStart(2, '0')} · {snapshot.config.runnerName}</small><strong>{String(snapshot.score).padStart(5, '0')}</strong></div>
         <div className="neon__hudRight"><span>◆ {snapshot.cores}/3 <b>CORES</b> · {snapshot.lives} <b>LIVES</b></span><label>ENERGY <meter min={0} max={100} low={40} high={70} optimum={100} value={snapshot.energy} /> {snapshot.energy}%</label></div>
@@ -161,22 +169,22 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
       {playing && focused ? <span className="neon__editing">EDITING · MAZE CLOCK HELD</span> : null}
       <div className="neon__log" aria-label="Signal log"><small>SIGNAL FEED</small>{snapshot.messages.slice(0, touch ? 1 : 2).map((message, i) => <p key={`${i}:${message}`}>{message}</p>)}</div>
       {playing ? <div className="touchbar neon__controls">
-        {!touch ? <span className="neon__keys">WASD / ARROWS · SPACE TO PHASE</span> : null}
+        {!touch ? <span className="neon__keys">ALWAYS MOVING · WASD / ARROWS TO STEER · SPACE TO PHASE</span> : null}
         <div className={`touchbar__cluster ${touch ? 'touchbar__cluster--left' : 'touchbar__cluster--right'}`}><PhaseButton cooldown={snapshot.phaseCooldown} onPhase={onPhase} /></div>
-        {touch ? <MazeJoystick input={input.current} onEngage={focusGame} /> : null}
+        {touch ? <MazeJoystick input={input.current} onEngage={focusGame} onTurn={direction => run.requestTurn(direction)} /> : null}
       </div> : null}
       {snapshot.phase !== 'playing' ? <div className={`overlay neon__overlay neon__overlay--${snapshot.phase}`}>
         <div className="neon__panel">
           <span className="neon__eyebrow">{mission.kind === 'sandbox' ? 'EVERY MOD UNLOCKED' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</span>
           <div className="neon__emblem" aria-hidden="true">◈</div>
           <h1>{snapshot.phase === 'launch' ? 'NEON MAZE' : snapshot.phase === 'cleared' ? 'SECTOR CLEAR' : snapshot.phase === 'paused' ? 'SIGNAL HELD' : 'SIGNAL LOST'}</h1>
-          <p>{snapshot.phase === 'cleared' ? 'Three cores linked. One way out. Your next labyrinth awaits.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and run it again.` : 'Link three energy cores. Evade the sentinels. Find the glowing exit.'}</p>
+          <p>{snapshot.phase === 'cleared' ? 'Three cores linked. One way out. Your next labyrinth awaits.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and run it again.` : 'Keep moving. Queue your turns, link three cores, and outsmart the sentinels to reach the exit.'}</p>
           <div className="neon__legend"><span><i className="neon__legendRunner" /> YOU</span><span><i className="neon__legendCore" /> CORE</span><span><i className="neon__legendHunter" /> SENTINEL</span></div>
           <button className="btn neon__enter" onClick={() => {
             if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch();
             update(); focusGame();
           }}>{snapshot.phase === 'paused' ? 'RESUME RUN' : snapshot.phase === 'cleared' ? 'NEXT SECTOR →' : snapshot.phase === 'gameover' ? 'RUN AGAIN →' : 'ENTER THE MAZE →'}</button>
-          <small>{touch ? 'JOYSTICK TO MOVE · PHASE TO JUMP' : 'WASD / ARROWS TO MOVE · SPACE TO PHASE · P TO PAUSE'}</small>
+          <small>{touch ? 'ALWAYS MOVING · JOYSTICK TO STEER · PHASE TO JUMP' : 'ALWAYS MOVING · WASD / ARROWS TO STEER · SPACE TO PHASE · P TO PAUSE'}</small>
         </div>
       </div> : null}
       {previous ? <button className="stage__missionBack" onClick={() => go(previous)}>← Previous mission</button> : null}

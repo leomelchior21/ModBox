@@ -3,7 +3,8 @@ import { evaluateGameScript } from '../../interpreter/gameScript';
 import { evalExpr } from '../../interpreter/core/evaluate';
 import { renderText } from '../../interpreter/csharp/binder';
 import { MAZE_DEFAULTS, MAZE_MODS, mazeSchema, type MazeConfig } from './mods';
-import { cellKey, DIRECTIONS, distances, generateMaze, neighbors, sameCell, walkable, type Cell, type Direction, type Maze } from './maze';
+import { cellKey, DIRECTIONS, distances, generateMaze, sameCell, walkable, type Cell, type Direction, type Maze } from './maze';
+import { sentinelInterval, sentinelMode, sentinelTargets, steerSentinels } from './sentinels';
 
 export type MazePhase = 'launch' | 'playing' | 'paused' | 'cleared' | 'gameover';
 export interface MazeInput { up: boolean; right: boolean; down: boolean; left: boolean; phase: boolean }
@@ -25,6 +26,9 @@ export class NeonMazeRun {
   moveAge = 1;
   facing: Direction = 'right';
   sentinels: Cell[] = [];
+  sentinelFrom: Cell[] = [];
+  sentinelAge = 1;
+  elapsed = 0;
   collected = new Set<string>();
   visited = new Set<string>();
   trail: Cell[] = [];
@@ -42,8 +46,10 @@ export class NeonMazeRun {
   private base = { ...MAZE_DEFAULTS };
   private moveTimer = 0;
   private hunterTimer = 0;
+  private hunterMode: 'chase' | 'scatter' = 'chase';
   private seed: number;
   private activeRules = new Set<string>();
+  private queuedTurn: Direction | null = null;
   constructor(seed = Math.floor(Math.random() * 1000000) + 1) {
     this.seed = seed; this.maze = generateMaze(this.config.mazeSize, seed);
     this.player = { ...this.maze.start }; this.playerFrom = { ...this.player };
@@ -77,55 +83,76 @@ export class NeonMazeRun {
   private resetSector(): void {
     this.maze = generateMaze(this.config.mazeSize, this.seed + this.level * 7919);
     this.player = { ...this.maze.start }; this.playerFrom = { ...this.player }; this.moveAge = 1;
-    this.sentinels = []; this.collected.clear(); this.visited.clear(); this.trail = [];
+    this.facing = this.openDirections()[0] ?? 'right'; this.queuedTurn = null;
+    this.sentinels = []; this.sentinelFrom = []; this.sentinelAge = 1; this.elapsed = 0; this.hunterMode = 'chase';
+    this.collected.clear(); this.visited.clear(); this.trail = [];
     this.phaseCooldown = 0; this.invulnerable = 1.5; this.shieldCooldown = 0;
-    this.moveTimer = 0; this.hunterTimer = 0; this.syncSentinels(); this.explore();
+    this.moveTimer = 1 / (this.config.moveSpeed + 1); this.hunterTimer = sentinelInterval(this.config.sentinelSpeed); this.syncSentinels(); this.explore();
   }
   private syncSentinels(): void {
     this.sentinels = this.sentinels.slice(0, this.config.sentinelCount);
+    this.sentinelFrom = this.sentinelFrom.slice(0, this.config.sentinelCount);
     const far = [...distances(this.maze, this.player)].filter(([, d]) => d >= 6).sort((a, b) => b[1] - a[1]);
     while (this.sentinels.length < this.config.sentinelCount && far.length) {
       const candidate = far[(this.sentinels.length * 11 + this.level * 3) % far.length][0];
-      const [x, y] = candidate.split(',').map(Number); this.sentinels.push({ x, y });
+      const [x, y] = candidate.split(',').map(Number); this.sentinels.push({ x, y }); this.sentinelFrom.push({ x, y });
     }
   }
   private explore(): void {
     for (let y = -3; y <= 3; y++) for (let x = -3; x <= 3; x++) this.visited.add(cellKey({ x: this.player.x + x, y: this.player.y + y }));
   }
+  requestTurn(direction: Direction): void { if (this.phase === 'playing') this.queuedTurn = direction; }
+  phaseJump(): boolean { return this.move(this.queuedTurn ?? this.facing, true); }
+  private openDirections(): Direction[] {
+    return (Object.keys(DIRECTIONS) as Direction[]).filter(key => walkable(this.maze, { x: this.player.x + DIRECTIONS[key].x, y: this.player.y + DIRECTIONS[key].y }));
+  }
+  private cruise(): void {
+    const exits = this.openDirections();
+    const reverse = { up: 'down', right: 'left', down: 'up', left: 'right' } as const;
+    // Keep a requested turn until its corridor opens. Corners and dead ends never stall the run.
+    const direction = this.queuedTurn && exits.includes(this.queuedTurn) ? this.queuedTurn
+      : exits.includes(this.facing) ? this.facing : exits.find(key => key !== reverse[this.facing]) ?? exits[0];
+    if (direction) this.move(direction);
+  }
   step(dt: number, input: MazeInput): void {
     if (this.phase !== 'playing') return;
     dt = Math.max(0, Math.min(dt, 0.1));
-    this.moveAge += dt; this.moveTimer -= dt; this.hunterTimer -= dt;
+    this.elapsed += dt; this.moveAge += dt; this.sentinelAge += dt; this.moveTimer -= dt; this.hunterTimer -= dt;
     this.phaseCooldown = Math.max(0, this.phaseCooldown - dt);
     this.invulnerable = Math.max(0, this.invulnerable - dt);
     this.shieldCooldown = Math.max(0, this.shieldCooldown - dt);
     const direction = (Object.keys(DIRECTIONS) as Direction[]).find(key => input[key]);
-    if (direction) this.facing = direction;
-    if (input.phase && this.phaseCooldown <= 0) this.move(this.facing, true);
-    else if (direction && this.moveTimer <= 0) this.move(direction);
+    if (direction) this.requestTurn(direction);
     this.resolveContact();
-    if (this.hunterTimer <= 0 && this.phase === 'playing') {
-      this.hunterTimer = 1.15 / this.config.sentinelSpeed;
-      const paths = distances(this.maze, this.player);
-      this.sentinels = this.sentinels.map((sentinel, i) => {
-        const options = neighbors(this.maze, sentinel);
-        options.sort((a, b) => (paths.get(cellKey(a)) ?? Infinity) - (paths.get(cellKey(b)) ?? Infinity));
-        // Every fourth turn is a patrol detour, rather than relentless pursuit.
-        return options[(this.metrics.steps + i + this.level) % 4 === 0 ? options.length - 1 : 0] ?? sentinel;
-      });
+    const previousPlayer = { ...this.player };
+    if (dt > 0 && this.phase === 'playing') {
+      if (input.phase && this.phaseCooldown <= 0) this.phaseJump();
+      else if (this.moveTimer <= 0) { const remainder = this.moveTimer; this.cruise(); this.moveTimer += remainder; }
+    }
+    this.resolveContact();
+    if (dt > 0 && this.hunterTimer <= 0 && this.phase === 'playing') {
+      this.hunterTimer += sentinelInterval(this.config.sentinelSpeed);
+      const before = this.sentinels;
+      this.sentinels = steerSentinels(this.maze, before, this.sentinelFrom,
+        sentinelTargets(this.maze, this.player, this.facing, before, this.collected, this.elapsed), this.hunterMode !== sentinelMode(this.elapsed));
+      this.hunterMode = sentinelMode(this.elapsed);
+      this.sentinelFrom = before.map(cell => ({ ...cell })); this.sentinelAge = 0;
+      // Catch head-on tile swaps as well as sharing a tile.
+      if (!sameCell(previousPlayer, this.player) && before.some((cell, i) => sameCell(cell, this.player) && sameCell(this.sentinels[i], previousPlayer))) this.takeHit();
       this.resolveContact();
     }
     this.evaluate();
   }
   move(direction: Direction, phase = false): boolean {
     if (this.phase !== 'playing' || (phase && this.phaseCooldown > 0)) return false;
-    const delta = DIRECTIONS[direction]; this.facing = direction;
+    const delta = DIRECTIONS[direction];
     let target: Cell | undefined;
     for (let distance = phase ? this.config.phaseLength : 1; distance >= 1; distance--) {
       const next = { x: this.player.x + delta.x * distance, y: this.player.y + delta.y * distance };
       if (walkable(this.maze, next)) { target = next; break; }
     }
     if (!target) { this.moveTimer = 0.06; return false; }
+    this.facing = direction; if (this.queuedTurn === direction) this.queuedTurn = null;
     this.playerFrom = { ...this.player }; this.trail.push({ ...this.player }); this.trail = this.trail.slice(-16);
     this.player = target; this.moveAge = 0; this.moveTimer = 1 / (this.config.moveSpeed + 1);
     this.metrics.steps++; this.explore();
@@ -141,6 +168,10 @@ export class NeonMazeRun {
   }
   private resolveContact(): void {
     if (this.phase !== 'playing' || this.invulnerable > 0 || !this.sentinels.some(s => sameCell(s, this.player))) return;
+    this.takeHit();
+  }
+  private takeHit(): void {
+    if (this.phase !== 'playing' || this.invulnerable > 0) return;
     if (this.config.shield && this.shieldCooldown <= 0) {
       this.shieldCooldown = 8; this.invulnerable = 1.5; this.log('SHIELD ABSORBED AN IMPACT'); this.events.push('shield'); return;
     }
@@ -149,7 +180,11 @@ export class NeonMazeRun {
     if (this.energy === 0) {
       this.lives--;
       if (this.lives <= 0) this.phase = 'gameover';
-      else { this.energy = 100; this.player = { ...this.maze.start }; this.playerFrom = { ...this.player }; this.moveAge = 1; this.invulnerable = 2; }
+      else {
+        this.energy = 100; this.player = { ...this.maze.start }; this.playerFrom = { ...this.player }; this.moveAge = 1; this.invulnerable = 2;
+        this.facing = this.openDirections()[0] ?? 'right'; this.queuedTurn = null;
+        this.moveTimer = 1 / (this.config.moveSpeed + 1); this.sentinels = []; this.sentinelFrom = []; this.syncSentinels(); this.explore();
+      }
     }
   }
   private evaluate(): void {

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { MazeInput } from './run';
+import type { Direction } from './maze';
 
-export function MazeJoystick({ input, onEngage }: { input: MazeInput; onEngage: () => void }): JSX.Element {
+export function MazeJoystick({ input, onEngage, onTurn }: { input: MazeInput; onEngage: () => void; onTurn: (direction: Direction) => void }): JSX.Element {
   const node = useRef<HTMLDivElement>(null), pointer = useRef<number | null>(null);
   const reset = () => {
     pointer.current = null;
@@ -17,10 +18,10 @@ export function MazeJoystick({ input, onEngage }: { input: MazeInput; onEngage: 
     node.current?.style.setProperty('--stick-x', `${dx * scale}px`); node.current?.style.setProperty('--stick-y', `${dy * scale}px`);
     input.up = input.down = input.left = input.right = false;
     if (distance < radius * 0.25) return;
-    if (Math.abs(dx) > Math.abs(dy)) input[dx > 0 ? 'right' : 'left'] = true;
-    else input[dy > 0 ? 'down' : 'up'] = true;
+    const direction: Direction = Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up';
+    input[direction] = true; onTurn(direction);
   };
-  return <div ref={node} className="touchbar__cluster touchbar__cluster--right joystick neon__joystick" role="group" tabIndex={0} aria-label="Maze joystick: drag in the direction you want to move"
+  return <div ref={node} className="touchbar__cluster touchbar__cluster--right joystick neon__joystick" role="group" tabIndex={0} aria-label="Maze joystick: steer the continuously moving runner"
     onPointerDown={e => { if (pointer.current !== null) return; e.preventDefault(); onEngage(); pointer.current = e.pointerId; e.currentTarget.setPointerCapture?.(e.pointerId); move(e); }}
     onPointerMove={move} onPointerUp={e => { if (pointer.current === e.pointerId) reset(); }} onPointerCancel={reset} onLostPointerCapture={reset} onBlur={reset}
     onContextMenu={e => e.preventDefault()}>

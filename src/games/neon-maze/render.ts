@@ -1,5 +1,6 @@
 import { cellKey, sameCell, type Cell } from './maze';
 import type { NeonMazeRun } from './run';
+import { SENTINEL_COLORS, sentinelInterval } from './sentinels';
 export const MAZE_COLORS: Record<string, string> = { cyan: '#4feaff', violet: '#ae82ff', lime: '#caff52', amber: '#ffcb69' };
 
 export function drawMaze(ctx: CanvasRenderingContext2D, run: NeonMazeRun, width: number, height: number, time: number, reducedMotion: boolean): void {
@@ -11,7 +12,8 @@ export function drawMaze(ctx: CanvasRenderingContext2D, run: NeonMazeRun, width:
   // Compact phones follow the runner instead of shrinking every core to a dot.
   const cell = Math.max(14, fitted), board = cell * run.maze.size;
   const viewWidth = Math.min(width - 28, board), viewHeight = Math.min(availableHeight, board);
-  const blend = reducedMotion ? 1 : Math.min(1, run.moveAge / 0.09);
+  const transition = Math.abs(run.playerFrom.x - run.player.x) + Math.abs(run.playerFrom.y - run.player.y) > 1 ? 0.12 : 1 / (run.config.moveSpeed + 1);
+  const blend = reducedMotion ? 1 : Math.min(1, run.moveAge / transition);
   const playerCell = { x: run.playerFrom.x + (run.player.x - run.playerFrom.x) * blend, y: run.playerFrom.y + (run.player.y - run.playerFrom.y) * blend };
   const scrollX = Math.max(0, Math.min(board - viewWidth, (playerCell.x + 0.5) * cell - viewWidth / 2));
   const scrollY = Math.max(0, Math.min(board - viewHeight, (playerCell.y + 0.5) * cell - viewHeight / 2));
@@ -54,15 +56,19 @@ export function drawMaze(ctx: CanvasRenderingContext2D, run: NeonMazeRun, width:
     ctx.beginPath(); ctx.moveTo(p.x, p.y - cell * 0.24 * pulse); ctx.lineTo(p.x + cell * 0.2 * pulse, p.y);
     ctx.lineTo(p.x, p.y + cell * 0.24 * pulse); ctx.lineTo(p.x - cell * 0.2 * pulse, p.y); ctx.closePath(); ctx.fill();
   }
-  for (const sentinel of run.sentinels) {
-    const p = center(sentinel); ctx.fillStyle = '#ff5b9d'; ctx.shadowColor = '#ff3c89'; ctx.shadowBlur = 12;
+  for (const [i, sentinel] of run.sentinels.entries()) {
+    const from = run.sentinelFrom[i] ?? sentinel, progress = reducedMotion ? 1 : Math.min(1, run.sentinelAge / sentinelInterval(run.config.sentinelSpeed));
+    const p = center({ x: from.x + (sentinel.x - from.x) * progress, y: from.y + (sentinel.y - from.y) * progress });
+    ctx.fillStyle = SENTINEL_COLORS[i % SENTINEL_COLORS.length]; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
     ctx.beginPath(); ctx.moveTo(p.x, p.y - cell * 0.33); ctx.lineTo(p.x + cell * 0.3, p.y); ctx.lineTo(p.x, p.y + cell * 0.33); ctx.lineTo(p.x - cell * 0.3, p.y); ctx.closePath(); ctx.fill();
     ctx.shadowBlur = 0; ctx.fillStyle = '#200f28'; ctx.fillRect(p.x - cell * 0.13, p.y - cell * 0.07, cell * 0.08, cell * 0.1); ctx.fillRect(p.x + cell * 0.05, p.y - cell * 0.07, cell * 0.08, cell * 0.1);
   }
   const p = center(playerCell);
   ctx.globalAlpha = !reducedMotion && run.invulnerable > 0 && Math.sin(time * 15) < 0 ? 0.6 : 1;
   ctx.fillStyle = '#f0fff4'; ctx.shadowColor = color; ctx.shadowBlur = 16;
-  ctx.beginPath(); ctx.arc(p.x, p.y, cell * 0.23, 0, Math.PI * 2); ctx.fill();
+  const heading = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[run.facing];
+  const mouth = reducedMotion || run.phase !== 'playing' ? 0.2 : 0.15 + (Math.sin(time * 20) + 1) * 0.2;
+  ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.arc(p.x, p.y, cell * 0.28, heading + mouth, heading + Math.PI * 2 - mouth); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.x, p.y, cell * 0.34, 0, Math.PI * 2); ctx.stroke();
   if (run.config.shield && run.shieldCooldown <= 0) { ctx.strokeStyle = '#caff52'; ctx.beginPath(); ctx.arc(p.x, p.y, cell * 0.46, 0, Math.PI * 2); ctx.stroke(); }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;

@@ -22,7 +22,8 @@
 .neon__phase small { font:700 9px/1.6 var(--font-mono); }
 .neon__phase:disabled { opacity:.55; cursor:default; }
 .neon__phase:focus-visible { outline:2px solid #fff; outline-offset:3px; }
-.neon__keys { position:absolute; left:18px; bottom:106px; color:#7899b5; font-size:8px; pointer-events:none; }
+.neon__keys { position:absolute; right:96px; bottom:20px; max-width:calc(100% - 340px); text-align:center; line-height:1.5; color:#7899b5; font-size:8px; pointer-events:none; }
+.stage--missionReady .neon__keys { display:none; }
 .neon__overlay { z-index:2; background:radial-gradient(ellipse at center,#07152bf2,#040b18c7); padding:20px; }
 .neon__panel { width:min(390px,100%); display:flex; flex-direction:column; align-items:center; text-align:center; gap:14px; }
 .neon__eyebrow { color:#91b0c9; font-size:10px; letter-spacing:.15em; }
@@ -45,6 +46,7 @@
 .lab[data-game-id="maze"] .stage--missionReady .neon__controls .touchbar__cluster--right { margin-bottom:72px; }
 .neon-stage:has(.neon__overlay) .neon__hud,.neon-stage:has(.neon__overlay) .neon__log { opacity:.4; }
 .neon-stage .stage__missionBack { top:58px; }
+@container (max-width:500px) { .neon__keys { display:none; } }
 @container (max-height:350px) {
   .neon__panel { gap:7px; }
   .neon__emblem,.neon__legend,.neon__panel > small { display:none; }

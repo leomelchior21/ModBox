@@ -53,6 +53,8 @@ Export a React screen taking `GameScreenProps`. Render `GameWorkspace` with:
 
 Your controller owns animation timers, listeners and input, and cleans them up on unmount. Suspend keyboard gameplay while editing or using dialogs/libraries. Put mobile controls inside your game view and account for its available size and safe areas.
 
+NEON MAZE demonstrates continuous movement: directional input queues a turn while the runner keeps cruising, including automatic corners and dead-end reversals. Its separate `sentinels.ts` planner assigns pursuit, interception, flanking and core-guard targets, alternates chase/scatter periods, and routes hunters through corridors without unnecessary reversals or crowding. Movement interpolation follows each actor's configured speed.
+
 `applyModToEditor(view, snippet, mode, language)` handles tap replacement and drag insertion. The shared libraries supply the insertion mode. Pass the same catalog to the editor for matching autocomplete and co-pilot targets.
 
 If a tool needs to change other starting values when inserted, supply an optional `prepareModInsert(source, snippet, language)` callback to `editor` and as the fifth argument of `applyModToEditor`. Both tap and drop then apply the preparation and snippet together in one undoable edit. Keep these game-specific changes in your game's directory; Vector Zero uses this hook to reset the starting shield and laser power when inserting its rule tools.
