@@ -24,10 +24,12 @@ export class NeonMazeRun {
   player: Cell;
   playerFrom: Cell;
   moveAge = 1;
+  moveDuration = 0.2;
   facing: Direction = 'right';
   sentinels: Cell[] = [];
   sentinelFrom: Cell[] = [];
   sentinelAge = 1;
+  sentinelDuration = sentinelInterval(MAZE_DEFAULTS.sentinelSpeed);
   elapsed = 0;
   collected = new Set<string>();
   dots = new Set<string>();
@@ -53,6 +55,7 @@ export class NeonMazeRun {
   private seed: number;
   private activeRules = new Set<string>();
   private queuedTurn: Direction | null = null;
+  private stopped = false;
   constructor(seed = Math.floor(Math.random() * 1000000) + 1) {
     this.seed = seed; this.maze = generateMaze(this.config.mazeSize, seed);
     this.player = { ...this.maze.start }; this.playerFrom = { ...this.player };
@@ -88,7 +91,7 @@ export class NeonMazeRun {
   private resetSector(): void {
     this.maze = generateMaze(this.config.mazeSize, this.seed + this.level * 7919);
     this.player = { ...this.maze.start }; this.playerFrom = { ...this.player }; this.moveAge = 1;
-    this.facing = this.openDirections()[0] ?? 'right'; this.queuedTurn = null;
+    this.facing = this.openDirections()[0] ?? 'right'; this.queuedTurn = null; this.stopped = false;
     this.sentinels = []; this.sentinelFrom = []; this.sentinelAge = 1; this.elapsed = 0; this.hunterMode = 'chase';
     this.collected.clear(); this.collectedDots.clear(); this.dots.clear(); this.stunRemaining = 0;
     this.visited.clear(); this.trail = [];
@@ -97,7 +100,8 @@ export class NeonMazeRun {
       if (key !== cellKey(this.maze.start) && key !== cellKey(this.maze.exit) && !gems.has(key)) this.dots.add(key);
     }
     this.phaseCooldown = 0; this.invulnerable = 1.5; this.shieldCooldown = 0;
-    this.moveTimer = 1 / (this.config.moveSpeed + 1); this.hunterTimer = sentinelInterval(this.config.sentinelSpeed); this.syncSentinels(); this.explore();
+    this.moveDuration = 1 / (this.config.moveSpeed + 1); this.moveTimer = this.moveDuration;
+    this.sentinelDuration = sentinelInterval(this.config.sentinelSpeed); this.hunterTimer = this.sentinelDuration; this.syncSentinels(); this.explore();
   }
   private syncSentinels(): void {
     this.sentinels = this.sentinels.slice(0, this.config.sentinelCount);
@@ -112,22 +116,45 @@ export class NeonMazeRun {
   private explore(): void {
     for (let y = -3; y <= 3; y++) for (let x = -3; x <= 3; x++) this.visited.add(cellKey({ x: this.player.x + x, y: this.player.y + y }));
   }
-  requestTurn(direction: Direction): void { if (this.phase === 'playing') this.queuedTurn = direction; }
+  requestTurn(direction: Direction): void {
+    if (this.phase !== 'playing') return;
+    this.queuedTurn = direction;
+    const reverse = { up: 'down', right: 'left', down: 'up', left: 'right' } as const;
+    // Reverse along the current segment immediately, without snapping to a tile.
+    if (direction === reverse[this.facing] && this.moveAge < this.moveDuration
+      && Math.abs(this.player.x - this.playerFrom.x) + Math.abs(this.player.y - this.playerFrom.y) === 1) {
+      const from = this.playerFrom; this.playerFrom = this.player; this.player = from;
+      this.moveAge = this.moveDuration - this.moveAge; this.moveTimer = this.moveDuration - this.moveAge;
+      this.facing = direction; this.queuedTurn = null; this.stopped = false;
+    } else if (this.stopped && this.openDirections().includes(direction)) this.moveTimer = 0;
+  }
+  playerPosition(): Cell {
+    const blend = Math.min(1, this.moveAge / this.moveDuration);
+    return { x: this.playerFrom.x + (this.player.x - this.playerFrom.x) * blend, y: this.playerFrom.y + (this.player.y - this.playerFrom.y) * blend };
+  }
+  sentinelPositions(): Cell[] {
+    const blend = Math.min(1, this.sentinelAge / this.sentinelDuration);
+    return this.sentinels.map((cell, i) => {
+      const from = this.sentinelFrom[i] ?? cell;
+      return { x: from.x + (cell.x - from.x) * blend, y: from.y + (cell.y - from.y) * blend };
+    });
+  }
   phaseJump(): boolean { return this.move(this.queuedTurn ?? this.facing, true); }
   private openDirections(): Direction[] {
     return (Object.keys(DIRECTIONS) as Direction[]).filter(key => walkable(this.maze, { x: this.player.x + DIRECTIONS[key].x, y: this.player.y + DIRECTIONS[key].y }));
   }
   private cruise(): void {
     const exits = this.openDirections();
-    const reverse = { up: 'down', right: 'left', down: 'up', left: 'right' } as const;
-    // Keep a requested turn until its corridor opens. Corners and dead ends never stall the run.
+    // Buffer early turns, but never choose a corner or reverse for the player.
     const direction = this.queuedTurn && exits.includes(this.queuedTurn) ? this.queuedTurn
-      : exits.includes(this.facing) ? this.facing : exits.find(key => key !== reverse[this.facing]) ?? exits[0];
+      : exits.includes(this.facing) ? this.facing : null;
     if (direction) this.move(direction);
+    else { this.stopped = true; this.moveTimer = 0; }
   }
   step(dt: number, input: MazeInput): void {
     if (this.phase !== 'playing') return;
     dt = Math.max(0, Math.min(dt, 0.1));
+    const visualPlayer = this.playerPosition(), visualHunters = this.sentinelPositions();
     this.elapsed += dt; this.moveAge += dt; this.moveTimer -= dt;
     // Stunned hunters finish their current visual step, then stay still and harmless.
     this.sentinelAge += dt;
@@ -142,20 +169,36 @@ export class NeonMazeRun {
     const previousPlayer = { ...this.player };
     if (dt > 0 && this.phase === 'playing') {
       if (input.phase && this.phaseCooldown <= 0) this.phaseJump();
-      else if (this.moveTimer <= 0) { const remainder = this.moveTimer; this.cruise(); this.moveTimer += remainder; }
+      else if (this.moveTimer <= 0) {
+        const remainder = this.stopped ? 0 : Math.max(-dt, this.moveTimer);
+        this.cruise();
+        if (!this.stopped) { this.moveTimer += remainder; this.moveAge = -remainder; }
+      }
     }
     this.resolveContact();
     if (dt > 0 && this.hunterTimer <= 0 && this.phase === 'playing' && this.stunRemaining <= 0) {
+      const overshoot = Math.max(0, -this.hunterTimer);
       this.hunterTimer += sentinelInterval(this.config.sentinelSpeed);
       const before = this.sentinels;
       this.sentinels = steerSentinels(this.maze, before, this.sentinelFrom,
         sentinelTargets(this.maze, this.player, this.facing, before, this.collected, this.elapsed), this.hunterMode !== sentinelMode(this.elapsed));
       this.hunterMode = sentinelMode(this.elapsed);
-      this.sentinelFrom = before.map(cell => ({ ...cell })); this.sentinelAge = 0;
+      this.sentinelFrom = before.map(cell => ({ ...cell })); this.sentinelAge = overshoot;
+      this.sentinelDuration = sentinelInterval(this.config.sentinelSpeed);
       // Catch head-on tile swaps as well as sharing a tile.
       if (!sameCell(previousPlayer, this.player) && before.some((cell, i) => sameCell(cell, this.player) && sameCell(this.sentinels[i], previousPlayer))) this.takeHit();
       this.resolveContact();
     }
+    // Sweep relative visual motion so grazing contacts and crossing actors cannot miss a hit.
+    const player = this.playerPosition();
+    if (this.sentinelPositions().some((hunter, i) => {
+      const before = visualHunters[i] ?? hunter;
+      const x = visualPlayer.x - before.x, y = visualPlayer.y - before.y;
+      const dx = player.x - hunter.x - x, dy = player.y - hunter.y - y;
+      const length = dx * dx + dy * dy;
+      const t = length ? Math.max(0, Math.min(1, -(x * dx + y * dy) / length)) : 0;
+      return Math.hypot(x + dx * t, y + dy * t) < 0.54;
+    })) this.takeHit();
     this.evaluate();
   }
   move(direction: Direction, phase = false): boolean {
@@ -166,10 +209,13 @@ export class NeonMazeRun {
       const next = { x: this.player.x + delta.x * distance, y: this.player.y + delta.y * distance };
       if (walkable(this.maze, next)) { target = next; break; }
     }
-    if (!target) { this.moveTimer = 0.06; return false; }
+    if (!target) { this.stopped = true; this.moveTimer = 0; return false; }
+    const visualFrom = phase ? this.playerPosition() : this.player;
+    this.stopped = false;
     this.facing = direction; if (this.queuedTurn === direction) this.queuedTurn = null;
-    this.playerFrom = { ...this.player }; this.trail.push({ ...this.player }); this.trail = this.trail.slice(-16);
-    this.player = target; this.moveAge = 0; this.moveTimer = 1 / (this.config.moveSpeed + 1);
+    this.playerFrom = { ...visualFrom }; this.trail.push({ ...this.player }); this.trail = this.trail.slice(-16);
+    this.player = target; this.moveAge = 0;
+    this.moveDuration = phase ? 0.12 : 1 / (this.config.moveSpeed + 1); this.moveTimer = this.moveDuration;
     this.metrics.steps++; this.explore();
     if (phase) { this.phaseCooldown = 2.4; this.invulnerable = 0.65; this.metrics.phases++; this.events.push('phase'); }
     if (this.dots.has(cellKey(this.player)) && !this.collectedDots.has(cellKey(this.player))) {
@@ -203,7 +249,7 @@ export class NeonMazeRun {
       if (this.lives <= 0) this.phase = 'gameover';
       else {
         this.energy = 100; this.player = { ...this.maze.start }; this.playerFrom = { ...this.player }; this.moveAge = 1; this.invulnerable = 2;
-        this.facing = this.openDirections()[0] ?? 'right'; this.queuedTurn = null;
+        this.facing = this.openDirections()[0] ?? 'right'; this.queuedTurn = null; this.stopped = false;
         this.moveTimer = 1 / (this.config.moveSpeed + 1); this.sentinels = []; this.sentinelFrom = []; this.syncSentinels(); this.explore();
       }
     }

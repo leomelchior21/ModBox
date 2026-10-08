@@ -14,51 +14,51 @@ import { useProgress } from '../../state/progressStore';
 import { useDebouncedValue, useMediaQuery } from '../../utils/hooks';
 import { useGameCode } from '../useGameCode';
 import type { GameScreenProps } from '../types';
-import { MAZE_MODS, MAZE_RUNTIME_LABELS, MAZE_TOOLS, mazeSchema, type MazeConfig } from './mods';
-import { MAZE_MISSIONS, MAZE_STARTER, MAZE_SANDBOX, getMazeMission, mazeGuidance, mazeMissionPassed, mazeUnlocked, playableMazeProgram } from './missions';
-import { NeonMazeRun, type MazeInput } from './run';
-import { drawMaze, MAZE_COLORS } from './render';
-import { MazeJoystick, PhaseButton } from './controls';
-import { MazeSound } from './sound';
-import './neon-maze.css';
+import { FLOOR_MODS, FLOOR_RUNTIME_LABELS, FLOOR_TOOLS, floorSchema, type FloorConfig } from './mods';
+import { FLOOR_MISSIONS, FLOOR_STARTER, FLOOR_SANDBOX, getFloorMission, floorGuidance, floorMissionPassed, floorUnlocked, playableFloorProgram } from './missions';
+import { DevilFloorRun, type FloorInput } from './run';
+import { drawFloor, FLOOR_COLORS } from './render';
+import { FloorControls } from './controls';
+import { FloorSound } from './sound';
+import './devil-floor.css';
 
-const MAZE_COACH_TARGETS = {
-  'maze-log': /(?:Console\.WriteLine|print)/, 'maze-math': /^\s*moveSpeed\s*=/,
-  'maze-score': /^\s*if.*\bscore\b/, 'maze-energy': /^\s*if.*\benergy\b/,
+const FLOOR_COACH_TARGETS = {
+  'floor-log': /(?:Console\.WriteLine|print)/, 'floor-math': /^\s*moveSpeed\s*=/,
+  'floor-score': /^\s*if.*\bscore\b/, 'floor-lives': /^\s*if.*\blives\b/,
 };
-const KEY_INPUT: Record<string, keyof MazeInput> = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'phase' };
+const KEY_INPUT: Record<string, keyof FloorInput> = { ArrowUp: 'jump', KeyW: 'jump', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'jump' };
 const modInteractionOpen = () => Boolean(document.querySelector('.mod-options, .topbar__more[open], .modal'));
 
-export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps): JSX.Element {
+export function DevilFloorScreen({ gameId, missionId, debugFlag }: GameScreenProps): JSX.Element {
   const progress = useProgress(), language = progress.activeLanguage;
-  const mission = getMazeMission(missionId ?? progress.currentMissionId);
+  const mission = getFloorMission(missionId ?? progress.currentMissionId);
   const starter = useMemo(() => {
     const saved = useProgress.getState().getGameProgress(gameId).codes;
-    const previous = MAZE_MISSIONS[mission.order - 1];
+    const previous = FLOOR_MISSIONS[mission.order - 1];
     const carried = previous ? saved[codeKey(language, previous.id)] : undefined;
-    return normalizeVariableSpacing(carried ?? formatCodeForLanguage(mission.kind === 'sandbox' ? MAZE_SANDBOX : MAZE_STARTER, language), language);
+    return normalizeVariableSpacing(carried ?? formatCodeForLanguage(mission.kind === 'sandbox' ? FLOOR_SANDBOX : FLOOR_STARTER, language), language);
   }, [gameId, mission.id, mission.order, mission.kind, language]);
   const { code, onChange } = useGameCode(gameId, mission.id, language, starter);
   const debounced = useDebouncedValue(code, 220);
-  const program = useMemo(() => parseGameScript<MazeConfig>(debounced, language, mazeSchema), [debounced, language]);
-  const unlocked = useMemo(() => mazeUnlocked(mission, progress.completed, progress.freeModeUnlocked), [mission, progress.completed, progress.freeModeUnlocked]);
-  const liveProgram = useMemo(() => playableMazeProgram(program, unlocked.map(mod => mod.id)), [program, unlocked]);
-  const run = useMemo(() => new NeonMazeRun(), []), sound = useMemo(() => new MazeSound(), []);
+  const program = useMemo(() => parseGameScript<FloorConfig>(debounced, language, floorSchema), [debounced, language]);
+  const unlocked = useMemo(() => floorUnlocked(mission, progress.completed, progress.freeModeUnlocked), [mission, progress.completed, progress.freeModeUnlocked]);
+  const liveProgram = useMemo(() => playableFloorProgram(program, unlocked.map(mod => mod.id)), [program, unlocked]);
+  const run = useMemo(() => new DevilFloorRun(), []), sound = useMemo(() => new FloorSound(), []);
   const [snapshot, setSnapshot] = useState(() => run.snapshot());
   const [focused, setFocused] = useState(false), [libraryOpen, setLibraryOpen] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false), [dismissed, setDismissed] = useState('');
   const canvas = useRef<HTMLCanvasElement>(null), editor = useRef<EditorView | null>(null), stage = useRef<HTMLDivElement>(null);
-  const input = useRef<MazeInput>({ up: false, right: false, down: false, left: false, phase: false });
+  const input = useRef<FloorInput>({ right: false, left: false, jump: false });
   const blocked = useRef(false); blocked.current = focused || libraryOpen || settingsOpen;
   const touch = useMediaQuery('(any-pointer: coarse)');
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const diagnostic = program.diagnostics.find(d => d.severity === 'error');
-  const passed = mazeMissionPassed(mission, liveProgram, snapshot) || progress.completed.includes(mission.id);
+  const passed = floorMissionPassed(mission, liveProgram, snapshot) || progress.completed.includes(mission.id);
   const fullGameReady = mission.kind === 'final' && passed;
-  const guidance = mazeGuidance(mission, liveProgram, snapshot, passed);
+  const guidance = floorGuidance(mission, liveProgram, snapshot, passed);
   const showCoach = !diagnostic && dismissed !== `${mission.id}:${guidance.message}`;
   const editorTarget = Boolean(guidance.targetId && program.symbols.some(s => s.mod === guidance.targetId));
-  const clearInput = useCallback(() => { for (const key of Object.keys(input.current) as (keyof MazeInput)[]) input.current[key] = false; }, []);
+  const clearInput = useCallback(() => { for (const key of Object.keys(input.current) as (keyof FloorInput)[]) input.current[key] = false; run.releaseInput(); }, [run]);
   const update = useCallback(() => { setSnapshot(run.snapshot()); }, [run]);
   const focusGame = useCallback(() => {
     (document.activeElement as HTMLElement | null)?.blur?.(); canvas.current?.focus({ preventScroll: true }); setFocused(false); sound.unlock();
@@ -96,7 +96,7 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
       else run.step((now - last) / 1000, input.current);
       last = now;
       for (const event of run.events.splice(0)) sound.play(event);
-      drawMaze(context, run, width, height, now / 1000, reducedMotion);
+      drawFloor(context, run, width, height, now / 1000, reducedMotion);
       if (now - reported > 120 || previous !== run.phase) { update(); reported = now; }
       raf = requestAnimationFrame(draw);
     };
@@ -110,12 +110,7 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
       if (e.ctrlKey || e.metaKey || e.altKey || blocked.current || modInteractionOpen() || typing()) return;
       if (KEY_INPUT[e.code] && run.phase === 'playing') {
         e.preventDefault();
-        const direction = KEY_INPUT[e.code];
-        if (direction !== 'phase') {
-          input.current.up = input.current.right = input.current.down = input.current.left = false;
-          run.requestTurn(direction);
-        }
-        input.current[direction] = true;
+        input.current[KEY_INPUT[e.code]] = true;
       }
       if (e.code === 'KeyP') { e.preventDefault(); clearInput(); run.phase === 'paused' ? run.resume() : run.pause(); update(); }
       if (e.code === 'Enter' && run.phase === 'launch') { e.preventDefault(); launch(); }
@@ -135,67 +130,64 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
     if (next.kind === 'sandbox' && store.codes[codeKey(language, next.id)] === undefined) store.setGameCode(gameId, codeKey(language, next.id), code);
     store.setMission(next.id); navigate({ name: 'lab', gameId, missionId: next.id, debug: debugFlag });
   };
-  const next = MAZE_MISSIONS[mission.order + 1], previous = MAZE_MISSIONS[mission.order - 1];
+  const next = FLOOR_MISSIONS[mission.order + 1], previous = FLOOR_MISSIONS[mission.order - 1];
   const mods = useMemo(() => unlocked.map(mod => localizeMod(mod, language)), [unlocked, language]);
-  const tools = useMemo(() => MAZE_TOOLS.filter(tool => mission.kind === 'sandbox' || progress.freeModeUnlocked || tool.unlockAt <= mission.order)
+  const tools = useMemo(() => FLOOR_TOOLS.filter(tool => mission.kind === 'sandbox' || progress.freeModeUnlocked || tool.unlockAt <= mission.order)
     .map(tool => localizeTool(tool, language)), [mission.kind, mission.order, progress.freeModeUnlocked, language]);
   const playing = snapshot.phase === 'playing';
-  const onPhase = () => { focusGame(); run.phaseJump(); update(); };
 
-  return <GameWorkspace gameId={gameId} gameTitle="NEON MAZE" touch={touch} coding={focused}
-    header={<TopBar gameName="NEON MAZE" missions={MAZE_MISSIONS} completed={progress.completed} paused={snapshot.phase === 'paused'} sound={progress.settings.sound}
-      restartLabel="Restart maze" onHome={() => navigate({ name: 'landing' })} onRestart={launch}
+  return <GameWorkspace gameId={gameId} gameTitle="DEVIL FLOOR" touch={touch} coding={focused}
+    header={<TopBar gameName="DEVIL FLOOR" missions={FLOOR_MISSIONS} completed={progress.completed} paused={snapshot.phase === 'paused'} sound={progress.settings.sound}
+      restartLabel="Restart expedition" onHome={() => navigate({ name: 'landing' })} onRestart={launch}
       onTogglePause={() => { clearInput(); run.phase === 'paused' ? run.resume() : run.pause(); update(); focusGame(); }}
-      onResetCode={() => onChange(starter)} onResetFullGame={() => { if (window.confirm('Reset NEON MAZE? This clears its missions, code and high score.')) { useProgress.getState().resetCurrentGame(); navigate({ name: 'landing' }); } }}
+      onResetCode={() => onChange(starter)} onResetFullGame={() => { if (window.confirm('Reset DEVIL FLOOR? This clears its missions, code and high score.')) { useProgress.getState().resetCurrentGame(); navigate({ name: 'landing' }); } }}
       onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onSettings={() => setSettingsOpen(true)} onOpenLibrary={() => setLibraryOpen(true)}
       onFullscreen={() => { if (document.fullscreenElement) void document.exitFullscreen(); else void stage.current?.closest('.lab')?.requestFullscreen?.(); }} />}
-    editor={{ value: code, onChange, language, mods: MAZE_MODS, runtimeLabels: MAZE_RUNTIME_LABELS, coachTargets: MAZE_COACH_TARGETS,
+    editor={{ value: code, onChange, language, mods: FLOOR_MODS, runtimeLabels: FLOOR_RUNTIME_LABELS, coachTargets: FLOOR_COACH_TARGETS,
       errorLines: diagnostic ? [diagnostic.line] : [], onFocusChange: value => { setFocused(value); clearInput(); }, onViewReady: view => { editor.current = view; },
       coach: showCoach && guidance.targetId && editorTarget
         ? { key: guidance.message, message: guidance.message, targetId: guidance.targetId } : undefined,
-      onDismissCoach: dismiss, ariaLabel: `${language} maze code editor` }}
+      onDismissCoach: dismiss, ariaLabel: `${language} platformer code editor` }}
     editorToolbar={<><span className="lab__filename mono">{fileNameForLanguage(language)}</span><span className="lab__autosave">Auto-save <b>ON</b></span></>}
     feedback={{ status: diagnostic ? 'error' : passed ? 'complete' : 'ready', diagnostic, ruleCount: liveProgram.rules.length, guidance }}
-    modStrip={{ mods, tools, totalMods: MAZE_MODS.length, collapsed, onToggleCollapsed: () => setCollapsed(v => !v), onInsert: insert, onOpenLibrary: () => setLibraryOpen(true), language,
+    modStrip={{ mods, tools, totalMods: FLOOR_MODS.length, collapsed, onToggleCollapsed: () => setCollapsed(v => !v), onInsert: insert, onOpenLibrary: () => setLibraryOpen(true), language,
       activeTargetId: guidance.targetId, coach: showCoach && guidance.targetId && !editorTarget ? guidance : undefined, onDismissCoach: dismiss }}
     library={{ open: libraryOpen, onClose: () => { setLibraryOpen(false); focusGame(); }, onInsert: (snippet, mode) => { setLibraryOpen(false); insert(snippet, mode); } }}
     stageRef={stage}
-    stage={<div className={`stage neon-stage ${passed && next ? 'stage--missionReady' : ''} ${fullGameReady ? 'stage--fullGameReady' : ''}`} style={{ '--maze-neon': MAZE_COLORS[snapshot.config.wallColor] } as React.CSSProperties}>
-      <canvas ref={canvas} className="stage__canvas" tabIndex={0} onPointerDown={focusGame} aria-label="Neon Maze scrolling labyrinth. Keep rolling and collect dots. Amber gems stun sentinels. Arrow keys or WASD to steer; Space to phase jump; P to pause." />
-      <div className="neon__hud" aria-label="Maze status">
-        <div><small>SECTOR {String(snapshot.level).padStart(2, '0')} · {snapshot.config.runnerName}</small><strong>{String(snapshot.score).padStart(5, '0')}</strong></div>
-        <div className="neon__hudRight"><span>◆ {snapshot.cores}/3 <b>GEMS</b> · {snapshot.lives} <b>LIVES</b></span><label>ENERGY <meter min={0} max={100} low={40} high={70} optimum={100} value={snapshot.energy} /> {snapshot.energy}%</label></div>
+    stage={<div className={`stage floor-stage ${passed && next ? 'stage--missionReady' : ''} ${fullGameReady ? 'stage--fullGameReady' : ''}`} style={{ '--floor-glow': FLOOR_COLORS[snapshot.config.suitColor] } as React.CSSProperties}>
+      <canvas ref={canvas} className="stage__canvas" tabIndex={0} onPointerDown={focusGame} aria-label="Devil Floor lava platformer. A/D or arrow keys to run. Space, W or Up to jump. Release and jump again for a double jump. P to pause." />
+      <div className="floor__hud" aria-label="Expedition status">
+        <div><small>CAVERN {String(snapshot.level).padStart(2, '0')} · {snapshot.config.heroName}</small><strong>{String(snapshot.score).padStart(5, '0')}</strong></div>
+        <div className="floor__hudRight"><span className="floor__lives" aria-label={`${snapshot.lives} lives`}>{'♥'.repeat(snapshot.lives)}{'♡'.repeat(Math.max(0, 3 - snapshot.lives))}</span><small>◆ {snapshot.gems}/14 · CHECKPOINT {snapshot.checkpoint / 4}</small></div>
       </div>
-      {snapshot.stunRemaining > 0 ? <span className="neon__stun">SENTINELS STUNNED · {snapshot.stunRemaining.toFixed(1)}s</span> : null}
-      {playing && focused ? <span className="neon__editing">EDITING · MAZE CLOCK HELD</span> : null}
-      <div className="neon__log" aria-label="Signal log"><small>SIGNAL FEED</small>{snapshot.messages.slice(0, touch ? 1 : 2).map((message, i) => <p key={`${i}:${message}`}>{message}</p>)}</div>
-      {playing ? <div className="touchbar neon__controls">
-        {!touch ? <span className="neon__keys">KEEP ROLLING · WASD / ARROWS TO STEER · SPACE TO PHASE</span> : null}
-        <div className={`touchbar__cluster ${touch ? 'touchbar__cluster--left' : 'touchbar__cluster--right'}`}><PhaseButton cooldown={snapshot.phaseCooldown} onPhase={onPhase} /></div>
-        {touch ? <MazeJoystick input={input.current} onEngage={focusGame} onTurn={direction => run.requestTurn(direction)} /> : null}
-      </div> : null}
-      {snapshot.phase !== 'playing' ? <div className={`overlay neon__overlay neon__overlay--${snapshot.phase}`}>
-        <div className="neon__panel">
-          <span className="neon__eyebrow">{mission.kind === 'sandbox' ? 'EVERY MOD UNLOCKED' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</span>
-          <div className="neon__emblem" aria-hidden="true">◉</div>
-          <h1>{snapshot.phase === 'launch' ? 'NEON MAZE' : snapshot.phase === 'cleared' ? 'SECTOR CLEAR' : snapshot.phase === 'paused' ? 'SIGNAL HELD' : 'SIGNAL LOST'}</h1>
-          <p>{snapshot.phase === 'cleared' ? 'Three gems collected. Roll into your next labyrinth.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and roll again.` : 'Keep rolling through the neon lines. Collect dots for points and amber gems to stun the sentinels. Three gems open the next sector.'}</p>
-          <div className="neon__legend"><span><i className="neon__legendRunner" /> YOU</span><span><i className="neon__legendDot" /> DOT +5</span><span><i className="neon__legendCore" /> STUN GEM</span><span><i className="neon__legendHunter" /> SENTINEL</span></div>
-          <button className="btn neon__enter" onClick={() => {
+      {playing && focused ? <span className="floor__editing">EDITING · EXPEDITION HELD</span> : null}
+      {playing && snapshot.floorRemaining !== null ? <span className={`floor__warning ${snapshot.floorRemaining < 1 ? 'floor__warning--urgent' : ''}`}>FLOOR COLLAPSES IN {snapshot.floorRemaining.toFixed(1)}s</span> : null}
+      <div className="floor__log" aria-label="Expedition log"><small>EXPEDITION FEED</small>{snapshot.messages.slice(0, touch ? 1 : 2).map((message, i) => <p key={`${i}:${message}`}>{message}</p>)}</div>
+      {playing && touch ? <FloorControls input={input.current} onEngage={focusGame} /> : null}
+      {playing && !touch ? <span className="floor__keys">A / D TO RUN · SPACE TO JUMP · P TO PAUSE</span> : null}
+      {snapshot.phase !== 'playing' ? <div className={`overlay floor__overlay floor__overlay--${snapshot.phase}`}>
+        <div className="floor__panel">
+          <span className="floor__eyebrow">{mission.kind === 'sandbox' ? 'EVERY MOD UNLOCKED' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</span>
+          <div className="floor__emblem" aria-hidden="true">♨</div>
+          <h1>{snapshot.phase === 'launch' ? 'DEVIL FLOOR' : snapshot.phase === 'cleared' ? 'INFERNO ESCAPED' : snapshot.phase === 'paused' ? 'EXPEDITION HELD' : 'LOST TO THE FIRE'}</h1>
+          <p>{snapshot.phase === 'cleared' ? 'The exit is yours. A new cavern awaits with your score and lives intact.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and try the expedition again.` : 'Leap across a living floor. Platforms crumble, fireballs rise, and crystals power your mods. Reach the exit on the far right.'}</p>
+          <div className="floor__legend"><span>◆ CRYSTALS</span><span>⚑ CHECKPOINTS</span><span>▲ AVOID SPIKES</span></div>
+          <button className="btn floor__enter" onClick={() => {
+            sound.unlock(); clearInput();
             if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch();
             update(); focusGame();
-          }}>{snapshot.phase === 'paused' ? 'RESUME RUN' : snapshot.phase === 'cleared' ? 'NEXT SECTOR →' : snapshot.phase === 'gameover' ? 'ROLL AGAIN →' : 'START ROLLING →'}</button>
-          <small>{touch ? 'JOYSTICK TO STEER · WALLS STOP YOUR ROLL · PHASE TO JUMP' : 'WASD / ARROWS TO STEER · WALLS STOP YOUR ROLL · SPACE TO PHASE · P TO PAUSE'}</small>
+          }}>{snapshot.phase === 'paused' ? 'RESUME EXPEDITION' : snapshot.phase === 'cleared' ? 'NEXT CAVERN →' : snapshot.phase === 'gameover' ? 'TRY AGAIN →' : 'ENTER THE INFERNO →'}</button>
+          <small>{touch ? 'LEFT / RIGHT TO RUN · JUMP TO LEAP · RELEASE TO JUMP AGAIN' : 'A / D OR ARROWS TO RUN · SPACE / W / UP TO JUMP · P TO PAUSE'}</small>
         </div>
       </div> : null}
       {previous ? <button className="stage__missionBack" onClick={() => go(previous)}>← Previous mission</button> : null}
       {passed && next ? <div className="stage__missionNext"><button className="mission__next mission__next--ready" onClick={() => go(next)}>{fullGameReady ? 'Play full game' : 'NEXT MISSION'} <span aria-hidden="true">→</span></button></div> : null}
-      {showCoach && !guidance.targetId && !passed && snapshot.metrics.steps === 0 ? <CoachBubble className="coach-bubble--stage" message={guidance.message} onDismiss={dismiss} /> : null}
+      {showCoach && !guidance.targetId && !passed && snapshot.metrics.jumps === 0 ? <CoachBubble className="coach-bubble--stage" message={guidance.message} onDismiss={dismiss} /> : null}
     </div>}
     overlays={<>
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} bestScore={progress.bestScore} completedCount={progress.completed.length}
         onRename={name => useProgress.getState().setStudentName(name)} onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onToggleDebug={() => useProgress.getState().setSetting('debug', !progress.settings.debug)}
         onResetProgress={() => { useProgress.getState().resetProgress(); navigate({ name: 'landing' }); }} />
-      {debugFlag || progress.settings.debug ? <pre className="neon__debug" aria-label="Maze debug state">{JSON.stringify({ phase: snapshot.phase, config: snapshot.config, metrics: snapshot.metrics, ignored: Object.keys(program.config).filter(key => !unlocked.some(mod => mod.id === key)) }, null, 2)}</pre> : null}
+      {debugFlag || progress.settings.debug ? <pre className="floor__debug" aria-label="Floor debug state">{JSON.stringify({ phase: snapshot.phase, config: snapshot.config, metrics: snapshot.metrics, ignored: Object.keys(program.config).filter(key => !unlocked.some(mod => mod.id === key)) }, null, 2)}</pre> : null}
     </>} />;
 }

@@ -280,6 +280,37 @@ describe('MODBOX app shell', () => {
     expect(host.textContent).toContain('This game is unavailable');
   });
 
+  it('launches Devil Floor, applies its mods and carries its own mission code', async () => {
+    window.location.hash = '#/';
+    const { host, root } = mount();
+    await act(async () => root.render(<App />));
+    const card = host.querySelector<HTMLButtonElement>('.home-game--platform');
+    expect(card?.textContent).toContain('AVAILABLE NOW');
+    await act(async () => card?.click()); await flush();
+    expect(window.location.hash).toContain('game=platform');
+    expect(host.querySelector('.languages__game h2')?.textContent).toBe('DEVIL FLOOR');
+    await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
+    expect(await waitFor(() => Boolean(host.querySelector('.floor-stage .stage__canvas')))).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('suitColor = "amber"');
+    expect(host.querySelector('.topbar__game')?.textContent).toContain('DEVIL FLOOR');
+    expect(host.querySelector('.floor__panel h1')?.textContent).toBe('DEVIL FLOOR');
+    const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'suitColor = "cyan"' } }));
+    expect(await waitFor(() => Boolean(host.querySelector('.stage .mission__next--ready')))).toBe(true);
+    expect(useProgress.getState().getGameProgress('platform').completed).toContain('m00');
+    await act(async () => host.querySelector<HTMLButtonElement>('.floor__enter')?.click());
+    expect(host.querySelector('.floor__overlay')).toBeNull();
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
+    expect(host.querySelector('.floor__panel h1')?.textContent).toBe('EXPEDITION HELD');
+    await act(async () => host.querySelector<HTMLButtonElement>('.stage .mission__next--ready')?.click());
+    expect(await waitFor(() => host.querySelector('.floor__eyebrow')?.textContent?.includes('NAME THE FLAME') ?? false)).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('suitColor = "cyan"');
+    await act(async () => { window.location.hash = '#/lab?game=maze&mission=m00'; });
+    expect(await waitFor(() => Boolean(host.querySelector('.neon-stage')))).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('wallColor');
+    expect(useProgress.getState().getGameProgress('platform').codes['python:m00']).toContain('suitColor = "cyan"');
+  }, 15000);
+
   it('renders the landing screen', async () => {
     window.location.hash = '#/';
     const { host, root } = mount();
@@ -292,9 +323,9 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.home__games')).toBeTruthy();
     expect(host.querySelector('.home__languages')).toBeNull();
     const games = [...host.querySelectorAll('.home-game')];
-    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'RUNNER', 'DEVIL FLOOR']);
-    expect(games.slice(0, 2).every(card => card.tagName === 'BUTTON' && card.textContent?.includes('AVAILABLE NOW'))).toBe(true);
-    expect(games.slice(2).every(card => card.tagName === 'ARTICLE' && card.textContent?.includes('COMING SOON'))).toBe(true);
+    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'RUNNER']);
+    expect(games.slice(0, 3).every(card => card.tagName === 'BUTTON' && card.textContent?.includes('AVAILABLE NOW'))).toBe(true);
+    expect(games.slice(3).every(card => card.tagName === 'ARTICLE' && card.textContent?.includes('COMING SOON'))).toBe(true);
     expect(games.every(card => card.querySelector('.home-game__art .game-art'))).toBe(true);
   });
 
@@ -337,7 +368,7 @@ describe('MODBOX app shell', () => {
     expect(host.textContent).toContain('VECTOR ZERO');
     expect(host.textContent).toContain('RUNNER');
     expect(host.textContent).toContain('COMING SOON');
-    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'RUNNER', 'DEVIL FLOOR']);
+    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'RUNNER']);
     expect(host.querySelectorAll('.cabinet--locked button')).toHaveLength(0);
   });
 

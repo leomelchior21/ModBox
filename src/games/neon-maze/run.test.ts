@@ -42,11 +42,38 @@ describe('Neon Maze gameplay', () => {
     tick(run); expect(run.player).toEqual({ x: 3, y: 1 });
     tick(run); expect(run.player).toEqual({ x: 3, y: 2 }); expect(run.facing).toBe('down');
   });
-  it('flows around corners and reverses at dead ends without stalling', () => {
+  it('stops at corners and dead ends until the player changes direction', () => {
     const run = corridorRun();
-    for (const expected of [{ x: 2, y: 1 }, { x: 3, y: 1 }, { x: 3, y: 2 }, { x: 3, y: 3 }, { x: 3, y: 2 }, { x: 3, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 1 }]) {
-      const steps = run.metrics.steps; tick(run); expect(run.player).toEqual(expected); expect(run.metrics.steps).toBe(steps + 1);
-    }
+    tick(run); tick(run);
+    for (let i = 0; i < 10; i++) tick(run, { ...idle, right: true });
+    expect(run.player).toEqual({ x: 3, y: 1 }); expect(run.metrics.steps).toBe(2);
+    run.step(0.016, { ...idle, down: true }); expect(run.player).toEqual({ x: 3, y: 2 });
+    tick(run); tick(run); expect(run.player).toEqual({ x: 3, y: 3 });
+    for (let i = 0; i < 10; i++) tick(run);
+    expect(run.player).toEqual({ x: 3, y: 3 }); expect(run.facing).toBe('down');
+    run.step(0.016, { ...idle, up: true }); expect(run.player).toEqual({ x: 3, y: 2 });
+  });
+  it('reverses immediately during a step without a visual snap', () => {
+    const run = corridorRun(true); run.move('right'); run.step(0.05, idle);
+    const position = run.playerPosition();
+    run.requestTurn('left'); expect(run.playerPosition().x).toBeCloseTo(position.x);
+    run.step(0.02, { ...idle, left: true }); expect(run.playerPosition().x).toBeLessThan(position.x);
+    expect(run.facing).toBe('left');
+  });
+  it('damages visible overlapping actors even when their target tiles differ', () => {
+    const run = corridorRun(true); run.move('right'); run.moveAge = 0.15;
+    run.sentinels = [{ x: 3, y: 1 }]; run.sentinelFrom = [{ x: 2, y: 1 }];
+    run.sentinelDuration = 0.2; run.sentinelAge = 0.05; run.invulnerable = 0;
+    run.step(0, idle); expect(run.energy).toBe(75); expect(run.metrics.hits).toBe(1);
+    run.step(0, idle); expect(run.energy).toBe(75);
+  });
+  it('starts phase jumps from the visible orb and keeps an active segment stable through speed edits', () => {
+    const run = corridorRun(true); run.move('right'); run.step(0.05, idle);
+    const position = run.playerPosition(), duration = run.moveDuration;
+    run.setProgram(parse('int sentinels = 0; int moveSpeed = 8;'));
+    expect(run.playerPosition()).toEqual(position); expect(run.moveDuration).toBe(duration);
+    run.phaseJump(); expect(run.playerPosition()).toEqual(position);
+    expect(run.moveDuration).toBe(0.12); expect(run.metrics.phases).toBe(1);
   });
   it('preserves its heading on a blocked turn and can phase toward a queued turn', () => {
     const run = corridorRun(true); run.maze.tiles[3][1] = true;
@@ -55,6 +82,8 @@ describe('Neon Maze gameplay', () => {
   });
   it('honors speed mods throughout a continuous run', () => {
     const slow = corridorRun(), fast = corridorRun();
+    for (const run of [slow, fast]) run.maze = { ...run.maze, size: 102,
+      tiles: Array.from({ length: 3 }, (_, y) => Array.from({ length: 102 }, (_, x) => y === 1 && x > 0 && x < 101)) };
     slow.setProgram(parse('int sentinels = 0; int moveSpeed = 2;'));
     fast.setProgram(parse('int sentinels = 0; int moveSpeed = 8;'));
     for (let i = 0; i < 100; i++) { slow.step(0.02, idle); fast.step(0.02, idle); }
@@ -178,7 +207,7 @@ describe('Rolling maze collectibles and stun', () => {
     run.step(0, idle); expect(run.energy).toBe(100);
     for (let i = 0; i < 20; i++) run.step(0.1, idle);
     expect(run.sentinels).toEqual(hunters); expect(run.metrics.hits).toBe(0); expect(run.stunRemaining).toBeCloseTo(4);
-    expect(run.metrics.steps).toBeGreaterThan(5);
+    expect(run.metrics.steps).toBeGreaterThan(1);
   });
   it('resumes danger when stun expires and holds the countdown while paused', () => {
     const run = corridorRun(); run.stunRemaining = 0.1;

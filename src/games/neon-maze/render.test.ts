@@ -17,7 +17,7 @@ describe('Rolling maze camera', () => {
     expect((after.player.y + 0.5) * after.cell - after.scrollY).toBeCloseTo(after.viewHeight / 2);
   });
   it('smooths movement and phase jumps, with immediate tracking for reduced motion', () => {
-    const run = new NeonMazeRun(1); run.playerFrom = { x: 2, y: 2 }; run.player = { x: 2, y: 5 }; run.moveAge = 0.06;
+    const run = new NeonMazeRun(1); run.playerFrom = { x: 2, y: 2 }; run.player = { x: 2, y: 5 }; run.moveAge = 0.06; run.moveDuration = 0.12;
     expect(mazeViewport(run, 700, 600, false).player).toEqual({ x: 2, y: 3.5 });
     expect(mazeViewport(run, 700, 600, true).player).toEqual(run.player);
   });
