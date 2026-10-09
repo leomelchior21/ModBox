@@ -3,17 +3,19 @@ import { evaluateGameScript } from '../../interpreter/gameScript';
 import { evalExpr } from '../../interpreter/core/evaluate';
 import { renderText } from '../../interpreter/csharp/binder';
 import { FLOOR_DEFAULTS, FLOOR_MODS, floorSchema, type FloorConfig } from './mods';
+import type { FloorCue } from './effects';
 
 export interface FloorInput { left: boolean; right: boolean; jump: boolean }
 export interface Platform { id: number; x: number; y: number; width: number; checkpoint: boolean; spike: boolean }
 export interface Crystal { id: number; x: number; y: number }
 export interface Cavern { platforms: Platform[]; crystals: Crystal[]; width: number; exit: { x: number; y: number } }
 export type FloorPhase = 'launch' | 'playing' | 'paused' | 'cleared' | 'gameover';
-export type FloorEvent = 'jump' | 'crystal' | 'hit' | 'shield' | 'checkpoint' | 'clear';
+export type FloorEvent = 'jump' | 'crystal' | 'hit' | 'shield' | 'checkpoint' | 'clear' | 'land' | 'crumble';
 export interface FloorMetrics { jumps: number; doubleJumps: number; crystals: number; exits: number; hits: number; minLives: number; ruleTraces: string[] }
 export interface FloorSnapshot {
   phase: FloorPhase; config: FloorConfig; score: number; lives: number; level: number;
   gems: number; checkpoint: number; shieldReady: boolean; floorRemaining: number | null;
+  routeProgress: number; airJumpReady: boolean; shieldCooldown: number;
   metrics: FloorMetrics; messages: string[];
 }
 export const LAVA_Y = 490;
@@ -55,6 +57,8 @@ export class DevilFloorRun {
   metrics = metrics();
   messages = ['THE FLOOR IS ALIVE · Keep moving. Reach the exit beacon.'];
   events: FloorEvent[] = [];
+  feedback: FloorCue[] = [];
+  visualRevision = 0;
   private program: ProgramResult<FloorConfig> | null = null;
   private base = { ...FLOOR_DEFAULTS };
   private activeRules = new Set<string>();
@@ -69,7 +73,7 @@ export class DevilFloorRun {
   }
   launch(): void { this.restart(); }
   restart(): void {
-    this.score = 0; this.lives = 3; this.level = 1; this.metrics = metrics(); this.events = [];
+    this.score = 0; this.lives = 3; this.level = 1; this.metrics = metrics(); this.events = []; this.feedback = [];
     this.activeRules.clear(); this.config = { ...this.base }; this.resetStage(); this.phase = 'playing'; this.evaluate();
   }
   pause(): void { if (this.phase === 'playing') this.phase = 'paused'; this.releaseInput(); }
@@ -83,11 +87,14 @@ export class DevilFloorRun {
   snapshot(): FloorSnapshot {
     return { phase: this.phase, config: { ...this.config }, score: this.score, lives: this.lives, level: this.level,
       gems: this.collected.size, checkpoint: this.checkpoint, shieldReady: this.config.shield && this.shieldCooldown <= 0,
+      routeProgress: Math.min(100, Math.round(this.player.x / this.cavern.exit.x * 100)),
+      airJumpReady: this.config.doubleJump && !this.airJumpUsed, shieldCooldown: this.shieldCooldown,
       floorRemaining: this.grounded !== null && this.grounded !== 0 && !this.config.safeFloor
         ? Math.max(0, this.config.meltDelay - (this.platformHeat.get(this.grounded) ?? 0)) : null,
       metrics: { ...this.metrics, ruleTraces: [...this.metrics.ruleTraces] }, messages: [...this.messages] };
   }
   private resetStage(): void {
+    this.visualRevision++; this.feedback = [];
     this.cavern = generateCavern(this.level); this.collected.clear(); this.checkpoint = 0;
     this.elapsed = 0; this.shieldCooldown = 0; this.respawn();
   }
@@ -96,6 +103,7 @@ export class DevilFloorRun {
     this.player = { x: platform.x + 35, y: platform.y - HERO_HEIGHT, vx: 0, vy: 0 };
     this.grounded = platform.id; this.coyote = 0.1; this.airJumpUsed = false; this.invulnerable = 1.3;
     this.platformHeat.clear(); this.collapsed.clear(); this.releaseInput();
+    this.cue('respawn', this.player.x + HERO_WIDTH / 2, this.player.y + HERO_HEIGHT / 2);
   }
   fireballs(): { x: number; y: number }[] {
     return this.cavern.platforms.filter(p => p.id > 0 && p.id % 3 === 2).map(p => ({
@@ -124,12 +132,14 @@ export class DevilFloorRun {
         if (!groundJump) { this.airJumpUsed = true; this.metrics.doubleJumps++; }
         this.player.vy = -(330 + this.config.jumpHeight * 20); this.grounded = null; this.coyote = 0;
         this.jumpBuffer = 0; this.metrics.jumps++; this.events.push('jump');
+        this.cue(groundJump ? 'jump' : 'doubleJump', this.player.x + HERO_WIDTH / 2, this.player.y + HERO_HEIGHT, groundJump ? undefined : 'AIR JUMP');
       } else this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
     }
     const direction = Number(input.right) - Number(input.left);
     this.player.vx = direction * (140 + this.config.moveSpeed * 25);
     if (direction) this.facing = direction;
     const oldBottom = this.player.y + HERO_HEIGHT;
+    const airborne = this.grounded === null;
     this.player.x = Math.max(0, Math.min(this.cavern.width - HERO_WIDTH, this.player.x + this.player.vx * dt));
     this.player.vy += this.config.gravity * 100 * dt;
     this.player.y += this.player.vy * dt;
@@ -137,20 +147,29 @@ export class DevilFloorRun {
     for (const p of this.cavern.platforms) {
       if (this.collapsed.has(p.id) || this.player.x + HERO_WIDTH <= p.x || this.player.x >= p.x + p.width) continue;
       if (this.player.vy >= 0 && oldBottom <= p.y + 0.5 && this.player.y + HERO_HEIGHT >= p.y) {
+        if (airborne && this.player.vy > 100) {
+          this.events.push('land'); this.cue('land', this.player.x + HERO_WIDTH / 2, p.y, undefined, this.player.vy);
+        }
         this.player.y = p.y - HERO_HEIGHT; this.player.vy = 0; this.grounded = p.id;
         if (p.checkpoint && this.config.checkpoints && p.id > this.checkpoint) {
           this.checkpoint = p.id; this.events.push('checkpoint'); this.log(`CHECKPOINT ${p.id / 4} · Route saved.`);
+          this.cue('checkpoint', p.x + 20, p.y - 38, 'CHECKPOINT SAVED');
         }
         break;
       }
     }
     if (this.grounded !== null && this.grounded !== 0 && !this.config.safeFloor) {
       const heat = (this.platformHeat.get(this.grounded) ?? 0) + dt; this.platformHeat.set(this.grounded, heat);
-      if (heat >= this.config.meltDelay) { this.collapsed.add(this.grounded); this.grounded = null; }
+      if (heat >= this.config.meltDelay) {
+        const platform = this.cavern.platforms[this.grounded];
+        this.events.push('crumble'); this.cue('crumble', platform.x + platform.width / 2, platform.y, 'FLOOR LOST', platform.width);
+        this.collapsed.add(this.grounded); this.grounded = null;
+      }
     }
     for (const crystal of this.cavern.crystals) {
       if (!this.collected.has(crystal.id) && Math.hypot(this.player.x + HERO_WIDTH / 2 - crystal.x, this.player.y + HERO_HEIGHT / 2 - crystal.y) < 30) {
         this.collected.add(crystal.id); this.score += this.config.crystalValue; this.metrics.crystals++; this.events.push('crystal');
+        this.cue('crystal', crystal.x, crystal.y, `+${this.config.crystalValue}`);
         this.evaluate();
       }
     }
@@ -162,15 +181,18 @@ export class DevilFloorRun {
     if (this.phase === 'playing' && Math.abs(this.player.x + HERO_WIDTH / 2 - this.cavern.exit.x) < 30
       && this.grounded === this.cavern.platforms.at(-1)!.id) {
       this.score += 250; this.metrics.exits++; this.phase = 'cleared'; this.events.push('clear'); this.log('EXIT REACHED · Cavern conquered.');
+      this.cue('clear', this.cavern.exit.x, this.cavern.exit.y - 35, 'CAVERN CLEARED +250');
     }
   }
   private hit(lava: boolean): void {
     if (this.phase !== 'playing' || (!lava && this.invulnerable > 0)) return;
     if (!lava && this.config.shield && this.shieldCooldown <= 0) {
-      this.shieldCooldown = 8; this.invulnerable = 1.2; this.events.push('shield'); this.log('HEAT SHIELD · Impact absorbed.'); return;
+      this.shieldCooldown = 8; this.invulnerable = 1.2; this.events.push('shield'); this.log('HEAT SHIELD · Impact absorbed.');
+      this.cue('shield', this.player.x + HERO_WIDTH / 2, this.player.y + HERO_HEIGHT / 2, 'SHIELD BLOCKED'); return;
     }
     this.lives--; this.metrics.hits++; this.metrics.minLives = Math.min(this.metrics.minLives, this.lives); this.events.push('hit');
     this.log(`${lava ? 'LAVA' : 'HAZARD'} · ${this.lives} lives remaining.`);
+    this.cue('hit', this.player.x + HERO_WIDTH / 2, lava ? LAVA_Y : this.player.y + HERO_HEIGHT / 2, lava ? 'LAVA · −1 LIFE' : 'HIT · −1 LIFE');
     if (this.lives <= 0) this.phase = 'gameover'; else this.respawn();
     this.evaluate();
   }
@@ -192,4 +214,7 @@ export class DevilFloorRun {
     this.activeRules = new Set(frame.activeRuleIds);
   }
   private log(message: string): void { this.messages = [message, ...this.messages].slice(0, 4); }
+  private cue(kind: FloorCue['kind'], x: number, y: number, text?: string, power?: number): void {
+    this.feedback.push({ kind, x, y, text, power }); this.feedback = this.feedback.slice(-64);
+  }
 }

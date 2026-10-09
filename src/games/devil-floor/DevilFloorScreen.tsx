@@ -20,6 +20,8 @@ import { DevilFloorRun, type FloorInput } from './run';
 import { drawFloor, FLOOR_COLORS } from './render';
 import { FloorControls } from './controls';
 import { FloorSound } from './sound';
+import { FloorEffects, type FloorNotice } from './effects';
+import { InfernoSigil } from './InfernoSigil';
 import './devil-floor.css';
 
 const FLOOR_COACH_TARGETS = {
@@ -44,7 +46,9 @@ export function DevilFloorScreen({ gameId, missionId, debugFlag }: GameScreenPro
   const unlocked = useMemo(() => floorUnlocked(mission, progress.completed, progress.freeModeUnlocked), [mission, progress.completed, progress.freeModeUnlocked]);
   const liveProgram = useMemo(() => playableFloorProgram(program, unlocked.map(mod => mod.id)), [program, unlocked]);
   const run = useMemo(() => new DevilFloorRun(), []), sound = useMemo(() => new FloorSound(), []);
+  const effects = useMemo(() => new FloorEffects(), []);
   const [snapshot, setSnapshot] = useState(() => run.snapshot());
+  const [visualFeedback, setVisualFeedback] = useState<{ notice: FloorNotice | null; scorePulse: boolean; lifePulse: boolean }>({ notice: null, scorePulse: false, lifePulse: false });
   const [focused, setFocused] = useState(false), [libraryOpen, setLibraryOpen] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false), [dismissed, setDismissed] = useState('');
   const canvas = useRef<HTMLCanvasElement>(null), editor = useRef<EditorView | null>(null), stage = useRef<HTMLDivElement>(null);
@@ -59,7 +63,9 @@ export function DevilFloorScreen({ gameId, missionId, debugFlag }: GameScreenPro
   const showCoach = !diagnostic && dismissed !== `${mission.id}:${guidance.message}`;
   const editorTarget = Boolean(guidance.targetId && program.symbols.some(s => s.mod === guidance.targetId));
   const clearInput = useCallback(() => { for (const key of Object.keys(input.current) as (keyof FloorInput)[]) input.current[key] = false; run.releaseInput(); }, [run]);
-  const update = useCallback(() => { setSnapshot(run.snapshot()); }, [run]);
+  const update = useCallback(() => {
+    setSnapshot(run.snapshot()); setVisualFeedback({ notice: effects.notice, scorePulse: effects.scorePulse > 0, lifePulse: effects.lifePulse > 0 });
+  }, [run, effects]);
   const focusGame = useCallback(() => {
     (document.activeElement as HTMLElement | null)?.blur?.(); canvas.current?.focus({ preventScroll: true }); setFocused(false); sound.unlock();
   }, [sound]);
@@ -81,7 +87,7 @@ export function DevilFloorScreen({ gameId, missionId, debugFlag }: GameScreenPro
   useEffect(() => {
     const element = canvas.current, context = element?.getContext('2d');
     if (!element || !context) return;
-    let raf = 0, last = performance.now(), reported = 0, width = 600, height = 600, alive = true;
+    let raf = 0, last = performance.now(), reported = 0, width = 600, height = 600, alive = true, revision = run.visualRevision;
     const resize = () => {
       const rect = element.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
       width = Math.max(1, rect.width); height = Math.max(1, rect.height);
@@ -92,17 +98,24 @@ export function DevilFloorScreen({ gameId, missionId, debugFlag }: GameScreenPro
     const draw = (now: number) => {
       if (!alive) return;
       const previous = run.phase;
-      if (blocked.current || modInteractionOpen()) clearInput();
-      else run.step((now - last) / 1000, input.current);
+      const dt = Math.max(0, Math.min(0.1, (now - last) / 1000));
+      const held = blocked.current || modInteractionOpen() || run.phase === 'paused';
+      if (held) clearInput();
+      else {
+        run.step(dt, input.current); effects.step(dt);
+        effects.follow(run.player.x + 11, run.player.y + 20, run.phase === 'playing' && run.grounded === null, reducedMotion);
+      }
+      if (revision !== run.visualRevision) { effects.reset(); revision = run.visualRevision; }
+      effects.consume(run.feedback.splice(0), FLOOR_COLORS[run.config.suitColor] ?? FLOOR_COLORS.amber, reducedMotion);
       last = now;
       for (const event of run.events.splice(0)) sound.play(event);
-      drawFloor(context, run, width, height, now / 1000, reducedMotion);
+      drawFloor(context, run, width, height, effects.time, reducedMotion, effects);
       if (now - reported > 120 || previous !== run.phase) { update(); reported = now; }
       raf = requestAnimationFrame(draw);
     };
     draw(last);
     return () => { alive = false; cancelAnimationFrame(raf); observer.disconnect(); clearInput(); };
-  }, [run, update, clearInput, reducedMotion, sound]);
+  }, [run, update, clearInput, reducedMotion, sound, effects]);
   useEffect(() => () => sound.destroy(), [sound]);
   useEffect(() => {
     const typing = () => Boolean((document.activeElement as HTMLElement | null)?.closest('input,textarea,select,[contenteditable="true"],.cm-editor,button,summary'));
@@ -157,21 +170,27 @@ export function DevilFloorScreen({ gameId, missionId, debugFlag }: GameScreenPro
     stage={<div className={`stage floor-stage ${passed && next ? 'stage--missionReady' : ''} ${fullGameReady ? 'stage--fullGameReady' : ''}`} style={{ '--floor-glow': FLOOR_COLORS[snapshot.config.suitColor] } as React.CSSProperties}>
       <canvas ref={canvas} className="stage__canvas" tabIndex={0} onPointerDown={focusGame} aria-label="Devil Floor lava platformer. A/D or arrow keys to run. Space, W or Up to jump. Release and jump again for a double jump. P to pause." />
       <div className="floor__hud" aria-label="Expedition status">
-        <div><small>CAVERN {String(snapshot.level).padStart(2, '0')} · {snapshot.config.heroName}</small><strong>{String(snapshot.score).padStart(5, '0')}</strong></div>
-        <div className="floor__hudRight"><span className="floor__lives" aria-label={`${snapshot.lives} lives`}>{'♥'.repeat(snapshot.lives)}{'♡'.repeat(Math.max(0, 3 - snapshot.lives))}</span><small>◆ {snapshot.gems}/14 · CHECKPOINT {snapshot.checkpoint / 4}</small></div>
+        <div className="floor__identity"><InfernoSigil compact /><div><small>CAVERN {String(snapshot.level).padStart(2, '0')} / {snapshot.config.heroName}</small><strong className={visualFeedback.scorePulse ? 'floor__score--earned' : ''}>{String(snapshot.score).padStart(5, '0')}</strong></div></div>
+        <div className="floor__hudRight"><span className={`floor__lives ${visualFeedback.lifePulse ? 'floor__lives--hit' : ''}`} role="img" aria-label={`${snapshot.lives} lives`}>{[0, 1, 2].map(i => <i key={i} className={i < snapshot.lives ? '' : 'floor__heart--lost'} aria-hidden="true">♥</i>)}</span><small><b>◆</b> {snapshot.gems}/14 <span>RELICS</span></small></div>
       </div>
+      <div className="floor__route" role="progressbar" aria-label="Route to sanctuary" aria-valuemin={0} aria-valuemax={100} aria-valuenow={snapshot.routeProgress}>
+        <span>DESCENT {String(snapshot.level).padStart(2, '0')}</span><div><i style={{ width: `${snapshot.routeProgress}%` }} />{snapshot.config.checkpoints ? [1, 2, 3].map(i => <b key={i} className={snapshot.checkpoint >= i * 4 ? 'floor__routeBeacon--saved' : ''} style={{ left: `${run.cavern.platforms[i * 4].x / run.cavern.exit.x * 100}%` }} />) : null}</div><span>{snapshot.routeProgress}% <b>→</b></span>
+      </div>
+      {playing ? <div className="floor__abilities"><span className={snapshot.airJumpReady ? 'floor__ability--ready' : ''}>{snapshot.config.doubleJump ? snapshot.airJumpReady ? '↑↑ AIR JUMP READY' : '↑ AIR JUMP USED' : '↑ SINGLE JUMP'}</span>{snapshot.config.shield ? <span className={snapshot.shieldReady ? 'floor__ability--ready' : ''}>⬡ {snapshot.shieldReady ? 'SHIELD READY' : `${snapshot.shieldCooldown.toFixed(1)}s RECHARGE`}</span> : null}</div> : null}
       {playing && focused ? <span className="floor__editing">EDITING · EXPEDITION HELD</span> : null}
-      {playing && snapshot.floorRemaining !== null ? <span className={`floor__warning ${snapshot.floorRemaining < 1 ? 'floor__warning--urgent' : ''}`}>FLOOR COLLAPSES IN {snapshot.floorRemaining.toFixed(1)}s</span> : null}
-      <div className="floor__log" aria-label="Expedition log"><small>EXPEDITION FEED</small>{snapshot.messages.slice(0, touch ? 1 : 2).map((message, i) => <p key={`${i}:${message}`}>{message}</p>)}</div>
+      {playing && snapshot.floorRemaining !== null ? <div className={`floor__warning ${snapshot.floorRemaining < 1 ? 'floor__warning--urgent' : ''}`}><span>⚠ UNSTABLE GROUND <b>{snapshot.floorRemaining.toFixed(1)}s</b></span><i style={{ transform: `scaleX(${snapshot.floorRemaining / snapshot.config.meltDelay})` }} /></div> : null}
+      <div className="floor__notice" role="status" aria-live="polite" aria-atomic="true">{visualFeedback.notice ? <span key={visualFeedback.notice.id} className={`floor__noticeText floor__noticeText--${visualFeedback.notice.kind}`}>{visualFeedback.notice.kind === 'hit' ? '◇' : visualFeedback.notice.kind === 'doubleJump' ? '↑↑' : '✦'} {visualFeedback.notice.text}</span> : null}</div>
+      <div className="floor__log" aria-label="Expedition log"><small>FIELD NOTES</small>{snapshot.messages.slice(0, 1).map((message, i) => <p key={`${i}:${message}`}>{message}</p>)}</div>
       {playing && touch ? <FloorControls input={input.current} onEngage={focusGame} /> : null}
       {playing && !touch ? <span className="floor__keys">A / D TO RUN · SPACE TO JUMP · P TO PAUSE</span> : null}
       {snapshot.phase !== 'playing' ? <div className={`overlay floor__overlay floor__overlay--${snapshot.phase}`}>
         <div className="floor__panel">
           <span className="floor__eyebrow">{mission.kind === 'sandbox' ? 'EVERY MOD UNLOCKED' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</span>
-          <div className="floor__emblem" aria-hidden="true">♨</div>
+          <div className="floor__emblem"><InfernoSigil /></div>
           <h1>{snapshot.phase === 'launch' ? 'DEVIL FLOOR' : snapshot.phase === 'cleared' ? 'INFERNO ESCAPED' : snapshot.phase === 'paused' ? 'EXPEDITION HELD' : 'LOST TO THE FIRE'}</h1>
-          <p>{snapshot.phase === 'cleared' ? 'The exit is yours. A new cavern awaits with your score and lives intact.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and try the expedition again.` : 'Leap across a living floor. Platforms crumble, fireballs rise, and crystals power your mods. Reach the exit on the far right.'}</p>
-          <div className="floor__legend"><span>◆ CRYSTALS</span><span>⚑ CHECKPOINTS</span><span>▲ AVOID SPIKES</span></div>
+          <p>{snapshot.phase === 'cleared' ? 'Sanctuary reached. Carry your relics and remaining hearts into the next descent.' : snapshot.phase === 'gameover' ? 'The fire claimed this expedition. Rewire your mods and rise from the ashes.' : snapshot.phase === 'paused' ? 'Take a breath. Your descent is held until you resume.' : 'The floor crumbles. Relics glow. Leap past the fire and find sanctuary.'}</p>
+          {snapshot.phase === 'launch' ? <span className="floor__chapter">I — THE ASHEN CHOIR</span> : snapshot.phase === 'cleared' || snapshot.phase === 'gameover' ? <div className="floor__results"><div><small>RELIC SCORE</small><b>{String(snapshot.score).padStart(5, '0')}</b></div><div><small>COLLECTED</small><b>{snapshot.gems}<span> / 14</span></b></div><div><small>DESCENT</small><b>{String(snapshot.level).padStart(2, '0')}</b></div></div> : null}
+          <div className="floor__legend"><span><b>◆</b> GATHER RELICS</span><span><b>⚑</b> SAVE YOUR ROUTE</span><span><b>▲</b> KEEP MOVING</span></div>
           <button className="btn floor__enter" onClick={() => {
             sound.unlock(); clearInput();
             if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch();
