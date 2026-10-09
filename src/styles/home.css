@@ -51,7 +51,7 @@
 .home-game--vector { border:2px solid #9bddff; box-shadow:0 0 6px #49afff,0 0 17px #178bff60,inset 0 0 15px #1475ff42; transition:transform .18s,box-shadow .18s; }
 .home-game--vector:hover { transform:translateY(-3px); box-shadow:0 0 9px #83ceff,0 0 27px #178bff80,inset 0 0 23px #1475ff55; }
 .home-game--vector > svg { height:125%; top:-21%; }
-.home-game--runner { --game-color:#ff7729; }
+.home-game--makitas { --game-color:#65ddbb; }
 .home-game--maze { --game-color:#ee3fff; }
 .home-game--platform { --game-color:#ff302a; }
 .home-game .game-teaser { filter:drop-shadow(0 0 5px currentColor); }

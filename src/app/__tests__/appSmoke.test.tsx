@@ -269,7 +269,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelectorAll('.garden-tile')).toHaveLength(12);
   }, 15000);
 
-  it('does not launch Vector Zero for an unknown or unfinished game', async () => {
+  it('does not launch Vector Zero for an unknown or removed game', async () => {
     window.location.hash = '#/lab?game=missing-game';
     const { host, root } = mount();
     await act(async () => root.render(<App />));
@@ -311,6 +311,36 @@ describe('MODBOX app shell', () => {
     expect(useProgress.getState().getGameProgress('platform').codes['python:m00']).toContain('suitColor = "cyan"');
   }, 15000);
 
+  it('launches workshop defense, deploys tools, applies its own mods and preserves isolated progress', async () => {
+    window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
+    await act(async () => host.querySelector<HTMLButtonElement>('.home-game--makitas')?.click()); await flush();
+    expect(host.querySelector('.languages__game h2')?.textContent).toBe('MAKITAS VS ZOMBIES');
+    await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
+    expect(await waitFor(() => Boolean(host.querySelector('.yard__enter')))).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('toolColor = "teal"');
+    const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'toolColor = "amber"' } }));
+    expect(await waitFor(() => Boolean(host.querySelector('.stage .mission__next--ready')))).toBe(true);
+    expect(useProgress.getState().getGameProgress('makitas-vs-zombies').completed).toContain('m00');
+    await act(async () => host.querySelector<HTMLButtonElement>('.yard__enter')?.click());
+    expect(host.querySelectorAll('[role="gridcell"]')).toHaveLength(45);
+    await act(async () => host.querySelector<HTMLButtonElement>('[data-cell="2:0"]')?.click());
+    expect(host.querySelector('[data-cell="2:0"]')?.getAttribute('aria-label')).toContain('CIRCULAR SAW');
+    expect(host.querySelector('.yard__power strong')?.textContent).toBe('250');
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label^="Select recycle tool"]')?.click());
+    await act(async () => host.querySelector<HTMLButtonElement>('[data-cell="2:0"]')?.click());
+    expect(host.querySelector('.yard__power strong')?.textContent).toBe('300');
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
+    expect(host.querySelector('.yard__panel h1')?.textContent).toBe('TOOLS DOWN');
+    await act(async () => host.querySelector<HTMLButtonElement>('.stage .mission__next--ready')?.click());
+    expect(await waitFor(() => host.querySelector('.yard__eyebrow')?.textContent?.includes('WORKSHOP RADIO') ?? false)).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('toolColor = "amber"');
+    await act(async () => { window.location.hash = '#/lab?game=platform&mission=m00'; });
+    expect(await waitFor(() => Boolean(host.querySelector('.floor-stage')))).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('suitColor');
+    expect(useProgress.getState().getGameProgress('makitas-vs-zombies').codes['python:m00']).toContain('toolColor = "amber"');
+  }, 15000);
+
   it('renders the landing screen', async () => {
     window.location.hash = '#/';
     const { host, root } = mount();
@@ -323,9 +353,8 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.home__games')).toBeTruthy();
     expect(host.querySelector('.home__languages')).toBeNull();
     const games = [...host.querySelectorAll('.home-game')];
-    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'RUNNER']);
-    expect(games.slice(0, 3).every(card => card.tagName === 'BUTTON' && card.textContent?.includes('AVAILABLE NOW'))).toBe(true);
-    expect(games.slice(3).every(card => card.tagName === 'ARTICLE' && card.textContent?.includes('COMING SOON'))).toBe(true);
+    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES']);
+    expect(games.every(card => card.tagName === 'BUTTON' && card.textContent?.includes('AVAILABLE NOW'))).toBe(true);
     expect(games.every(card => card.querySelector('.home-game__art .game-art'))).toBe(true);
   });
 
@@ -358,7 +387,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.lab__filename')?.textContent).toBe('main.swift');
   });
 
-  it('renders the arcade with playable games first and clear upcoming previews', async () => {
+  it('renders all four playable games in the arcade', async () => {
     window.location.hash = '#/arcade';
     const { host, root } = mount();
     await act(async () => {
@@ -366,9 +395,10 @@ describe('MODBOX app shell', () => {
     });
     await flush();
     expect(host.textContent).toContain('VECTOR ZERO');
-    expect(host.textContent).toContain('RUNNER');
-    expect(host.textContent).toContain('COMING SOON');
-    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'RUNNER']);
+    expect(host.textContent).toContain('MAKITAS VS ZOMBIES');
+    expect(host.textContent).not.toContain('RUNNER');
+    expect(host.textContent).not.toContain('COMING SOON');
+    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES']);
     expect(host.querySelectorAll('.cabinet--locked button')).toHaveLength(0);
   });
 
