@@ -16,7 +16,7 @@ export class MazeSound {
     const context = this.context;
     if (!context || this.muted || context.state !== 'running') return;
     const oscillator = context.createOscillator(), gain = context.createGain();
-    const frequencies = { dot: 540, core: 740, phase: 230, hit: 90, shield: 480, clear: 980 };
+    const frequencies = { catch: 880, dot: 540, core: 740, phase: 230, hit: 90, shield: 480, clear: 980 };
     const now = context.currentTime;
     oscillator.type = event === 'hit' ? 'triangle' : 'sine';
     oscillator.frequency.setValueAtTime(frequencies[event], now);

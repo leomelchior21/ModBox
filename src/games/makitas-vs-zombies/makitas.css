@@ -42,8 +42,7 @@
 .yard__tool { position:relative; flex:1; display:flex; align-items:center; gap:3%; min-width:0; overflow:hidden; border:1px solid #638c7377; border-radius:6px; background:linear-gradient(135deg,#2c5140f2,#102e23f2); padding:3px 4px; color:#c5d6b2; cursor:pointer; box-shadow:0 3px 8px #0003; }
 .yard__tool--selected { border-color:var(--yard-glow); background:linear-gradient(135deg,#38654afa,#164a39fa); box-shadow:0 0 12px #59d6b52c,inset 0 -2px var(--yard-glow); color:#f4f4d2; }
 .yard__tool--poor { opacity:.65; }.yard__tool--poor.yard__tool--selected { opacity:.9; }
-.yard__toolSprite { display:block; width:43%; height:100%; background-image:url('/art/makitas/sprites.webp'); background-size:400% 200%; background-repeat:no-repeat; flex-shrink:0; }
-.yard__toolSprite--saw { background-position:0 0; }.yard__toolSprite--charger { background-position:33.3333% 0; }.yard__toolSprite--wall { background-position:66.6667% 0; }.yard__toolSprite--frost { background-position:100% 0; }
+.yard__toolSprite { display:block; width:43%; height:100%; overflow:hidden; flex-shrink:0; }
 .yard__toolCopy { display:flex; flex-direction:column; gap:6px; text-align:left; min-width:0; }.yard__toolCopy b { font-size:clamp(6px,.95cqw,11px); }.yard__toolCopy small { font-size:clamp(7px,1.2cqw,13px); color:#f2d793; }
 .yard__tool kbd { position:absolute; top:2px; right:4px; font-size:clamp(5px,.7cqw,8px); color:#aac7a1; }
 .yard__utility { display:flex; flex-direction:column; gap:5px; width:15%; flex-shrink:0; }.yard__utility button { flex:1; padding:2px; border:1px solid #71917680; border-radius:4px; background:#183d2fee; color:#c9ddb5; font:700 clamp(6px,.85cqw,10px) var(--font-mono); cursor:pointer; }.yard__utility .yard__utility--selected { border-color:var(--yard-glow); color:var(--yard-glow); }
@@ -71,3 +70,5 @@
 @media(prefers-reduced-motion:reduce) { .yard__battery { animation:none; }.yard-stage * { transition:none; } }
 .lab--touch .yard__utility { flex-direction:row; width:18%; gap:3px; }.lab--touch .yard__utility button { font-size:20px; }.lab--touch .yard__utility button span { display:none; }
 .lab--touch .yard-stage:not(.stage--missionReady) .yard__tools { height:11.5%; top:86%; }.lab--touch .yard__footer { display:none; }
+
+.yard__tool:disabled { opacity: .4; cursor: not-allowed; }

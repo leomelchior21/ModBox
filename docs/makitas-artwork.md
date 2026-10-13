@@ -1,5 +1,7 @@
 # MAKITAS VS ZOMBIES artwork
 
+The game now uses the [animated v2 machine and zombie atlas](makitas-sprites-v2.md). The original static atlas below is retained as a source artifact.
+
 Created with the built-in imagegen tool using the prompts below. Selected PNGs were copied into the workspace and encoded as WebP at quality 0.92, preserving dimensions and sprite transparency. Original PNGs remain in the Codex generated-images directory. Production assets total about 1.5 MB.
 
 - `public/art/makitas/cover.webp`: library cover and launch backdrop.

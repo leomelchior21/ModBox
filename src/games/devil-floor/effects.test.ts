@@ -3,10 +3,11 @@ import { FloorEffects, type FloorCue } from './effects';
 import { DevilFloorRun, HERO_HEIGHT, LAVA_Y } from './run';
 import { parseGameScript } from '../../interpreter/gameScript';
 import { floorSchema, type FloorConfig } from './mods';
+function builtRun() { const run = new DevilFloorRun(); run.setProgram(parseGameScript<FloorConfig>('int platforms = 14; string platformEffect = "crumble";', 'csharp', floorSchema)); return run; }
 const idle = { left: false, right: false, jump: false };
 describe('Devil Floor action feedback', () => {
   it('emits a jump once, then a landing impact at the contact surface', () => {
-    const run = new DevilFloorRun(); run.launch(); run.feedback = [];
+    const run = builtRun(); run.launch(); run.feedback = [];
     run.step(0.1, { ...idle, jump: true }); run.step(0.1, { ...idle, jump: true });
     expect(run.feedback.filter(c => c.kind === 'jump')).toHaveLength(1);
     for (let i = 0; i < 20; i++) run.step(0.1, idle);
@@ -14,20 +15,20 @@ describe('Devil Floor action feedback', () => {
     expect(landings).toHaveLength(1); expect(landings[0].y).toBe(430); expect(landings[0].power).toBeGreaterThan(100);
   });
   it('uses the pickup location and actual score for crystal feedback', () => {
-    const run = new DevilFloorRun(); run.launch(); run.feedback = [];
+    const run = builtRun(); run.launch(); run.feedback = [];
     const crystal = run.cavern.crystals[0]; run.player.x = crystal.x - 11; run.player.y = crystal.y - 15;
     run.step(0.01, idle); run.step(0.01, idle);
     expect(run.feedback.filter(c => c.kind === 'crystal')).toEqual([{ kind: 'crystal', x: crystal.x, y: crystal.y, text: '+50', power: undefined }]);
   });
   it('keeps damage feedback at the lava impact and respawn feedback at the saved route', () => {
-    const run = new DevilFloorRun(); run.launch(); run.feedback = []; run.player.x = 500; run.player.y = LAVA_Y;
+    const run = builtRun(); run.launch(); run.feedback = []; run.player.x = 500; run.player.y = LAVA_Y;
     run.step(0.01, idle);
     expect(run.feedback.find(c => c.kind === 'hit')).toMatchObject({ x: 511, y: LAVA_Y, text: 'LAVA · −1 LIFE' });
     expect(run.feedback.find(c => c.kind === 'respawn')?.x).toBe(run.player.x + 11);
     run.restart(); expect(run.feedback.some(c => c.kind === 'hit')).toBe(false);
   });
   it('signals a collapse once and saves checkpoints with their beacon position', () => {
-    const run = new DevilFloorRun(); run.launch(); run.feedback = [];
+    const run = builtRun(); run.launch(); run.feedback = [];
     const p = run.cavern.platforms[4]; run.player.x = p.x + 35; run.player.y = p.y - HERO_HEIGHT; run.grounded = 4;
     run.step(0.01, idle);
     expect(run.feedback.find(c => c.kind === 'checkpoint')).toMatchObject({ x: p.x + 20, y: p.y - 38 });
@@ -35,13 +36,13 @@ describe('Devil Floor action feedback', () => {
     expect(run.feedback.filter(c => c.kind === 'crumble')).toHaveLength(1);
   });
   it('leaves simulation and feedback untouched while paused', () => {
-    const run = new DevilFloorRun(); run.launch(); run.step(0.1, { ...idle, jump: true }); run.pause();
+    const run = builtRun(); run.launch(); run.step(0.1, { ...idle, jump: true }); run.pause();
     const cues = [...run.feedback], before = run.snapshot(); run.step(0.1, idle);
     expect(run.feedback).toEqual(cues); expect(run.snapshot()).toEqual(before);
   });
   it('distinguishes an air jump, a blocked shield impact and the sanctuary reward', () => {
     const run = new DevilFloorRun();
-    run.setProgram(parseGameScript<FloorConfig>('bool doubleJump = true;\nbool shield = true;', 'csharp', floorSchema));
+    run.setProgram(parseGameScript<FloorConfig>('int platforms = 14; bool doubleJump = true;\nbool shield = true;', 'csharp', floorSchema));
     run.launch(); run.feedback = [];
     run.step(0.1, { ...idle, jump: true }); run.step(0.01, idle); run.step(0.01, { ...idle, jump: true });
     expect(run.feedback.find(c => c.kind === 'doubleJump')?.text).toBe('AIR JUMP'); expect(run.snapshot().airJumpReady).toBe(false);

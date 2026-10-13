@@ -153,7 +153,7 @@ export const MISSION_M04: Mission = {
   id: 'm04',
   order: 4,
   code: 'SWITCHES',
-  title: 'Systems online',
+  title: 'Standby switches',
   kind: 'mission',
   concept: {
     name: 'BOOL',
@@ -161,10 +161,10 @@ export const MISSION_M04: Mission = {
     explanation: 'Switches in a game are bools: something is on, or it is off. Nothing in between.',
     example: 'bool shield = false;',
   },
-  brief: 'Two systems are offline. The ship can fix that itself.',
-  action: 'Flip shield and rapidFire to true.',
-  hint: 'No quotes. Just true or false.',
-  appliedCopy: 'Two switches, two systems online.',
+  brief: 'Prepare two systems in standby. The next mission will automate your shield.',
+  action: 'Declare shield and rapidFire, both set to false.',
+  hint: 'false keeps a system off. Next, a score condition will switch the shield on.',
+  appliedCopy: 'Systems in standby. Ready for a live rule.',
   starter: '',
   additions: [
     { key: 'decl:shield', code: 'bool shield = false;' },
@@ -174,8 +174,8 @@ export const MISSION_M04: Mission = {
   scenario: { enemyCount: 4, enemySpeed: 2, lives: 5 },
   unlocks: ['shieldEnabled', 'rapidFireEnabled'],
   requirements: [
-    req('shield', 'The shield is online', (ctx) => ctx.config.shieldEnabled === true),
-    req('rapid', 'Rapid fire is online', (ctx) => ctx.config.rapidFireEnabled === true),
+    req('shield', 'The shield is declared and off', (ctx) => ctx.summary.declares.bool.includes('shield') && ctx.config.shieldEnabled === false),
+    req('rapid', 'Rapid fire is declared and off', (ctx) => ctx.summary.declares.bool.includes('rapidFire') && ctx.config.rapidFireEnabled === false),
   ],
   playPrompt: 'FLY IT.',
 };

@@ -8,13 +8,13 @@ import { sentinelInterval, sentinelMode, sentinelTargets, steerSentinels } from 
 
 export type MazePhase = 'launch' | 'playing' | 'paused' | 'cleared' | 'gameover';
 export interface MazeInput { up: boolean; right: boolean; down: boolean; left: boolean; phase: boolean }
-export interface MazeMetrics { cores: number; dots: number; exits: number; phases: number; hits: number; steps: number; minEnergy: number; ruleTraces: string[] }
+export interface MazeMetrics { catches: number; cores: number; dots: number; exits: number; phases: number; hits: number; steps: number; minEnergy: number; ruleTraces: string[] }
 export interface MazeSnapshot {
   phase: MazePhase; config: MazeConfig; score: number; energy: number; lives: number; level: number;
   cores: number; dots: number; stunRemaining: number; phaseCooldown: number; shieldReady: boolean; metrics: MazeMetrics; messages: string[];
 }
-export type MazeEvent = 'dot' | 'core' | 'phase' | 'hit' | 'shield' | 'clear';
-const emptyMetrics = (): MazeMetrics => ({ cores: 0, dots: 0, exits: 0, phases: 0, hits: 0, steps: 0, minEnergy: 100, ruleTraces: [] });
+export type MazeEvent = 'dot' | 'core' | 'phase' | 'hit' | 'shield' | 'clear' | 'catch';
+const emptyMetrics = (): MazeMetrics => ({ catches: 0, cores: 0, dots: 0, exits: 0, phases: 0, hits: 0, steps: 0, minEnergy: 100, ruleTraces: [] });
 
 /** Pure simulation: no timers, DOM or globals. The screen owns its lifecycle. */
 export class NeonMazeRun {
@@ -31,6 +31,12 @@ export class NeonMazeRun {
   sentinelAge = 1;
   sentinelDuration = sentinelInterval(MAZE_DEFAULTS.sentinelSpeed);
   elapsed = 0;
+  caught = new Set<number>();
+  bursts: { x: number; y: number; age: number; kind: 'dot' | 'gem' | 'catch' | 'hit' | 'phase' }[] = [];
+  phaseVisual: { from: Cell; to: Cell; age: number } | null = null;
+  private burst(kind: 'dot' | 'gem' | 'catch' | 'hit' | 'phase', cell = this.player): void {
+    this.bursts.push({ ...cell, age: 0, kind }); this.bursts = this.bursts.slice(-40);
+  }
   collected = new Set<string>();
   dots = new Set<string>();
   collectedDots = new Set<string>();
@@ -93,6 +99,7 @@ export class NeonMazeRun {
     this.player = { ...this.maze.start }; this.playerFrom = { ...this.player }; this.moveAge = 1;
     this.facing = this.openDirections()[0] ?? 'right'; this.queuedTurn = null; this.stopped = false;
     this.sentinels = []; this.sentinelFrom = []; this.sentinelAge = 1; this.elapsed = 0; this.hunterMode = 'chase';
+    this.caught.clear(); this.bursts = []; this.phaseVisual = null;
     this.collected.clear(); this.collectedDots.clear(); this.dots.clear(); this.stunRemaining = 0;
     this.visited.clear(); this.trail = [];
     const gems = new Set(this.maze.cores.map(cellKey));
@@ -106,6 +113,7 @@ export class NeonMazeRun {
   private syncSentinels(): void {
     this.sentinels = this.sentinels.slice(0, this.config.sentinelCount);
     this.sentinelFrom = this.sentinelFrom.slice(0, this.config.sentinelCount);
+    for (const i of this.caught) if (i >= this.sentinels.length) this.caught.delete(i);
     const occupied = new Set(this.sentinels.map(cellKey));
     const far = [...distances(this.maze, this.player)].filter(([key, d]) => d >= 6 && d <= 16 && !occupied.has(key)).sort((a, b) => b[1] - a[1]);
     while (this.sentinels.length < this.config.sentinelCount && far.length) {
@@ -155,11 +163,22 @@ export class NeonMazeRun {
     if (this.phase !== 'playing') return;
     dt = Math.max(0, Math.min(dt, 0.1));
     const visualPlayer = this.playerPosition(), visualHunters = this.sentinelPositions();
+    this.bursts.forEach(b => b.age += dt); this.bursts = this.bursts.filter(b => b.age < 0.65);
+    if (this.phaseVisual) { this.phaseVisual.age += dt; if (this.phaseVisual.age > 0.5) this.phaseVisual = null; }
+    const wasStunned = this.stunRemaining > 0;
     this.elapsed += dt; this.moveAge += dt; this.moveTimer -= dt;
     // Stunned hunters finish their current visual step, then stay still and harmless.
     this.sentinelAge += dt;
     const hunterDt = Math.max(0, dt - this.stunRemaining);
     this.stunRemaining = Math.max(0, this.stunRemaining - dt); this.hunterTimer -= hunterDt;
+    if (wasStunned && this.stunRemaining === 0 && this.caught.size) {
+      const far = [...distances(this.maze, this.player)].filter(([, d]) => d >= 8).sort((a, b) => b[1] - a[1]);
+      for (const i of this.caught) {
+        const key = far.shift()?.[0];
+        if (key && this.sentinels[i]) { const [x, y] = key.split(',').map(Number); this.sentinels[i] = { x, y }; this.sentinelFrom[i] = { x, y }; visualHunters[i] = { x, y }; }
+      }
+      this.caught.clear();
+    }
     this.phaseCooldown = Math.max(0, this.phaseCooldown - dt);
     this.invulnerable = Math.max(0, this.invulnerable - dt);
     this.shieldCooldown = Math.max(0, this.shieldCooldown - dt);
@@ -191,14 +210,16 @@ export class NeonMazeRun {
     }
     // Sweep relative visual motion so grazing contacts and crossing actors cannot miss a hit.
     const player = this.playerPosition();
-    if (this.sentinelPositions().some((hunter, i) => {
+    const contacts = this.sentinelPositions().map((hunter, i) => {
+      if (this.caught.has(i)) return false;
       const before = visualHunters[i] ?? hunter;
       const x = visualPlayer.x - before.x, y = visualPlayer.y - before.y;
       const dx = player.x - hunter.x - x, dy = player.y - hunter.y - y;
       const length = dx * dx + dy * dy;
       const t = length ? Math.max(0, Math.min(1, -(x * dx + y * dy) / length)) : 0;
       return Math.hypot(x + dx * t, y + dy * t) < 0.54;
-    })) this.takeHit();
+    });
+    contacts.forEach((contact, i) => { if (contact) { if (this.stunRemaining > 0) this.catchSentinel(i); else this.takeHit(); } });
     this.evaluate();
   }
   move(direction: Direction, phase = false): boolean {
@@ -217,13 +238,13 @@ export class NeonMazeRun {
     this.player = target; this.moveAge = 0;
     this.moveDuration = phase ? 0.12 : 1 / (this.config.moveSpeed + 1); this.moveTimer = this.moveDuration;
     this.metrics.steps++; this.explore();
-    if (phase) { this.phaseCooldown = 2.4; this.invulnerable = 0.65; this.metrics.phases++; this.events.push('phase'); }
+    if (phase) { this.phaseVisual = { from: { ...visualFrom }, to: { ...target }, age: 0 }; this.burst('phase', visualFrom); this.phaseCooldown = 2.4; this.invulnerable = 0.65; this.metrics.phases++; this.events.push('phase'); }
     if (this.dots.has(cellKey(this.player)) && !this.collectedDots.has(cellKey(this.player))) {
-      this.collectedDots.add(cellKey(this.player)); this.score += 5; this.metrics.dots++; this.events.push('dot');
+      this.collectedDots.add(cellKey(this.player)); this.score += 5; this.metrics.dots++; this.events.push('dot'); this.burst('dot');
     }
     if (this.maze.cores.some(core => sameCell(core, this.player)) && !this.collected.has(cellKey(this.player))) {
       this.collected.add(cellKey(this.player)); this.score += this.config.coreValue; this.metrics.cores++;
-      this.stunRemaining = this.config.gemDuration;
+      this.stunRemaining = this.config.gemDuration; this.burst('gem');
       this.log(`GEM ${this.collected.size}/3 · SENTINELS STUNNED ${this.stunRemaining}s${this.collected.size === 3 ? ' · EXIT OPEN' : ''}`); this.events.push('core');
     }
     if (this.collected.size === 3 && sameCell(this.player, this.maze.exit)) {
@@ -231,11 +252,19 @@ export class NeonMazeRun {
       // Crossing a gate rolls directly into another sector; the run never stops for a menu.
       this.evaluate(); this.advance();
     }
-    this.evaluate(); return true;
+    this.resolveContact(); this.evaluate(); return true;
   }
   private resolveContact(): void {
-    if (this.phase !== 'playing' || this.invulnerable > 0 || this.stunRemaining > 0 || !this.sentinels.some(s => sameCell(s, this.player))) return;
-    this.takeHit();
+    if (this.phase !== 'playing') return;
+    this.sentinels.forEach((s, i) => {
+      if (this.caught.has(i) || !sameCell(s, this.player)) return;
+      if (this.stunRemaining > 0) this.catchSentinel(i); else this.takeHit();
+    });
+  }
+  private catchSentinel(index: number): void {
+    if (this.caught.has(index)) return;
+    this.caught.add(index); this.score += 100; this.metrics.catches++;
+    this.burst('catch', this.sentinels[index]); this.events.push('catch'); this.log('SENTINEL CAUGHT +100');
   }
   private takeHit(): void {
     if (this.phase !== 'playing' || this.invulnerable > 0 || this.stunRemaining > 0) return;
@@ -243,7 +272,7 @@ export class NeonMazeRun {
       this.shieldCooldown = 8; this.invulnerable = 1.5; this.log('SHIELD ABSORBED AN IMPACT'); this.events.push('shield'); return;
     }
     this.energy = Math.max(0, this.energy - 25); this.metrics.hits++; this.metrics.minEnergy = Math.min(this.metrics.minEnergy, this.energy);
-    this.invulnerable = 1.5; this.events.push('hit'); this.log(`SIGNAL HIT · Energy ${this.energy}%`);
+    this.invulnerable = 1.5; this.events.push('hit'); this.burst('hit'); this.log(`SIGNAL HIT · Energy ${this.energy}%`);
     if (this.energy === 0) {
       this.lives--;
       if (this.lives <= 0) this.phase = 'gameover';

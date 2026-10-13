@@ -212,9 +212,9 @@ export function copilotStep(
           targetId: 'shieldEnabled',
         };
       }
-      if (!ctx.config.shieldEnabled) {
+      if (ctx.config.shieldEnabled) {
         return {
-          message: 'Switch shield on by changing false to true.',
+          message: 'Keep shield off: set it to false. The next mission switches it on with a rule.',
           hint: 'Boolean values are true or false and never use quotation marks.',
           targetId: 'shieldEnabled',
         };
@@ -226,9 +226,9 @@ export function copilotStep(
           targetId: 'rapidFireEnabled',
         };
       }
-      if (!ctx.config.rapidFireEnabled) {
+      if (ctx.config.rapidFireEnabled) {
         return {
-          message: 'Switch rapidFire on by changing false to true.',
+          message: 'Keep rapidFire in standby: set it to false.',
           targetId: 'rapidFireEnabled',
         };
       }

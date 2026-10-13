@@ -179,7 +179,7 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
           <span className="neon__eyebrow">{mission.kind === 'sandbox' ? 'EVERY MOD UNLOCKED' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</span>
           <div className="neon__emblem" aria-hidden="true">◉</div>
           <h1>{snapshot.phase === 'launch' ? 'NEON MAZE' : snapshot.phase === 'cleared' ? 'SECTOR CLEAR' : snapshot.phase === 'paused' ? 'SIGNAL HELD' : 'SIGNAL LOST'}</h1>
-          <p>{snapshot.phase === 'cleared' ? 'Three gems collected. Roll into your next labyrinth.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and roll again.` : 'Keep rolling through the neon lines. Collect dots for points and amber gems to stun the sentinels. Three gems open the next sector.'}</p>
+          <p>{snapshot.phase === 'cleared' ? 'Three gems collected. Roll into your next labyrinth.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and roll again.` : 'Keep rolling through the neon lines. Collect dots for points and amber gems to stun and catch sentinels. Add Room Lights to reveal the darkness. Three gems open the next sector.'}</p>
           <div className="neon__legend"><span><i className="neon__legendRunner" /> YOU</span><span><i className="neon__legendDot" /> DOT +5</span><span><i className="neon__legendCore" /> STUN GEM</span><span><i className="neon__legendHunter" /> SENTINEL</span></div>
           <button className="btn neon__enter" onClick={() => {
             if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch();

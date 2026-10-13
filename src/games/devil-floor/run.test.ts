@@ -6,7 +6,7 @@ import { floorSchema, type FloorConfig } from './mods';
 import { DevilFloorRun, generateCavern, HERO_HEIGHT, HERO_WIDTH, LAVA_Y, type FloorInput } from './run';
 const idle: FloorInput = { left: false, right: false, jump: false };
 const parse = (source: string, language: LanguageId = 'csharp') => parseGameScript<FloorConfig>(formatCodeForLanguage(source, language), language, floorSchema);
-function runWith(source = '') { const run = new DevilFloorRun(); run.setProgram(parse(source)); run.launch(); return run; }
+function runWith(source = '') { const run = new DevilFloorRun(); run.setProgram(parse('int platforms = 14; string platformEffect = "crumble"; string fireballStyle = "fire";\n' + source)); run.launch(); return run; }
 function ticks(run: DevilFloorRun, count: number, input = idle, dt = 1 / 60) { for (let i = 0; i < count; i++) run.step(dt, input); }
 
 describe('Devil Floor physics and expedition', () => {

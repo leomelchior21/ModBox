@@ -9,13 +9,13 @@ export interface MazeMission {
 }
 export const MAZE_MISSIONS: readonly MazeMission[] = [
   { id: 'm00', order: 0, title: 'LIGHT THE GRID', kind: 'mission', message: 'Change wallColor from "cyan" to "violet", "lime", or "amber". Your maze changes instantly.', targetId: 'wallColor' },
-  { id: 'm01', order: 1, title: 'YOUR SIGNAL', kind: 'mission', message: 'Add a RUNNER NAME, then SIGNAL LOG to broadcast it.', targetId: 'runnerName' },
+  { id: 'm01', order: 1, title: 'BUILD THE CHASE', kind: 'mission', message: 'Add SENTINELS and set the number to 3 or more. Start rolling: your new hunters follow you through the corridors.', targetId: 'sentinelCount' },
   { id: 'm02', order: 2, title: 'OVERCLOCK', kind: 'mission', message: 'Add MOVE SPEED, then SPEED MATH. Reach speed 6 or more with an arithmetic expression.', targetId: 'moveSpeed' },
-  { id: 'm03', order: 3, title: 'THE HUNT', kind: 'mission', message: 'Add at least 3 SENTINELS. Roll through the maze and collect an amber gem to stun the squad. GEM STUN tunes its duration.', targetId: 'sentinelCount' },
-  { id: 'm04', order: 4, title: 'PHASE SHIFT', kind: 'mission', message: 'Add SHIELD and set it to true. Use SPACE or PHASE to jump along a corridor or through a wall.', targetId: 'shield' },
-  { id: 'm05', order: 5, title: 'AUTOMATIC DEFENSE', kind: 'mission', message: 'Add GEM RULE. Collect dots and gems until your score reaches 100 and your rule activates.', targetId: 'maze-score' },
-  { id: 'm06', order: 6, title: 'EMERGENCY ROUTE', kind: 'mission', message: 'Add ESCAPE RULE. Let a sentinel reduce energy to 40 or less; your phase jump becomes stronger.', targetId: 'maze-energy' },
-  { id: 'final', order: 7, title: 'BUILD YOUR LABYRINTH', kind: 'final', message: 'Keep your name, color, tuned speed, a boolean switch, a signal log and a live rule. Collect all 3 gems and roll through the glowing exit.' },
+  { id: 'm03', order: 3, title: 'THE HUNT', kind: 'mission', message: 'Collect an amber gem, then touch a stunned sentinel to catch it for 100 points. GEM STUN gives you more time.', targetId: 'gemDuration' },
+  { id: 'm04', order: 4, title: 'PHASE SHIFT', kind: 'mission', message: 'Set PHASE JUMP to 3 or more. Use SPACE or PHASE and watch your ball leap through the wall.', targetId: 'phaseLength' },
+  { id: 'm05', order: 5, title: 'LIGHT UP THE ROOM', kind: 'mission', message: 'Set ROOM LIGHTS (revealMap) to true. The dark radius disappears and the whole room becomes visible.', targetId: 'revealMap' },
+  { id: 'm06', order: 6, title: 'AUTOMATIC DEFENSE', kind: 'mission', message: 'Keep shield false, then add GEM RULE. Reach 100 points to turn the shield on automatically.', targetId: 'maze-score' },
+  { id: 'final', order: 7, title: 'BUILD YOUR LABYRINTH', kind: 'final', message: 'Keep your color, tuned speed, sentinels, room lights and a live rule. Collect all 3 gems and roll through the glowing exit.' },
   { id: 'free', order: 8, title: 'FREE MOD MODE', kind: 'sandbox', message: 'All mods unlocked. Tune your maze, collect dots and stun gems, and keep rolling into new sectors.' },
 ];
 export const MAZE_STARTER = 'string wallColor = "cyan";';
@@ -55,26 +55,21 @@ export function mazeMissionPassed(mission: MazeMission, program: ProgramResult<M
   const declares = (id: keyof MazeConfig) => program.symbols.some(s => s.mod === id);
   switch (mission.id) {
     case 'm00': return config.wallColor !== 'cyan';
-    case 'm01': return declares('runnerName') && config.runnerName !== 'Echo' && config.runnerName.trim().length > 1 && program.comms.some(line => line.text.includes(config.runnerName));
+    case 'm01': return declares('sentinelCount') && config.sentinelCount >= 3 && snapshot.metrics.steps > 0;
     case 'm02': return config.moveSpeed >= 6 && program.ast.statements.some(s => (s.kind === 'assign' && s.name === 'moveSpeed' && arithmetic(s.value)) || (s.kind === 'varDecl' && s.name === 'moveSpeed' && arithmetic(s.init)));
-    case 'm03': return config.sentinelCount >= 3 && snapshot.metrics.cores >= 1;
-    case 'm04': return config.shield && snapshot.metrics.phases >= 1;
-    case 'm05': return program.rules.some(r => reads(r.condition, 'score') && r.actions.some(a => a.target === 'shield') && snapshot.metrics.ruleTraces.some(t => t.startsWith(r.conditionText) && t.includes('shield')));
-    case 'm06': return snapshot.metrics.minEnergy <= 40 && program.rules.some(r => reads(r.condition, 'energy') && r.actions.some(a => a.target === 'phaseLength') && snapshot.metrics.ruleTraces.some(t => t.startsWith(r.conditionText) && t.includes('phaseLength')));
-    case 'final': return declares('runnerName') && config.runnerName.trim().length > 1 && declares('wallColor') && declares('moveSpeed') && program.symbols.some(s => s.type === 'bool') && program.comms.length > 0 && program.rules.some(r => Object.keys(MAZE_RUNTIME_LABELS).some(name => reads(r.condition, name))) && snapshot.metrics.exits >= 1;
+    case 'm03': return config.sentinelCount >= 1 && snapshot.metrics.cores >= 1 && snapshot.metrics.catches >= 1;
+    case 'm04': return config.phaseLength >= 3 && snapshot.metrics.phases >= 1;
+    case 'm06': return program.rules.some(r => reads(r.condition, 'score') && r.actions.some(a => a.target === 'shield') && snapshot.metrics.ruleTraces.some(t => t.startsWith(r.conditionText) && t.includes('shield')));
+    case 'm05': return declares('revealMap') && config.revealMap;
+    case 'final': return declares('wallColor') && declares('moveSpeed') && config.sentinelCount >= 1 && config.revealMap && program.rules.some(r => Object.keys(MAZE_RUNTIME_LABELS).some(name => reads(r.condition, name)) && snapshot.metrics.ruleTraces.some(t => t.startsWith(r.conditionText))) && snapshot.metrics.exits >= 1;
     default: return false;
   }
 }
 export function mazeGuidance(mission: MazeMission, program: ProgramResult<MazeConfig>, snapshot: MazeSnapshot, passed: boolean): CopilotGuidance {
   if (passed) return { message: mission.kind === 'final' ? 'Your maze is ready. Play the full game and mod anything.' : 'Mission complete. Your next maze mod is ready.' };
-  const config = { ...MAZE_DEFAULTS, ...program.config };
-  switch (mission.id) {
-    case 'm01': if (program.symbols.some(s => s.mod === 'runnerName')) return { message: 'Add SIGNAL LOG to broadcast your runnerName.', targetId: 'maze-log' }; break;
-    case 'm02': if (program.symbols.some(s => s.mod === 'moveSpeed')) return { message: 'Add SPEED MATH, or write your own expression to reach moveSpeed 6.', targetId: 'maze-math' }; break;
-    case 'm03': if (config.sentinelCount >= 3) return { message: 'Keep rolling. Collect an amber gem to freeze the sentinel squad, then slip past them.' }; break;
-    case 'm04': if (config.shield) return { message: 'Use SPACE or PHASE to jump. Aim along a corridor or across a single wall.' }; break;
-    case 'm05': if (program.rules.some(r => r.conditionText.includes('score'))) return { message: 'Collect dots and amber gems. Watch your shield switch on when score reaches 100.' }; break;
-    case 'm06': if (program.rules.some(r => r.conditionText.includes('energy'))) return { message: `Energy is ${snapshot.energy}%. Cross a sentinel’s path; at 40 or less, your escape rule boosts PHASE.` }; break;
-  }
+  if (mission.id === 'm02' && program.symbols.some(s => s.mod === 'moveSpeed')) return { message: 'Add SPEED MATH, or write an expression to reach moveSpeed 6.', targetId: 'maze-math' };
+  if (mission.id === 'm03' && snapshot.stunRemaining > 0) return { message: 'Chase the pale sentinels now! Touch one before the stun timer runs out.' };
+  if (mission.id === 'm06' && !program.symbols.some(s => s.mod === 'shield')) return { message: 'Add SHIELD set to false. Then GEM RULE can switch it on for you.', targetId: 'shield' };
+  if (mission.id === 'm06' && program.rules.some(r => reads(r.condition, 'score'))) return { message: 'Collect dots and gems. At 100 points, your shield switches on.' };
   return { message: mission.message, targetId: mission.targetId };
 }

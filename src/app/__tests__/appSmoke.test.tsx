@@ -157,9 +157,9 @@ describe('MODBOX app shell', () => {
     expect(await waitFor(() => useProgress.getState().currentMissionId === 'm01')).toBe(true);
     expect(host.querySelector('.cm-content')?.textContent).toContain('amber');
     const drop = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(drop, 'dataTransfer', { value: { getData: () => 'string runnerName = "Sparrow";', types: ['application/x-modbox-mod'] } });
+    Object.defineProperty(drop, 'dataTransfer', { value: { getData: () => 'int sentinels = 3;', types: ['application/x-modbox-mod'] } });
     await act(async () => host.querySelector('.cm-content')?.dispatchEvent(drop));
-    expect(await waitFor(() => host.querySelector('.neon__hud')?.textContent?.includes('Sparrow') ?? false)).toBe(true);
+    expect(await waitFor(() => host.querySelector('.cm-content')?.textContent?.includes('int sentinels = 3;') ?? false)).toBe(true);
     expect(useProgress.getState().getGameProgress('vector-zero').codes['csharp:m00']).toBe('string enemy = "big-rock";');
     expect(useProgress.getState().getGameProgress('vector-zero').completed).toEqual([]);
   });
@@ -291,11 +291,11 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.languages__game h2')?.textContent).toBe('DEVIL FLOOR');
     await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
     expect(await waitFor(() => Boolean(host.querySelector('.floor-stage .stage__canvas')))).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('suitColor = "amber"');
+    expect(host.querySelector('.cm-content')?.textContent).toContain('background = "none"');
     expect(host.querySelector('.topbar__game')?.textContent).toContain('DEVIL FLOOR');
     expect(host.querySelector('.floor__panel h1')?.textContent).toBe('DEVIL FLOOR');
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'suitColor = "cyan"' } }));
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'background = "volcano"' } }));
     expect(await waitFor(() => Boolean(host.querySelector('.stage .mission__next--ready')))).toBe(true);
     expect(useProgress.getState().getGameProgress('platform').completed).toContain('m00');
     await act(async () => host.querySelector<HTMLButtonElement>('.floor__enter')?.click());
@@ -303,12 +303,12 @@ describe('MODBOX app shell', () => {
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
     expect(host.querySelector('.floor__panel h1')?.textContent).toBe('EXPEDITION HELD');
     await act(async () => host.querySelector<HTMLButtonElement>('.stage .mission__next--ready')?.click());
-    expect(await waitFor(() => host.querySelector('.floor__eyebrow')?.textContent?.includes('NAME THE FLAME') ?? false)).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('suitColor = "cyan"');
+    expect(await waitFor(() => host.querySelector('.floor__eyebrow')?.textContent?.includes('A PATH FORWARD') ?? false)).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('background = "volcano"');
     await act(async () => { window.location.hash = '#/lab?game=maze&mission=m00'; });
     expect(await waitFor(() => Boolean(host.querySelector('.neon-stage')))).toBe(true);
     expect(host.querySelector('.cm-content')?.textContent).toContain('wallColor');
-    expect(useProgress.getState().getGameProgress('platform').codes['python:m00']).toContain('suitColor = "cyan"');
+    expect(useProgress.getState().getGameProgress('platform').codes['python:m00']).toContain('background = "volcano"');
   }, 15000);
 
   it('launches workshop defense, deploys tools, applies its own mods and preserves isolated progress', async () => {
@@ -317,28 +317,26 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.languages__game h2')?.textContent).toBe('MAKITAS VS ZOMBIES');
     await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
     expect(await waitFor(() => Boolean(host.querySelector('.yard__enter')))).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('toolColor = "teal"');
+    expect(host.querySelector('.cm-content')?.textContent).toContain('background = "none"');
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'toolColor = "amber"' } }));
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'background = "sunset"' } }));
     expect(await waitFor(() => Boolean(host.querySelector('.stage .mission__next--ready')))).toBe(true);
     expect(useProgress.getState().getGameProgress('makitas-vs-zombies').completed).toContain('m00');
     await act(async () => host.querySelector<HTMLButtonElement>('.yard__enter')?.click());
     expect(host.querySelectorAll('[role="gridcell"]')).toHaveLength(45);
     await act(async () => host.querySelector<HTMLButtonElement>('[data-cell="2:0"]')?.click());
-    expect(host.querySelector('[data-cell="2:0"]')?.getAttribute('aria-label')).toContain('CIRCULAR SAW');
-    expect(host.querySelector('.yard__power strong')?.textContent).toBe('250');
-    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label^="Select recycle tool"]')?.click());
-    await act(async () => host.querySelector<HTMLButtonElement>('[data-cell="2:0"]')?.click());
-    expect(host.querySelector('.yard__power strong')?.textContent).toBe('300');
+    expect(host.querySelector('[data-cell="2:0"]')?.getAttribute('aria-label')).toContain('empty');
+    expect(host.querySelector('.yard__power strong')?.textContent).toBe('350');
+    expect(host.querySelector<HTMLButtonElement>('.yard__tool')?.disabled).toBe(true);
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
     expect(host.querySelector('.yard__panel h1')?.textContent).toBe('TOOLS DOWN');
     await act(async () => host.querySelector<HTMLButtonElement>('.stage .mission__next--ready')?.click());
-    expect(await waitFor(() => host.querySelector('.yard__eyebrow')?.textContent?.includes('WORKSHOP RADIO') ?? false)).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('toolColor = "amber"');
+    expect(await waitFor(() => host.querySelector('.yard__eyebrow')?.textContent?.includes('LAY THE LANES') ?? false)).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('background = "sunset"');
     await act(async () => { window.location.hash = '#/lab?game=platform&mission=m00'; });
     expect(await waitFor(() => Boolean(host.querySelector('.floor-stage')))).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('suitColor');
-    expect(useProgress.getState().getGameProgress('makitas-vs-zombies').codes['python:m00']).toContain('toolColor = "amber"');
+    expect(host.querySelector('.cm-content')?.textContent).toContain('background');
+    expect(useProgress.getState().getGameProgress('makitas-vs-zombies').codes['python:m00']).toContain('background = "sunset"');
   }, 15000);
 
   it('renders the landing screen', async () => {

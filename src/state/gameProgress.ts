@@ -1,6 +1,7 @@
 import type { LanguageId } from '../interpreter/core/adapter';
 
 export interface GameProgress {
+  checkpoint?: unknown;
   starterMissionId: string;
   currentMissionId: string;
   activeLanguage: LanguageId;
@@ -11,5 +12,5 @@ export interface GameProgress {
 }
 
 export function emptyGameProgress(starterMissionId = 'm00', activeLanguage: LanguageId = 'csharp'): GameProgress {
-  return { starterMissionId, currentMissionId: starterMissionId, activeLanguage, completed: [], freeModeUnlocked: false, bestScore: 0, codes: {} };
+  return { checkpoint: null, starterMissionId, currentMissionId: starterMissionId, activeLanguage, completed: [], freeModeUnlocked: false, bestScore: 0, codes: {} };
 }

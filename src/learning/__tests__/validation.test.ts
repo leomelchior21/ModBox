@@ -121,10 +121,10 @@ describe('mission 03 — POWER CONTROL', () => {
 });
 
 describe('mission 04 — SWITCHES', () => {
-  it('needs both booleans on', () => {
+  it('requires explicit false declarations for both systems', () => {
     const half = ['bool shield = true;', 'bool rapidFire = false;'].join('\n');
     expect(check(MISSION_M04, half).passed).toBe(false);
-    const both = ['bool shield = true;', 'bool rapidFire = true;'].join('\n');
+    const both = ['bool shield = false;', 'bool rapidFire = false;'].join('\n');
     expect(check(MISSION_M04, both).passed).toBe(true);
   });
 });

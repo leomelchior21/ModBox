@@ -16,11 +16,16 @@ export function drawBlade(ctx: CanvasRenderingContext2D, x: number, y: number, r
   ctx.beginPath(); ctx.arc(0, 0, radius * 0.58, 0, Math.PI * 2); ctx.strokeStyle = '#728980'; ctx.stroke();
   ctx.fillStyle = '#214b43'; ctx.beginPath(); ctx.arc(0, 0, radius * 0.23, 0, Math.PI * 2); ctx.fill(); ctx.restore();
 }
-function atlas(ctx: CanvasRenderingContext2D, art: YardArt, index: number, x: number, y: number, width: number, height: number, flip = false): boolean {
+// The painted atlas has four frames per actor, with measured row bounds.
+export const SPRITE_ROWS = [0, 0.12, 0.241, 0.355, 0.482, 0.607, 0.736, 0.851, 1];
+function atlas(ctx: CanvasRenderingContext2D, art: YardArt, index: number, frame: number, x: number, y: number, width: number, height: number): boolean {
   if (!ready(art.sprites)) return false;
-  const w = art.sprites.naturalWidth / 4, h = art.sprites.naturalHeight / 2;
-  ctx.save(); ctx.translate(x, y); if (flip) ctx.scale(-1, 1);
-  ctx.drawImage(art.sprites, index % 4 * w, Math.floor(index / 4) * h, w, h, -width / 2, -height / 2, width, height); ctx.restore(); return true;
+  const w = art.sprites.naturalWidth / 4, top = SPRITE_ROWS[index] * art.sprites.naturalHeight;
+  const h = (SPRITE_ROWS[index + 1] - SPRITE_ROWS[index]) * art.sprites.naturalHeight;
+  // Transparent horizontal padding is part of the cell; preserve native proportions.
+  const scale = Math.min(width / (w * 0.65), height / h), dw = w * scale, dh = h * scale;
+  ctx.save(); ctx.translate(x, y); if (index === 7) ctx.scale(-1, 1);
+  ctx.drawImage(art.sprites, frame * w, top, w, h, -dw / 2, -dh / 2, dw, dh); ctx.restore(); return true;
 }
 function fallbackUnit(ctx: CanvasRenderingContext2D, kind: UnitKind, x: number, y: number, color: string): void {
   ctx.fillStyle = kind === 'wall' ? '#9e794a' : '#177e76'; ctx.fillRect(x - 25, y - 28, 50, 46);
@@ -30,8 +35,17 @@ function fallbackUnit(ctx: CanvasRenderingContext2D, kind: UnitKind, x: number, 
 }
 export function drawYard(ctx: CanvasRenderingContext2D, run: YardRun, art: YardArt, effects: YardEffects, width: number, height: number, reduced: boolean, hover: { row: number; col: number } | null, selected: YardTool): void {
   ctx.save(); ctx.scale(width / VIEW.width, height / VIEW.height);
-  ctx.fillStyle = '#183c2d'; ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-  if (ready(art.yard)) ctx.drawImage(art.yard, 0, 0, VIEW.width, VIEW.height);
+  ctx.fillStyle = '#0b1720'; ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+  if (run.config.background !== 'none' && ready(art.yard)) {
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, VIEW.width, VIEW.y - 12); ctx.clip();
+    ctx.drawImage(art.yard, 0, 0, VIEW.width, VIEW.height); ctx.restore();
+  }
+  if (run.config.background === 'night') { ctx.fillStyle = '#06172ca0'; ctx.fillRect(0, 0, VIEW.width, VIEW.y - 12); ctx.fillStyle = '#e3ebbc'; ctx.beginPath(); ctx.arc(930, 98, 24, 0, Math.PI * 2); ctx.fill(); }
+  if (run.config.ground !== 'none') { ctx.fillStyle = run.config.ground === 'concrete' ? '#555b58' : '#395d32'; ctx.fillRect(VIEW.x - 10, VIEW.y - 10, COLS * VIEW.cw + 20, ROWS * VIEW.ch + 20); }
+  if (run.config.decorations) {
+    for (let i = 0; i < 16; i++) { ctx.fillStyle = '#936b49'; ctx.fillRect(80 + i * 60, VIEW.y - 24, 7, 18); ctx.fillStyle = '#ffd58a'; ctx.fillRect(80 + i * 60, VIEW.y - 27, 7, 4); }
+    ctx.fillStyle = '#997047'; ctx.fillRect(22, 540, 45, 45); ctx.strokeStyle = '#c5a776'; ctx.strokeRect(26, 544, 37, 37); ctx.beginPath(); ctx.moveTo(26, 544); ctx.lineTo(63, 581); ctx.stroke();
+  }
   const shade = ctx.createLinearGradient(0, 0, 0, VIEW.height); shade.addColorStop(0, '#061b18dc'); shade.addColorStop(0.25, '#08261b16'); shade.addColorStop(0.77, '#0a29191a'); shade.addColorStop(1, '#051d18f5');
   ctx.fillStyle = shade; ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   if (!reduced && effects.shake) ctx.translate(Math.sin(effects.time * 70) * 2, Math.cos(effects.time * 50) * 2);
@@ -39,10 +53,10 @@ export function drawYard(ctx: CanvasRenderingContext2D, run: YardRun, art: YardA
   // The board fills its panel, but the painted sprites and blades keep their aspect ratio.
   const fit = Math.min(width / VIEW.width, height / VIEW.height);
   const geometry = { x: fit / (width / VIEW.width), y: fit / (height / VIEW.height) };
-  const sprite = (index: number, x: number, y: number, w: number, h: number, flip = false) => atlas(ctx, art, index, x, y, w * geometry.x, h * geometry.y, flip);
+  const sprite = (index: number, x: number, y: number, w: number, h: number, frame = 0) => atlas(ctx, art, index, frame, x, y, w * geometry.x, h * geometry.y);
   const blade = (x: number, y: number, radius: number, angle: number, tint: string) => drawBlade(ctx, x, y, radius, angle, tint, geometry);
   ctx.fillStyle = '#0b241840'; ctx.fillRect(VIEW.x - 5, VIEW.y - 5, COLS * VIEW.cw + 10, ROWS * VIEW.ch + 10);
-  for (let row = 0; row < ROWS; row++) {
+  for (let row = 0; run.config.ground !== 'none' && row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
       const x = px(col), y = VIEW.y + row * VIEW.ch;
       ctx.fillStyle = (col + row) % 2 ? '#7aa94a20' : '#182f2230'; ctx.fillRect(x + 1, y + 1, VIEW.cw - 2, VIEW.ch - 2);
@@ -51,22 +65,22 @@ export function drawYard(ctx: CanvasRenderingContext2D, run: YardRun, art: YardA
     }
     ctx.fillStyle = '#d5d9a3'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.fillText(String(row + 1).padStart(2, '0'), VIEW.x - 44, py(row) + 5);
     const sweep = run.sweepers[row];
-    if (!sweep.used || sweep.active) { const x = sweep.active ? px(sweep.x) : VIEW.x - 15; ctx.fillStyle = '#2e8472'; ctx.fillRect(x - 22, py(row) - 13, 36, 26); blade(x + 7, py(row), 19, reduced ? 0 : effects.time * (sweep.active ? 30 : 2), '#ffd585'); }
+    if (run.config.toolbox !== 'none' && (!sweep.used || sweep.active)) { const x = sweep.active ? px(sweep.x) : VIEW.x - 15; ctx.fillStyle = '#2e8472'; ctx.fillRect(x - 22, py(row) - 13, 36, 26); blade(x + 7, py(row), 19, reduced ? 0 : effects.time * (sweep.active ? 30 : 2), '#ffd585'); }
     else { ctx.strokeStyle = '#89967c50'; ctx.beginPath(); ctx.moveTo(VIEW.x - 27, py(row) - 8); ctx.lineTo(VIEW.x - 8, py(row) + 8); ctx.stroke(); }
   }
-  if (hover && run.phase === 'playing') {
+  if (hover && run.phase === 'playing' && run.toolAvailable(selected)) {
     const unit = run.units.find(u => u.row === hover.row && u.col === hover.col), action = selected === 'upgrade' || selected === 'recycle';
     const valid = action ? Boolean(unit) : !unit && run.power >= UNIT_INFO[selected].cost;
     ctx.strokeStyle = valid ? color : '#ff9b80'; ctx.lineWidth = 3; ctx.fillStyle = valid ? `${color}20` : '#ff826b24';
     ctx.fillRect(px(hover.col) + 2, VIEW.y + hover.row * VIEW.ch + 2, VIEW.cw - 4, VIEW.ch - 4); ctx.strokeRect(px(hover.col) + 3, VIEW.y + hover.row * VIEW.ch + 3, VIEW.cw - 6, VIEW.ch - 6);
-    if (!action && !unit) { ctx.globalAlpha = 0.45; if (!sprite(UNIT_INFO[selected].sprite, px(hover.col + 0.5), py(hover.row) - 9, 82, 98, true)) fallbackUnit(ctx, selected, px(hover.col + 0.5), py(hover.row), color); ctx.globalAlpha = 1; }
+    if (!action && !unit) { ctx.globalAlpha = 0.45; if (!sprite(UNIT_INFO[selected].sprite, px(hover.col + 0.5), py(hover.row) - 9, 82, 78)) fallbackUnit(ctx, selected, px(hover.col + 0.5), py(hover.row), color); ctx.globalAlpha = 1; }
   }
   for (let row = 0; row < ROWS; row++) {
     for (const u of run.units.filter(u => u.row === row)) {
       const x = px(u.col + 0.5), y = py(row), pulse = reduced ? 0 : Math.sin(effects.time * 5 + u.id) * 1;
       ctx.fillStyle = '#03170d70'; ctx.beginPath(); ctx.ellipse(x, y + 27, 29, 9, 0, 0, Math.PI * 2); ctx.fill();
-      if (!sprite(UNIT_INFO[u.kind].sprite, x, y - 8 + pulse, 88, 100, true)) fallbackUnit(ctx, u.kind, x, y, color);
-      if (u.kind === 'saw' || u.kind === 'frost') { ctx.shadowColor = u.kind === 'frost' ? '#a6edff' : color; ctx.shadowBlur = u.flash > 0 ? 14 : 3; blade(x + 21 * geometry.x, y - 8 - 8 * geometry.y + pulse, 19, reduced ? 0 : effects.time * (u.flash > 0 ? 40 : 8), u.kind === 'frost' ? '#a6edff' : color); ctx.shadowBlur = 0; }
+      if (!sprite(UNIT_INFO[u.kind].sprite, x, y - 8 + pulse, 88, 78, reduced ? 0 : Math.floor(effects.time * (u.flash > 0 ? 14 : 5) + u.id) % 4)) fallbackUnit(ctx, u.kind, x, y, color);
+      if (u.kind === 'saw' || u.kind === 'frost') { ctx.strokeStyle = u.kind === 'frost' ? '#a6edff' : color; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y + 27, 29, 9, 0, 0, Math.PI * 2); ctx.stroke(); }
       if (u.flash > 0) { ctx.fillStyle = '#fff3b52a'; ctx.beginPath(); ctx.arc(x, y - 8, 34, 0, Math.PI * 2); ctx.fill(); }
       if (u.hp < u.maxHp) bar(ctx, x, y + 34, u.hp / u.maxHp, '#80d1ae');
       if (u.level > 1) { ctx.fillStyle = '#ffdc87'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center'; ctx.fillText('★'.repeat(u.level - 1), x, y + 45); }
@@ -77,7 +91,7 @@ export function drawYard(ctx: CanvasRenderingContext2D, run: YardRun, art: YardA
       ctx.fillStyle = '#03170d70'; ctx.beginPath(); ctx.ellipse(x, y + 27, brute ? 34 : 22, 9, 0, 0, Math.PI * 2); ctx.fill();
       if (z.slowed > 0) { ctx.strokeStyle = '#a1e9ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y + 24, 27, 10, 0, 0, Math.PI * 2); ctx.stroke(); }
       if (z.flash > 0) ctx.globalAlpha = 0.5;
-      if (!sprite(ZOMBIE_INFO[z.kind].sprite, x, y - (brute ? 14 : 9) + bob, brute ? 110 : 80, brute ? 126 : 103)) {
+      if (!sprite(ZOMBIE_INFO[z.kind].sprite, x, y - (brute ? 14 : 9) + bob, brute ? 110 : 80, brute ? 104 : 86, reduced ? 0 : Math.floor(effects.time * (z.kind === 'sprinter' ? 10 : 6) + z.id) % 4)) {
         ctx.fillStyle = '#829b5e'; ctx.fillRect(x - 15, y - 34 + bob, 30, 32); ctx.fillStyle = '#c18140'; ctx.fillRect(x - 18, y - 5, 32, 27); ctx.fillStyle = '#fff1c2'; ctx.fillRect(x - 17, y - 25 + bob, 7, 8);
       }
       ctx.globalAlpha = 1;

@@ -23,12 +23,12 @@ export const HERO_WIDTH = 22, HERO_HEIGHT = 30;
 const metrics = (): FloorMetrics => ({ jumps: 0, doubleJumps: 0, crystals: 0, exits: 0, hits: 0, minLives: 3, ruleTraces: [] });
 
 /** Every default jump can clear a gap and the next platform's height change. */
-export function generateCavern(level = 1): Cavern {
+export function generateCavern(level = 1, count = 14): Cavern {
   const platforms: Platform[] = [{ id: 0, x: 0, y: 430, width: 330, checkpoint: true, spike: false }];
   let x = 410;
-  for (let id = 1; id <= 14; id++) {
+  for (let id = 1; id <= count; id++) {
     const y = [410, 390, 420, 400][(id + level - 2) % 4];
-    platforms.push({ id, x, y, width: id === 14 ? 260 : 170, checkpoint: id % 4 === 0, spike: id % 4 === 3 });
+    platforms.push({ id, x, y, width: id === count ? 260 : 170, checkpoint: id % 4 === 0, spike: id % 4 === 3 });
     x += 250;
   }
   const last = platforms.at(-1)!;
@@ -40,7 +40,7 @@ export function generateCavern(level = 1): Cavern {
 export class DevilFloorRun {
   phase: FloorPhase = 'launch';
   config: FloorConfig = { ...FLOOR_DEFAULTS };
-  cavern = generateCavern();
+  cavern = generateCavern(1, FLOOR_DEFAULTS.platforms);
   player = { x: 70, y: 430 - HERO_HEIGHT, vx: 0, vy: 0 };
   grounded: number | null = 0;
   facing = 1;
@@ -55,7 +55,7 @@ export class DevilFloorRun {
   platformHeat = new Map<number, number>();
   collapsed = new Set<number>();
   metrics = metrics();
-  messages = ['THE FLOOR IS ALIVE · Keep moving. Reach the exit beacon.'];
+  messages = ['BUILD YOUR WORLD · Add a backdrop, then platforms to make a route.'];
   events: FloorEvent[] = [];
   feedback: FloorCue[] = [];
   visualRevision = 0;
@@ -87,25 +87,26 @@ export class DevilFloorRun {
   snapshot(): FloorSnapshot {
     return { phase: this.phase, config: { ...this.config }, score: this.score, lives: this.lives, level: this.level,
       gems: this.collected.size, checkpoint: this.checkpoint, shieldReady: this.config.shield && this.shieldCooldown <= 0,
-      routeProgress: Math.min(100, Math.round(this.player.x / this.cavern.exit.x * 100)),
+      routeProgress: this.config.platforms ? Math.min(100, Math.round(this.player.x / this.cavern.exit.x * 100)) : 0,
       airJumpReady: this.config.doubleJump && !this.airJumpUsed, shieldCooldown: this.shieldCooldown,
-      floorRemaining: this.grounded !== null && this.grounded !== 0 && !this.config.safeFloor
+      floorRemaining: this.grounded !== null && this.grounded !== 0 && !this.config.safeFloor && this.config.platformEffect === 'crumble'
         ? Math.max(0, this.config.meltDelay - (this.platformHeat.get(this.grounded) ?? 0)) : null,
       metrics: { ...this.metrics, ruleTraces: [...this.metrics.ruleTraces] }, messages: [...this.messages] };
   }
   private resetStage(): void {
     this.visualRevision++; this.feedback = [];
-    this.cavern = generateCavern(this.level); this.collected.clear(); this.checkpoint = 0;
+    this.cavern = generateCavern(this.level, this.config.platforms); this.collected.clear(); this.checkpoint = 0;
     this.elapsed = 0; this.shieldCooldown = 0; this.respawn();
   }
   private respawn(): void {
-    const platform = this.cavern.platforms[this.config.checkpoints ? this.checkpoint : 0];
+    const platform = this.cavern.platforms[this.config.checkpoints ? this.checkpoint : 0] ?? this.cavern.platforms[0];
     this.player = { x: platform.x + 35, y: platform.y - HERO_HEIGHT, vx: 0, vy: 0 };
     this.grounded = platform.id; this.coyote = 0.1; this.airJumpUsed = false; this.invulnerable = 1.3;
     this.platformHeat.clear(); this.collapsed.clear(); this.releaseInput();
     this.cue('respawn', this.player.x + HERO_WIDTH / 2, this.player.y + HERO_HEIGHT / 2);
   }
   fireballs(): { x: number; y: number }[] {
+    if (this.config.fireballStyle === 'none') return [];
     return this.cavern.platforms.filter(p => p.id > 0 && p.id % 3 === 2).map(p => ({
       x: p.x - 40, y: LAVA_Y - 18 - (Math.sin(this.elapsed * (1.4 + this.config.lavaSpeed * 0.4) + p.id) + 1) * 65,
     }));
@@ -158,7 +159,7 @@ export class DevilFloorRun {
         break;
       }
     }
-    if (this.grounded !== null && this.grounded !== 0 && !this.config.safeFloor) {
+    if (this.grounded !== null && this.grounded !== 0 && !this.config.safeFloor && this.config.platformEffect === 'crumble') {
       const heat = (this.platformHeat.get(this.grounded) ?? 0) + dt; this.platformHeat.set(this.grounded, heat);
       if (heat >= this.config.meltDelay) {
         const platform = this.cavern.platforms[this.grounded];
@@ -178,7 +179,7 @@ export class DevilFloorRun {
     if (spikes.some(p => this.player.x + HERO_WIDTH > p.x + 65 && this.player.x < p.x + 93
       && this.player.y + HERO_HEIGHT > p.y - 18 && this.player.y < p.y)) this.hit(false);
     if (this.fireballs().some(f => Math.hypot(this.player.x + HERO_WIDTH / 2 - f.x, this.player.y + HERO_HEIGHT / 2 - f.y) < 27)) this.hit(false);
-    if (this.phase === 'playing' && Math.abs(this.player.x + HERO_WIDTH / 2 - this.cavern.exit.x) < 30
+    if (this.config.platforms > 0 && this.phase === 'playing' && Math.abs(this.player.x + HERO_WIDTH / 2 - this.cavern.exit.x) < 30
       && this.grounded === this.cavern.platforms.at(-1)!.id) {
       this.score += 250; this.metrics.exits++; this.phase = 'cleared'; this.events.push('clear'); this.log('EXIT REACHED · Cavern conquered.');
       this.cue('clear', this.cavern.exit.x, this.cavern.exit.y - 35, 'CAVERN CLEARED +250');
@@ -199,7 +200,17 @@ export class DevilFloorRun {
   private evaluate(): void {
     if (!this.program) return;
     const runtime = { score: this.score, lives: this.lives, gems: this.collected.size, height: Math.max(0, Math.round(LAVA_Y - this.player.y - HERO_HEIGHT)), stage: this.level, jumps: this.metrics.jumps };
+    const previousCount = this.config.platforms;
     const { config, frame } = evaluateGameScript(this.program, this.base, runtime, floorSchema); this.config = config;
+    if (previousCount !== config.platforms) {
+      this.cavern = generateCavern(this.level, config.platforms);
+      this.checkpoint = Math.min(this.checkpoint, config.platforms);
+      for (const id of this.collapsed) if (id > config.platforms) this.collapsed.delete(id);
+      for (const id of this.collected) if (id > config.platforms) this.collected.delete(id);
+      for (const id of this.platformHeat.keys()) if (id > config.platforms) this.platformHeat.delete(id);
+      if (this.player.x > this.cavern.width - HERO_WIDTH || (this.grounded !== null && this.grounded > config.platforms)) this.respawn();
+      this.cue('checkpoint', this.player.x + 11, this.player.y - 20, `${config.platforms} PLATFORMS BUILT`);
+    }
     for (const trace of frame.traces) {
       if (!this.metrics.ruleTraces.includes(trace.text)) this.metrics.ruleTraces.push(trace.text);
       if (!this.activeRules.has(trace.ruleId)) {

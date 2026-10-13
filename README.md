@@ -71,11 +71,13 @@ Every concept unlocks a new form of control over the game:
 | 01 NAME YOUR MACHINE | `string` + `Console.WriteLine` | ship name on the HUD + Flight Log |
 | 02 MAKE SOME TROUBLE | `int` | how many rocks are in the field |
 | 03 POWER CONTROL | operators (`+ - * /`) | weapon power |
-| 04 SWITCHES | `bool` | shield + rapid fire |
+| 04 SWITCHES | `bool` | declare shield + rapid fire as false, ready for live rules |
 | 05 THE GAME CAN THINK | `if` + comparisons | the shield switches itself on at a score |
 | 06 DANGER MODE | comparisons on live state | the weapon surges when integrity drops |
 | FINAL MOD | everything | a whole level with rules inside it |
 | FREE MOD MODE | sandbox | every Mod you discovered |
+
+The four-game mission progression and world-building mods are documented in [Current campaigns](docs/current-campaigns.md).
 
 Code feedback is live: parse + apply is debounced ~380 ms, so editing a value changes the world
 without a compile step. Changes that would disrupt an active run are applied at the right moment

@@ -6,6 +6,20 @@ import { loadPersisted } from '../storage';
 beforeEach(() => { useProgress.getState().resetProgress(); localStorage.clear(); });
 
 describe('game progress isolation', () => {
+  it('saves wave checkpoints immediately, isolates them and clears them with a game reset', () => {
+    const store = useProgress.getState(), checkpoint = { version: 1, nextWave: 2 };
+    store.selectGame('makitas-vs-zombies', 'm00');
+    store.setGameCheckpoint('makitas-vs-zombies', checkpoint);
+    expect(loadPersisted().games['makitas-vs-zombies'].checkpoint).toEqual(checkpoint);
+    store.selectGame('platform', 'm00');
+    expect(useProgress.getState().checkpoint).toBeNull();
+    store.setGameCode('makitas-vs-zombies', 'csharp:m03', 'saved code');
+    expect(store.getGameProgress('makitas-vs-zombies').checkpoint).toEqual(checkpoint);
+    store.selectGame('makitas-vs-zombies', 'm00');
+    expect(useProgress.getState().checkpoint).toEqual(checkpoint);
+    store.resetCurrentGame();
+    expect(store.getGameProgress('makitas-vs-zombies').checkpoint).toBeNull();
+  });
   it('keeps code, language, scores, unlocks and missions separate when games share mission IDs', () => {
     const store = useProgress.getState();
     store.setCode('csharp:m00', 'string enemy = "big-rock";');

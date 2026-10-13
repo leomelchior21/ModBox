@@ -74,6 +74,7 @@ export function drawMaze(ctx: CanvasRenderingContext2D, run: NeonMazeRun, width:
   const stunned = run.stunRemaining > 0;
   const sentinelPositions = run.sentinelPositions();
   for (const [i, sentinel] of run.sentinels.entries()) {
+    if (run.caught.has(i)) continue;
     const p = center(reducedMotion ? sentinel : sentinelPositions[i]);
     ctx.fillStyle = stunned ? '#a5dde7' : SENTINEL_COLORS[i % SENTINEL_COLORS.length]; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = stunned ? 5 : 12;
     ctx.globalAlpha = stunned && run.stunRemaining < 1.5 && !reducedMotion ? 0.65 + Math.sin(time * 12) * 0.2 : 1;
@@ -84,6 +85,16 @@ export function drawMaze(ctx: CanvasRenderingContext2D, run: NeonMazeRun, width:
     if (stunned) { ctx.strokeStyle = '#9defff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, cell * 0.42, 0, Math.PI * 2); ctx.stroke(); }
   }
   const p = center(player);
+  const jump = run.phaseVisual;
+  if (jump) {
+    const from = center(jump.from), to = center(jump.to), fade = Math.max(0, 1 - jump.age / 0.5);
+    ctx.globalAlpha = fade; ctx.strokeStyle = '#e5ffff'; ctx.shadowColor = color; ctx.shadowBlur = reducedMotion ? 0 : 20;
+    ctx.lineWidth = cell * 0.18; ctx.setLineDash([cell * 0.2, cell * 0.15]);
+    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke(); ctx.setLineDash([]);
+    for (const point of [from, to]) { ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(point.x, point.y, cell * (0.4 + (reducedMotion ? 0 : jump.age * 2)), 0, Math.PI * 2); ctx.stroke(); }
+    if (!reducedMotion) p.y -= Math.sin(Math.min(1, jump.age / 0.3) * Math.PI) * cell * 0.85;
+    ctx.globalAlpha = 1;
+  }
   ctx.globalAlpha = !reducedMotion && run.invulnerable > 0 && Math.sin(time * 15) < 0 ? 0.65 : 1;
   const orb = ctx.createRadialGradient(p.x - cell * 0.09, p.y - cell * 0.11, 0, p.x, p.y, cell * 0.29);
   orb.addColorStop(0, '#ffffff'); orb.addColorStop(0.45, '#e7fff8'); orb.addColorStop(1, color);
@@ -94,7 +105,26 @@ export function drawMaze(ctx: CanvasRenderingContext2D, run: NeonMazeRun, width:
   ctx.strokeStyle = '#163946'; ctx.globalAlpha *= 0.65; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.ellipse(0, 0, cell * 0.12, cell * 0.27, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   if (run.config.shield && run.shieldCooldown <= 0) { ctx.strokeStyle = '#caff52'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.x, p.y, cell * 0.43, 0, Math.PI * 2); ctx.stroke(); }
-  ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.restore();
+  ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+  for (const burst of run.bursts) {
+    const point = center(burst), progress = burst.age / 0.65;
+    const tint = burst.kind === 'hit' ? '#ff718b' : burst.kind === 'gem' || burst.kind === 'catch' ? '#ffd782' : color;
+    ctx.globalAlpha = 1 - progress; ctx.strokeStyle = tint; ctx.fillStyle = tint; ctx.lineWidth = 1.5;
+    const radius = cell * (0.2 + (reducedMotion ? 0.3 : progress * (burst.kind === 'gem' ? 3 : 1.4)));
+    ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.stroke();
+    if (!reducedMotion) for (let i = 0; i < (burst.kind === 'dot' ? 4 : 12); i++) {
+      const angle = i * 2.39996; ctx.fillRect(point.x + Math.cos(angle) * radius - 1, point.y + Math.sin(angle) * radius - 1, 2, 2);
+    }
+    if (burst.kind === 'catch') { ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center'; ctx.fillText('+100', point.x, point.y - cell - (reducedMotion ? 0 : progress * cell)); }
+  }
+  ctx.globalAlpha = 1;
+  if (!run.config.revealMap) {
+    const light = center(player);
+    const darkness = ctx.createRadialGradient(light.x, light.y, cell * 1.3, light.x, light.y, cell * 4.1);
+    darkness.addColorStop(0, '#030d1700'); darkness.addColorStop(0.6, '#030d1790'); darkness.addColorStop(1, '#030d17ff');
+    ctx.fillStyle = darkness; ctx.fillRect(scrollX, scrollY, viewWidth, viewHeight);
+  }
+  ctx.restore();
 
   // Keep distant objectives findable while the world scrolls off screen.
   ctx.font = `${width < 400 ? 9 : 11}px monospace`; ctx.fillStyle = '#9ac1d4'; ctx.textAlign = 'center';

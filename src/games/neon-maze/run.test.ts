@@ -158,7 +158,7 @@ describe('Neon Maze gameplay', () => {
     run.restart(); expect(run.maze.size).toBe(37);
   });
   it('moves sentinels toward the runner through valid corridors', () => {
-    const run = new NeonMazeRun(8); run.launch(); const initial = run.sentinels.map(cellKey);
+    const run = new NeonMazeRun(8); run.setProgram(parse('int sentinels = 1;')); run.launch(); const initial = run.sentinels.map(cellKey);
     for (let i = 0; i < 15; i++) run.step(0.1, idle);
     expect(run.sentinels.map(cellKey)).not.toEqual(initial);
     expect(run.sentinels.every(s => run.maze.tiles[s.y][s.x])).toBe(true);

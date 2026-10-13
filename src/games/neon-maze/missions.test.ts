@@ -20,10 +20,10 @@ describe('Neon Maze mission gates', () => {
   it('requires live play before completing chase, phase, rule and final missions', () => {
     const program = parseGameScript<MazeConfig>(MAZE_SANDBOX.replace('int sentinels = 2;', 'int sentinels = 3;').replace('bool shield = false;', 'bool shield = true;'), 'csharp', mazeSchema);
     const snapshot = new NeonMazeRun(1).snapshot();
-    for (const id of ['m03', 'm04', 'm05', 'm06', 'final']) expect(mazeMissionPassed(getMazeMission(id), program, snapshot)).toBe(false);
-    snapshot.metrics.cores = 1; snapshot.metrics.phases = 1; snapshot.metrics.exits = 1;
+    for (const id of ['m03', 'm04', 'm06', 'final']) expect(mazeMissionPassed(getMazeMission(id), program, snapshot)).toBe(false);
+    snapshot.metrics.catches = 1; snapshot.metrics.cores = 1; snapshot.metrics.phases = 1; snapshot.metrics.exits = 1;
     snapshot.metrics.minEnergy = 25; snapshot.metrics.ruleTraces = ['score >= 100 → shield = true', 'energy <= 40 → phaseLength = 4'];
-    for (const id of ['m03', 'm04', 'm05', 'm06', 'final']) expect(mazeMissionPassed(getMazeMission(id), program, snapshot)).toBe(true);
+    for (const id of ['m03', 'm04', 'm06', 'final']) expect(mazeMissionPassed(getMazeMission(id), program, snapshot)).toBe(true);
   });
 });
 describe.each<LanguageId>(['csharp', 'python', 'swift'])('%s maze learning content', language => {
@@ -34,9 +34,9 @@ describe.each<LanguageId>(['csharp', 'python', 'swift'])('%s maze learning conte
     for (const tool of MAZE_TOOLS) expect(parseGameScript<MazeConfig>(source + '\n' + formatCodeForLanguage(tool.example, language), language, mazeSchema).ok, tool.id).toBe(true);
   });
   it('accepts the string and arithmetic teaching steps', () => {
-    const source = ['string wallColor = "violet";', 'string runnerName = "Aurora";', 'Console.WriteLine(runnerName);', 'int moveSpeed = 4;', 'moveSpeed = moveSpeed + 2;'].join('\n');
+    const source = ['string wallColor = "violet";', 'int sentinels = 3;', 'int moveSpeed = 4;', 'moveSpeed = moveSpeed + 2;'].join('\n');
     const program = parseGameScript<MazeConfig>(formatCodeForLanguage(source, language), language, mazeSchema);
-    const snapshot = new NeonMazeRun(2).snapshot();
+    const snapshot = new NeonMazeRun(2).snapshot(); snapshot.metrics.steps = 1;
     for (const id of ['m00', 'm01', 'm02']) expect(mazeMissionPassed(getMazeMission(id), program, snapshot)).toBe(true);
   });
 });

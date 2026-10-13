@@ -15,6 +15,8 @@ export interface Settings {
 }
 
 interface ProgressState {
+  checkpoint: unknown;
+  setGameCheckpoint: (gameId: string, checkpoint: unknown) => void;
   activeGameId: string;
   starterMissionId: string;
   games: Record<string, GameProgress>;
@@ -44,6 +46,7 @@ interface ProgressState {
 const initial = loadPersisted();
 
 export const useProgress = create<ProgressState>()((set, get) => ({
+  checkpoint: initial.games[initial.activeGameId]?.checkpoint ?? null,
   activeGameId: initial.activeGameId,
   starterMissionId: initial.games[initial.activeGameId]?.starterMissionId ?? 'm00',
   games: initial.games,
@@ -56,6 +59,11 @@ export const useProgress = create<ProgressState>()((set, get) => ({
   codes: initial.codes,
   settings: initial.settings,
 
+  setGameCheckpoint: (gameId, checkpoint) => {
+    const state = get(), previous = state.getGameProgress(gameId);
+    set({ games: { ...state.games, [gameId]: { ...previous, checkpoint } }, ...(state.activeGameId === gameId ? { checkpoint } : {}) });
+    savePersisted(toPersisted(get()));
+  },
   setStudentName: (studentName) => set({ studentName }),
 
   setMission: (currentMissionId) => {
@@ -93,7 +101,7 @@ export const useProgress = create<ProgressState>()((set, get) => ({
     }
     const games = { ...state.games, [state.activeGameId]: snapshotGame(state) };
     const next = Object.prototype.hasOwnProperty.call(games, activeGameId) ? games[activeGameId] : emptyGameProgress(starterMissionId, defaultLanguage);
-    set({ ...next, starterMissionId, activeGameId, games });
+    set({ ...next, checkpoint: next.checkpoint ?? null, starterMissionId, activeGameId, games });
   },
 
   getGameProgress: (gameId, starterMissionId = 'm00') => {
@@ -116,12 +124,13 @@ export const useProgress = create<ProgressState>()((set, get) => ({
 }));
 
 function snapshotGame(state: ProgressState): GameProgress {
-  return { starterMissionId: state.starterMissionId, currentMissionId: state.currentMissionId, activeLanguage: state.activeLanguage,
+  return { checkpoint: state.checkpoint, starterMissionId: state.starterMissionId, currentMissionId: state.currentMissionId, activeLanguage: state.activeLanguage,
     completed: state.completed, freeModeUnlocked: state.freeModeUnlocked, bestScore: state.bestScore, codes: state.codes };
 }
 
 function initialReset(): Partial<ProgressState> {
   return {
+    checkpoint: null,
     activeGameId: DEFAULT_GAME_ID,
     starterMissionId: 'm00',
     games: {},

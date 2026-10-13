@@ -19,13 +19,13 @@ export function floorViewport(run: DevilFloorRun, width: number, height: number)
     scrollX: Math.max(0, Math.min(run.cavern.width - viewWidth, run.player.x - viewWidth * 0.32)) };
 }
 
-function cathedral(ctx: CanvasRenderingContext2D, viewWidth: number, scrollX: number, time: number): void {
+function cathedral(ctx: CanvasRenderingContext2D, viewWidth: number, scrollX: number, time: number, day = false): void {
   const moonX = viewWidth * 0.7 - scrollX * 0.025;
   glow(ctx, moonX, 235, 200, '#e8682824');
   ctx.strokeStyle = '#b56a4620'; ctx.lineWidth = 1;
   for (const radius of [66, 76, 83]) { ctx.beginPath(); ctx.arc(moonX, 230, radius, 0, TAU); ctx.stroke(); }
-  ctx.fillStyle = '#cc805128'; ctx.beginPath(); ctx.arc(moonX, 230, 57, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#121918'; ctx.beginPath(); ctx.arc(moonX - 10, 218, 55, 0, TAU); ctx.fill();
+  ctx.fillStyle = day ? '#ffe8a3' : '#cc805128'; ctx.beginPath(); ctx.arc(moonX, 230, 57, 0, TAU); ctx.fill();
+  ctx.fillStyle = day ? '#ffe8a3' : '#121918'; ctx.beginPath(); ctx.arc(moonX - 10, 218, 55, 0, TAU); ctx.fill();
   const drift = scrollX * 0.18, first = Math.floor(drift / 180) - 1;
   for (let i = first; i < first + Math.ceil(viewWidth / 180) + 3; i++) {
     const x = i * 180 - drift, roof = 122 + noise(i + 9) * 40;
@@ -54,7 +54,7 @@ function cathedral(ctx: CanvasRenderingContext2D, viewWidth: number, scrollX: nu
 }
 
 function platform(ctx: CanvasRenderingContext2D, p: Platform, run: DevilFloorRun, time: number, reducedMotion: boolean): void {
-  const heat = run.config.safeFloor ? 0 : Math.min(1, (run.platformHeat.get(p.id) ?? 0) / run.config.meltDelay);
+  const heat = run.config.safeFloor || run.config.platformEffect !== 'crumble' ? 0 : Math.min(1, (run.platformHeat.get(p.id) ?? 0) / run.config.meltDelay);
   const jitter = heat > 0.72 && !reducedMotion ? Math.sin(time * 38 + p.id) * heat * 0.75 : 0;
   ctx.save(); ctx.translate(p.x + jitter, p.y);
   if (p.id > 0) {
@@ -83,6 +83,11 @@ function platform(ctx: CanvasRenderingContext2D, p: Platform, run: DevilFloorRun
     ctx.strokeStyle = `rgba(255,117,54,${heat * 0.9})`; ctx.shadowColor = '#ff692d'; ctx.shadowBlur = heat * 8; ctx.lineWidth = 1.5;
     for (let i = 1; i < 6; i++) { const x = p.width * i / 6; ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x - 7, heat * 18); ctx.lineTo(x + 2, heat * 33); ctx.stroke(); }
     ctx.shadowBlur = 0; glow(ctx, p.width / 2, 0, p.width * 0.6, `rgba(255,103,37,${heat * 0.12})`);
+  }
+  if (run.config.platformEffect === 'glow') {
+    ctx.strokeStyle = '#8cf6ed'; ctx.shadowColor = '#54e3c2'; ctx.shadowBlur = reducedMotion ? 3 : 10 + Math.sin(time * 3 + p.id) * 4;
+    ctx.lineWidth = 2; ctx.strokeRect(1, 1, p.width - 2, 5); ctx.shadowBlur = 0;
+    for (let i = 0; i < 5; i++) { ctx.fillStyle = '#bbfff0'; ctx.fillRect(12 + (p.width - 24) * i / 4, 12, 3, 3); }
   }
   if (p.spike) {
     ctx.fillStyle = '#7d6454'; polygon(ctx, [[65, 0], [79, -18], [93, 0]]); ctx.fill();
@@ -155,18 +160,32 @@ export function drawFloor(ctx: CanvasRenderingContext2D, run: DevilFloorRun, wid
   const color = FLOOR_COLORS[run.config.suitColor] ?? FLOOR_COLORS.amber;
   const { scale, offsetY, scrollX, viewWidth } = floorViewport(run, width, height);
   const clock = reducedMotion ? 0 : time;
-  const sky = ctx.createLinearGradient(0, 0, 0, height); sky.addColorStop(0, '#0b1815'); sky.addColorStop(0.55, '#18211b'); sky.addColorStop(1, '#522b20');
+  const day = run.config.timeOfDay === 'day', built = run.config.background !== 'none';
+  const sky = ctx.createLinearGradient(0, 0, 0, height); sky.addColorStop(0, !built ? '#090f18' : day ? '#5d9fb0' : '#0b1815'); sky.addColorStop(0.55, !built ? '#090f18' : day ? '#b8c5ab' : '#18211b'); sky.addColorStop(1, !built ? '#111e2b' : day ? '#ddb984' : '#522b20');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, width, height);
   const shake = reducedMotion ? 0 : effects?.shake ?? 0;
   ctx.save(); ctx.translate(Math.sin(clock * 93) * shake, offsetY + Math.cos(clock * 77) * shake * 0.55); ctx.scale(scale, scale);
-  cathedral(ctx, viewWidth, scrollX, clock);
+  if (run.config.background === 'cathedral') cathedral(ctx, viewWidth, scrollX, clock, day);
+  else if (built) {
+    const crystal = run.config.background === 'crystal';
+    ctx.fillStyle = day ? '#fff0b5' : '#b6dce0'; ctx.beginPath(); ctx.arc(viewWidth * 0.72 - scrollX * 0.02, 140, day ? 32 : 22, 0, TAU); ctx.fill();
+    for (let layer = 0; layer < 3; layer++) for (let i = -1; i < viewWidth / 160 + 2; i++) {
+      const x = i * 160 - scrollX * (0.08 + layer * 0.08) % 160;
+      const peak = 170 + layer * 55 + noise(i + layer * 13) * 65;
+      ctx.fillStyle = crystal ? ['#263451', '#324c65', '#426b72'][layer] : ['#474447', '#514438', '#5d4936'][layer];
+      polygon(ctx, [[x - 50, 500], [x + 60, peak], [x + 95, peak + 35], [x + 190, 500]]); ctx.fill();
+      ctx.strokeStyle = crystal ? '#96ddec70' : '#ff9e6260'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + 60, peak); ctx.lineTo(x + 40, peak + 110); ctx.lineTo(x + 75, 450); ctx.stroke();
+    }
+  }
   ctx.fillStyle = '#0a1713';
-  for (let i = -1; i < viewWidth / 70 + 2; i++) {
+  for (let i = -1; built && !day && i < viewWidth / 70 + 2; i++) {
     const x = i * 70 - scrollX * 0.08 % 70, length = 15 + noise(i + 5) * 50;
     polygon(ctx, [[x - 20, -offsetY / scale], [x + 70, -offsetY / scale], [x + 55, 68 + length], [x + 31, 40], [x + 12, 62 + length]]); ctx.fill();
   }
   ctx.translate(-scrollX, 0);
   glow(ctx, scrollX + viewWidth * 0.5, 520, viewWidth * 0.8, '#ff793023');
+  if (built) {
   const lava = ctx.createLinearGradient(0, LAVA_Y, 0, 570); lava.addColorStop(0, '#ffdb7e'); lava.addColorStop(0.08, '#f9a54e'); lava.addColorStop(0.35, '#d9632d'); lava.addColorStop(1, '#582e23');
   ctx.fillStyle = lava; ctx.fillRect(scrollX, LAVA_Y, viewWidth, Math.max(160, height / scale));
   for (let j = 0; j < 4; j++) {
@@ -182,6 +201,7 @@ export function drawFloor(ctx: CanvasRenderingContext2D, run: DevilFloorRun, wid
     ctx.fillStyle = '#472b24'; polygon(ctx, [[x - 12, y], [x - 7, y - 3], [x + 13, y - 2], [x + 21, y + 4], [x + 5, y + 9], [x - 11, y + 6]]); ctx.fill();
     ctx.strokeStyle = '#ffb65b8c'; ctx.lineWidth = 0.7; ctx.stroke();
   }
+  }
   for (const p of run.cavern.platforms) if (p.x + p.width >= scrollX - 30 && p.x <= scrollX + viewWidth + 30 && !run.collapsed.has(p.id)) platform(ctx, p, run, clock, reducedMotion);
   for (const crystal of run.cavern.crystals) {
     if (run.collected.has(crystal.id) || crystal.x < scrollX - 30 || crystal.x > scrollX + viewWidth + 30) continue;
@@ -194,14 +214,15 @@ export function drawFloor(ctx: CanvasRenderingContext2D, run: DevilFloorRun, wid
   }
   for (const fire of run.fireballs()) {
     if (fire.x < scrollX - 35 || fire.x > scrollX + viewWidth + 35) continue;
-    glow(ctx, fire.x, fire.y, 52, '#ff87303b');
-    for (let i = 4; i > 0; i--) { ctx.fillStyle = `rgba(247,118,46,${0.15 + (4 - i) * 0.08})`; ctx.beginPath(); ctx.arc(fire.x + Math.sin(clock * 6 + i) * 3, fire.y + i * 7, 12 - i * 1.5, 0, TAU); ctx.fill(); }
-    ctx.fillStyle = '#ed6c33'; ctx.beginPath(); ctx.arc(fire.x, fire.y, 12, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#ffbd68'; ctx.beginPath(); ctx.arc(fire.x - 2, fire.y - 3, 7, 0, TAU); ctx.fill();
+    const fireColor = run.config.fireballStyle === 'plasma' ? '#7ddfff' : run.config.fireballStyle === 'emerald' ? '#8dffa7' : '#ed6c33';
+    glow(ctx, fire.x, fire.y, 52, `${fireColor}55`);
+    for (let i = 4; i > 0; i--) { ctx.fillStyle = `${fireColor}${Math.round((0.15 + (4 - i) * 0.08) * 255).toString(16).padStart(2, '0')}`; ctx.beginPath(); ctx.arc(fire.x + Math.sin(clock * 6 + i) * 3, fire.y + i * 7, 12 - i * 1.5, 0, TAU); ctx.fill(); }
+    ctx.fillStyle = fireColor; ctx.beginPath(); ctx.arc(fire.x, fire.y, 12, 0, TAU); ctx.fill();
+    ctx.fillStyle = run.config.fireballStyle === 'fire' ? '#ffbd68' : '#e3fff9'; ctx.beginPath(); ctx.arc(fire.x - 2, fire.y - 3, 7, 0, TAU); ctx.fill();
     ctx.fillStyle = '#fff0ae'; ctx.beginPath(); ctx.arc(fire.x - 3, fire.y - 5, 3, 0, TAU); ctx.fill();
   }
   const exit = run.cavern.exit;
-  if (exit.x >= scrollX - 80 && exit.x < scrollX + viewWidth + 80) {
+  if (run.config.platforms > 0 && exit.x >= scrollX - 80 && exit.x < scrollX + viewWidth + 80) {
     glow(ctx, exit.x, exit.y - 43, 100, '#dceb8b25');
     ctx.fillStyle = '#505a3e'; ctx.fillRect(exit.x - 40, exit.y - 83, 10, 83); ctx.fillRect(exit.x + 30, exit.y - 83, 10, 83);
     ctx.strokeStyle = '#808b5b'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(exit.x, exit.y - 40, 37, Math.PI, TAU); ctx.stroke();
@@ -218,7 +239,7 @@ export function drawFloor(ctx: CanvasRenderingContext2D, run: DevilFloorRun, wid
   if (ground) { ctx.fillStyle = '#07120ba0'; ctx.beginPath(); ctx.ellipse(run.player.x + 11, ground.y + 1, 13, 2.5, 0, 0, TAU); ctx.fill(); }
   hero(ctx, run, color, clock, reducedMotion, effects);
   if (effects) feedback(ctx, effects, reducedMotion);
-  if (!reducedMotion) for (let i = 0; i < 20; i++) {
+  if (built && !reducedMotion) for (let i = 0; i < 20; i++) {
     const x = scrollX + (noise(i * 3) * viewWidth + Math.sin(clock * 0.4 + i) * 10 + viewWidth) % viewWidth;
     const y = LAVA_Y - (clock * (8 + noise(i) * 12) + noise(i + 7) * 280) % 300;
     ctx.globalAlpha = (1 - (LAVA_Y - y) / 300) * 0.65; ctx.fillStyle = i % 4 ? '#dfa166' : '#ffdf9a'; ctx.fillRect(x, y, i % 3 ? 1 : 2, 2);
