@@ -5,7 +5,8 @@ behind them and rebuild the world while they fly it.
 
 > CODE IS THE GAME MODIFIER.
 
-Play **VECTOR ZERO**, **NEON MAZE**, **DEVIL FLOOR**, **MAKITAS VS ZOMBIES** and **BLOCK FORGE**.
+Play **VECTOR ZERO**, **NEON MAZE**, **DEVIL FLOOR**, **MAKITAS VS ZOMBIES**, **BLOCK FORGE**,
+**MAKITA SLINGERS**, **NAJA RUN**, **PINBALLERZ** and **SPEED STACK**.
 Each game has a guided Python, Swift and C# campaign, a final challenge, and a free sandbox
 where every discovered Mod is unlocked.
 
@@ -77,7 +78,14 @@ Every concept unlocks a new form of control over the game:
 | FINAL MOD | everything | a whole level with rules inside it |
 | FREE MOD MODE | sandbox | every Mod you discovered |
 
-The five-game mission progression and world-building mods are documented in [Current campaigns](docs/current-campaigns.md).
+The nine-game mission progression and world-building mods are documented in [Current campaigns](docs/current-campaigns.md).
+
+MAKITA SLINGERS launches sawblades through destructible robot towers. NAJA RUN gathers fruit in
+temple gardens. PINBALLERZ has moving flippers, jet bumpers and three-star jackpots. SPEED STACK
+cuts slab overhangs and rewards perfect timing. All four have original covers, gameplay scenery,
+transparent sprite atlases and SVG wordmarks; the [asset manifest](docs/premium-arcade-art.json)
+records the image-generation prompts and saved paths. Their game views expand on demand while
+preserving the code desk, with keyboard and touch controls, reduced-motion effects and stage saves.
 
 Code feedback is live: parse + apply is debounced ~380 ms, so editing a value changes the world
 without a compile step. Changes that would disrupt an active run are applied at the right moment

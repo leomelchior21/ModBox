@@ -1,0 +1,107 @@
+{
+  "method": "Built-in image_gen tool. WebP encoding preserves alpha; SVG wordmarks are original code-native artwork.",
+  "assets": [
+    {
+      "key": "makita-slingers-cover",
+      "game": "makita-slingers",
+      "kind": "cover",
+      "prompt": "Use case: stylized-concept. Asset type: original premium game key art, landscape 1536x1024. Create MAKITA SLINGERS cover illustration with NO TEXT or logos. A heroic teal mechanical slingshot in the left foreground launches a large silver circular sawblade with teal hub, amber sparks and a sweeping cyan trajectory toward a precarious tower of timber, riveted steel and crates defended by goofy little orange scrap robots on the right. Sunlit industrial island quarry, distant cranes and mountains, warm dust, cinematic golden rim lighting, lush teal shadows, expressive meticulously painted polished 3D game art. Broad readable silhouettes, strong central action, central 70 percent safe for 16:9 and mobile crops. No birds, pigs, franchise characters, brand marks, UI, borders or watermark. Family-friendly non-gory destruction. Finished production artwork, not a concept sheet.",
+      "sourceFile": "exec-e7d35d41-3672-4d8d-8d60-d6463569436e.png",
+      "output": "public/art/makita-slingers/cover.webp"
+    },
+    {
+      "key": "naja-run-cover",
+      "game": "naja-run",
+      "kind": "cover",
+      "prompt": "Use case: stylized-concept. Asset type: original premium game key art, landscape 1536x1024. Create NAJA RUN cover illustration with NO TEXT or logos. A charismatic magnificent jade-green cobra with warm gold hood markings and luminous turquoise scales races in a curving S through a mysterious overgrown jungle temple. Glowing amber fruit and violet energy crystals guide its path across mossy stone tiles. Elevated three-quarter camera, emerald foliage, ancient carved pillars, tiny fireflies, gorgeous purple twilight shafts, golden eyes, appealing intelligent expression, elegant motion and no scary attack. Premium polished stylized 3D game illustration, rich material detail, cinematic depth, extremely crisp focal subject, strong readable silhouette. Keep main cobra and path central for 16:9 and mobile crops. No existing game characters, UI, text, borders, logos or watermark.",
+      "sourceFile": "exec-25b724c5-1c5b-4af3-94f2-e88362f08e2c.png",
+      "output": "public/art/naja-run/cover.webp"
+    },
+    {
+      "key": "pinballerz-cover",
+      "game": "pinballerz",
+      "kind": "cover",
+      "prompt": "Use case: stylized-concept. Asset type: original premium game key art, landscape 1536x1024. PINBALLERZ futuristic luxury neon pinball arcade illustration, NO TEXT or logos. Dramatic low three-quarter closeup over a spectacular purple-black pinball playfield: brilliant chrome ball in the foreground catching pink and cyan neon reflections, pair of sculpted coral-magenta flippers, three glowing round cyan jet bumpers, gold star targets, elegant luminous rails, tiny electric sparks, glossy enamel and brushed metal, blurred atmospheric midnight arcade beyond. Premium polished stylized 3D game rendering, tactile materials, cinematic bloom kept controlled, exquisite reflections, readable composition, central ball and bumpers safe for 16:9/mobile crops. No people, real brands, game screenshots, readable words, UI, watermark, or borders.",
+      "sourceFile": "exec-e1ef4130-9291-491e-9f52-72eaa3110c7a.png",
+      "output": "public/art/pinballerz/cover.webp"
+    },
+    {
+      "key": "speed-stack-cover",
+      "game": "speed-stack",
+      "kind": "cover",
+      "prompt": "Use case: stylized-concept. Asset type: original premium game key art, landscape 1536x1024. SPEED STACK game cover illustration with NO TEXT or logos. A towering elegant stack of thick jewel-colored architectural slabs rises from a floating dark pedestal above clouds at blue hour, an incoming glowing coral slab is sliding into place with a bright perfect-placement seam, one golden offcut tumbles dramatically beside it. Isometric three-quarter camera, lavender, mint, cyan and coral translucent glass and matte ceramic slabs, slender brass edges, distant abstract city towers, peach horizon and violet atmosphere, subtle motion trails and sparkling dust. Premium polished stylized 3D mobile game key art, extremely tactile bevels and ambient occlusion, sophisticated candy color palette, clean silhouette, exciting precarious height. Central tower safe for 16:9 and portrait crops. No UI, text, brands, watermark, existing franchise imagery, or borders.",
+      "sourceFile": "exec-8c1c95dd-0657-4d51-89d9-c3e8ef5c2607.png",
+      "output": "public/art/speed-stack/cover.webp"
+    },
+    {
+      "key": "makita-slingers-sprites",
+      "game": "makita-slingers",
+      "kind": "sprites",
+      "prompt": "Use case: stylized-concept. Asset type: production 2D game sprite atlas on a genuinely transparent background, square 1024x1024, EXACTLY 4 columns by 2 rows of equal 256x512 cells, no visible grid. Each object centered in its own cell with at least 20 percent transparent padding, fully separated. Row 1 left to right: a silver circular sawblade with teal metal hub seen flat FRONT ON as a perfect circle; another silver circular sawblade with amber hub seen front on; a small expressive round orange scrap robot enemy with two eyes full body; a larger orange armored scrap robot enemy with riveted steel helmet full body. Row 2 left to right: a thick vertical weathered timber beam; a chunky vertical teal riveted steel beam; a square wooden explosive crate with a glowing amber lightning emblem, no words; a sturdy teal industrial Y-shaped mechanical slingshot facing right. Premium stylized hand-painted game assets, rich teal metal, orange accents, warm edge lighting, crisp dark edges and readable silhouettes. Orthographic side-view game sprites, consistent scale within cells. No scenery, floor, cast shadows, text, logos, extra objects, grid lines or watermark. Transparent empty space everywhere around the 8 separate objects.",
+      "sourceFile": "exec-2f3b5a17-b230-4b5b-b69b-ea5e844d18c5.png",
+      "output": "public/art/makita-slingers/sprites.webp"
+    },
+    {
+      "key": "naja-run-sprites",
+      "game": "naja-run",
+      "kind": "sprites",
+      "prompt": "Use case: stylized-concept. Asset type: production top-down 2D game sprite atlas on genuinely transparent background, square 1024x1024, EXACTLY four columns by two rows, 8 evenly spaced centered sprites in equal 256x512 cells with 20 percent transparent margins. All viewed DIRECTLY FROM ABOVE, game ready: row 1 left to right, jade cobra head with gold hood markings pointing UP; same cobra head pointing RIGHT; same cobra head pointing DOWN; same cobra head pointing LEFT. Row 2 left to right, a luminous amber-gold tropical fruit with two leaves; a radiant violet faceted crystal; a rounded square mossy dark temple stone obstacle with subtle carved snake motif; a small glowing gold and turquoise protective shield charm. Premium polished stylized 3D painted sprites, appealing intelligent cobra eyes, rich shiny emerald scales, crisp silhouette, gold and violet accents, controlled highlights. No perspective floor, scenery, text, labels, grid, logos, shadows outside objects, watermark or extra objects. Preserve transparency.",
+      "sourceFile": "exec-a10670e1-a3f7-4fb1-9ae5-da5c97a52064.png",
+      "output": "public/art/naja-run/sprites.webp"
+    },
+    {
+      "key": "pinballerz-sprites",
+      "game": "pinballerz",
+      "kind": "sprites",
+      "prompt": "Use case: stylized-concept. Asset type: production top-down 2D pinball sprite atlas on genuinely transparent background, square 1024x1024, EXACTLY four columns by two rows, equal 256x512 cells, one isolated object at each cell center, 20 percent transparent padding. View objects directly from above. Row 1 left to right: perfect circular polished chrome pinball with cyan pink reflections; circular cyan neon jet bumper with a violet metal center and gold ring; circular hot pink neon jet bumper with a violet metal center and gold ring; circular gold star jet bumper. Row 2 left to right: sculpted glossy coral pink LEFT pinball flipper, rounded thick pivot left tapering right, oriented horizontally; mirror RIGHT flipper pivot right tapering left; standalone faceted gold star target; standalone cyan crystalline diamond target. Premium polished stylized 3D game assets, tactile enamel, brushed chrome and jewel materials, rich controlled neon glow, crisp silhouettes. No playfield, background, floor, UI, text, logos, grid lines, watermark or extra objects. Real transparent background.",
+      "sourceFile": "exec-566e6473-2d03-4730-821f-5660b87fc879.png",
+      "output": "public/art/pinballerz/sprites.webp"
+    },
+    {
+      "key": "speed-stack-sprites",
+      "game": "speed-stack",
+      "kind": "sprites",
+      "prompt": "Use case: stylized-concept. Asset type: production decorative isometric game sprite atlas on genuinely transparent background, square 1024x1024, EXACTLY four columns by two rows of equal 256x512 cells with one isolated centered object per cell and at least 20 percent margins. Consistent isometric camera. Row 1 left to right: a thick lavender ceramic square architectural slab with beveled edges; a thick turquoise glass square slab with brass rim; a thick coral ceramic square slab with beveled edges; a thick golden amber glass square slab with brass rim. Row 2 left to right: a dark graphite floating square pedestal with gold edge; a small gold star-shaped perfect-placement badge viewed front on; a glossy lavender rocket-shaped score charm; a small bright mint crystal crown badge viewed front on. Premium luxurious polished 3D game rendering, tactile bevels, sophisticated colors, sharp distinct silhouettes, restrained highlights. No floor, environment, external cast shadows, grid, text, labels, logos, watermark or extra objects. Genuine transparent empty space.",
+      "sourceFile": "exec-bb512c40-79b7-4b8e-a1c0-d309594b571e.png",
+      "output": "public/art/speed-stack/sprites.webp"
+    },
+    {
+      "key": "makita-slingers-background",
+      "game": "makita-slingers",
+      "kind": "background",
+      "prompt": "Use case: stylized-concept. Asset type: premium 2D SIDE-VIEW slingshot game BACKGROUND, landscape 1536x1024. An empty golden-hour industrial quarry and sawmill landscape. Distant terraced sandstone cliffs, very distant teal cranes, pine trees, pale warm clouds and blue mountain silhouettes. Orthographic side-on horizontal gameplay view with a clean empty midground and lots of open sky; environment details stay along the far horizon and image edges. Painted premium stylized 3D materials, teal shadows, honey sunlight. No foreground props, no slingshots, no sawblades, no characters, robots, towers, crates, UI, text, logos or watermark. This is scenery behind a playable physics scene, not game cover art. Keep the center and lower midground calm and unobstructed.",
+      "sourceFile": "exec-aa889b8f-7e51-40c3-a515-333ce9947f75.png",
+      "output": "public/art/makita-slingers/background.webp"
+    },
+    {
+      "key": "naja-run-background",
+      "game": "naja-run",
+      "kind": "background",
+      "prompt": "Use case: stylized-concept. Asset type: premium jungle temple game background, landscape 1536x1024. A serene empty ancient jungle garden at purple twilight, mossy dark stone pillars and carved arches on the far left and right edges, lush emerald leaves, hanging vines, distant waterfalls and softly glowing gold fireflies. A broad empty dark moss-covered stone courtyard occupies the central two thirds; it must remain visually quiet for a separate game board. Rich polished painted game scenery, jade turquoise and restrained gold accents, cinematic atmospheric depth. NO snakes, animals, fruit, crystals, collectibles, foreground characters, UI, text, logos or watermark. Dedicated unobtrusive gameplay scenery, not a game cover.",
+      "sourceFile": "exec-44c3cf08-d714-4bfa-a4b4-7965f5c186b1.png",
+      "output": "public/art/naja-run/background.webp"
+    },
+    {
+      "key": "pinballerz-background",
+      "game": "pinballerz",
+      "kind": "background",
+      "prompt": "Use case: stylized-concept. Asset type: premium pinball game decorative BACKGROUND texture, landscape 1536x1024. A gorgeous very dark midnight-purple brushed-metal arcade surface with tasteful engraved circuit lines, tiny gold screws along the outer edges, restrained cyan and magenta reflections, subtle abstract star motifs, rich tactile enamel. Direct flat top-down view. Leave the central two thirds almost plain deep violet with very low visual contrast so a separate playable pinball table can sit on top. No pinball table, no balls, bumpers, paddles, rails, characters, machines, words, UI, logos, watermark or borders. Sophisticated quiet environment texture with occasional neon edge glow, not a complete game screenshot.",
+      "sourceFile": "exec-e3eadf8f-5edd-4be1-8242-79d5c0a09405.png",
+      "output": "public/art/pinballerz/background.webp"
+    },
+    {
+      "key": "speed-stack-background",
+      "game": "speed-stack",
+      "kind": "background",
+      "prompt": "Use case: stylized-concept. Asset type: premium isometric stacking game BACKGROUND, landscape 1536x1024. A tranquil blue-hour skyline high above soft peach and lavender clouds. Distant slender art-deco city towers appear only near the far left and right edges, warm sunset horizon behind. Broad empty lavender sky and soft clouds in the center provide room for a separately rendered playable tower. Premium stylized 3D painted atmosphere, sophisticated pastel mint, violet and peach, cinematic ambient lighting, luxurious serene mood. NO foreground towers, blocks, slabs, pedestals, falling objects, stars, badges, characters, UI, text, logos or watermark. Dedicated unobtrusive scenery, not cover art.",
+      "sourceFile": "exec-e59ef00d-1587-49e1-a4bb-6006d8059e7c.png",
+      "output": "public/art/speed-stack/background.webp"
+    }
+  ],
+  "logos": [
+    "public/art/makita-slingers/logo.svg",
+    "public/art/naja-run/logo.svg",
+    "public/art/pinballerz/logo.svg",
+    "public/art/speed-stack/logo.svg"
+  ]
+}

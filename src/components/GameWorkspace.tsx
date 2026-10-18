@@ -10,6 +10,7 @@ export interface GameWorkspaceProps {
   gameTitle: string;
   touch: boolean;
   coding: boolean;
+  expandedGame?: boolean;
   header: ReactNode;
   editor: CodeEditorProps;
   editorToolbar: ReactNode;
@@ -24,8 +25,8 @@ export interface GameWorkspaceProps {
 }
 
 /** Shared responsive workspace. Games supply their own simulation and controls. */
-export function GameWorkspace({ gameId, gameTitle, touch, coding, header, editor, editorToolbar, feedback, modStrip, modAreaExtras, library, stage, stageRef, stageExtras, overlays }: GameWorkspaceProps): JSX.Element {
-  return <div className={`lab crt-cabinet ${touch ? 'lab--touch' : ''} ${coding ? 'lab--coding' : 'lab--flying'}`} data-game-id={gameId}>
+export function GameWorkspace({ gameId, gameTitle, touch, coding, expandedGame, header, editor, editorToolbar, feedback, modStrip, modAreaExtras, library, stage, stageRef, stageExtras, overlays }: GameWorkspaceProps): JSX.Element {
+  return <div className={`lab crt-cabinet ${touch ? 'lab--touch' : ''} ${coding ? 'lab--coding' : 'lab--flying'} ${expandedGame ? 'lab--expandedGame' : ''}`} data-game-id={gameId}>
     <CrtGlass />
     {header}
     <div className="lab__body">

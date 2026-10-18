@@ -1,0 +1,167 @@
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import type { EditorView } from '@codemirror/view';
+import { GameWorkspace } from '../../components/GameWorkspace';
+import { TopBar } from '../../components/TopBar';
+import { SettingsDialog } from '../../components/SettingsDialog';
+import { applyModToEditor } from '../../editor/CodeEditor';
+import type { ModInsertMode } from '../../editor/modEditing';
+import { normalizeVariableSpacing } from '../../editor/languageEditing';
+import { codeKey, fileNameForLanguage, formatCodeForLanguage, localizeMod, localizeTool } from '../../interpreter/languageSyntax';
+import { parseGameScript } from '../../interpreter/gameScript';
+import { navigate } from '../../app/router';
+import { useProgress } from '../../state/progressStore';
+import { useDebouncedValue, useMediaQuery } from '../../utils/hooks';
+import { useGameCode } from '../useGameCode';
+import type { GameScreenProps } from '../types';
+import { type ArcadeAction, type ArcadeConfig, type ArcadeInput, type ArcadeRun } from './core';
+import { ARCADE_RUNTIME_LABELS, playableArcadeProgram, type ArcadeCatalog } from './catalog';
+import { ArcadeEffects, ArcadeSound, loadArcadeArt, palette, type ArcadeArt } from './visuals';
+import './premium.css';
+
+export interface ArcadeControl { label: string; action: ArcadeAction; hold?: 'left' | 'right'; primary?: boolean }
+export interface PremiumGameSpec<R extends ArcadeRun = ArcadeRun> {
+  id: string; title: string; eyebrow: string; description: string; instructions: string; goal: string;
+  width: number; height: number; catalog: ArcadeCatalog; controls: readonly ArcadeControl[];
+  create(checkpoint?: unknown): R;
+  draw(ctx: CanvasRenderingContext2D, run: R, art: ArcadeArt, fx: ArcadeEffects, reduced: boolean): void;
+}
+const menuOpen = () => Boolean(document.querySelector('.mod-options,.topbar__more[open],.modal'));
+const KEY_DIRECTIONS: Record<string, keyof ArcadeInput> = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down' };
+
+export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, debugFlag }: GameScreenProps & { spec: PremiumGameSpec<R> }): JSX.Element {
+  const progress = useProgress(), language = progress.activeLanguage, catalog = spec.catalog;
+  const mission = catalog.missions.find(m => m.id === (missionId ?? progress.currentMissionId)) ?? catalog.missions[0];
+  const starter = useMemo(() => {
+    const saved = useProgress.getState().getGameProgress(gameId).codes, previous = catalog.missions[mission.order - 1];
+    return normalizeVariableSpacing(previous && saved[codeKey(language, previous.id)] || formatCodeForLanguage(mission.kind === 'sandbox' ? catalog.sandbox : catalog.starter, language), language);
+  }, [gameId, catalog, mission.id, mission.order, mission.kind, language]);
+  const { code, onChange } = useGameCode(gameId, mission.id, language, starter), debounced = useDebouncedValue(code, 200);
+  const program = useMemo(() => parseGameScript<ArcadeConfig>(debounced, language, catalog.schema), [debounced, language, catalog]);
+  const unlocked = useMemo(() => {
+    const order = Math.max(mission.order, ...catalog.missions.filter(m => progress.completed.includes(m.id)).map(m => m.order));
+    return catalog.mods.filter(m => mission.kind === 'sandbox' || progress.freeModeUnlocked || m.unlockAt <= order);
+  }, [mission, catalog, progress.completed, progress.freeModeUnlocked]);
+  const liveProgram = useMemo(() => playableArcadeProgram(program, unlocked.map(m => m.id)), [program, unlocked]);
+  const run = useMemo(() => spec.create(useProgress.getState().getGameProgress(gameId).checkpoint), [spec, gameId]);
+  const effects = useMemo(() => new ArcadeEffects(), []), sound = useMemo(() => new ArcadeSound(), []);
+  const [, render] = useState(0), [focused, setFocused] = useState(false), [libraryOpen, setLibraryOpen] = useState(false), [settingsOpen, setSettingsOpen] = useState(false), [collapsed, setCollapsed] = useState(false);
+  const [expandedGame, setExpandedGame] = useState(false);
+  const editor = useRef<EditorView | null>(null), stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
+  const blocked = useRef(false); blocked.current = focused || libraryOpen || settingsOpen;
+  const touch = useMediaQuery('(any-pointer: coarse)'), reduced = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const savedRevision = useRef(-1);
+  const update = useCallback(() => {
+    render(v => v + 1);
+    const store = useProgress.getState();
+    if (run.score > store.getGameProgress(gameId).bestScore) store.setBestScore(run.score);
+    if (run.checkpointRevision !== savedRevision.current && run.checkpoint) { savedRevision.current = run.checkpointRevision; store.setGameCheckpoint(gameId, run.checkpoint); }
+  }, [run, gameId]);
+  const engage = () => { if ((document.activeElement as HTMLElement | null)?.closest('.cm-editor,input,textarea,select')) (document.activeElement as HTMLElement).blur(); setFocused(false); sound.unlock(); };
+  const act = (action: ArcadeAction) => { if (libraryOpen || settingsOpen || menuOpen()) return; engage(); run.action(action); update(); };
+  const launch = () => { engage(); run.launch(); update(); canvas.current?.focus({ preventScroll: true }); };
+  const togglePause = () => { engage(); run.phase === 'paused' ? run.resume() : run.pause(); update(); };
+  const passed = catalog.passed(mission, liveProgram, run) || progress.completed.includes(mission.id);
+  const diagnostic = program.diagnostics.find(d => d.severity === 'error');
+  const guidance = passed ? { message: mission.kind === 'final' ? 'Campaign complete. Play with every mod unlocked.' : 'Mission complete. Your next mod is ready.' } : { message: mission.message, targetId: mission.targetId };
+  const mods = useMemo(() => unlocked.map(m => localizeMod(m, language)), [unlocked, language]);
+  const tools = useMemo(() => catalog.tools.filter(t => mission.kind === 'sandbox' || progress.freeModeUnlocked || t.unlockAt <= mission.order).map(t => localizeTool(t, language)), [catalog, mission, progress.freeModeUnlocked, language]);
+  const insert = useCallback((snippet: string, mode?: ModInsertMode) => applyModToEditor(editor.current, snippet, mode, language), [language]);
+  const previous = catalog.missions[mission.order - 1], next = catalog.missions[mission.order + 1];
+  const go = (target: typeof mission) => {
+    const store = useProgress.getState(); if (target.kind === 'sandbox' && store.codes[codeKey(language, target.id)] === undefined) store.setGameCode(gameId, codeKey(language, target.id), code);
+    store.setMission(target.id); navigate({ name: 'lab', gameId, missionId: target.id, debug: debugFlag });
+  };
+  useEffect(() => { const store = useProgress.getState(); store.setMission(mission.id); if (store.getGameProgress(gameId).codes[codeKey(language, mission.id)] === undefined) store.setGameCode(gameId, codeKey(language, mission.id), code); }, [gameId, mission.id, language]);
+  useEffect(() => { run.setProgram(liveProgram); update(); }, [run, liveProgram, update]);
+  useEffect(() => { sound.muted = !progress.settings.sound; }, [sound, progress.settings.sound]);
+  useEffect(() => () => sound.destroy(), [sound]);
+  useEffect(() => { if (passed && mission.kind !== 'sandbox' && !progress.completed.includes(mission.id)) useProgress.getState().completeMission(mission.id, mission.kind === 'final'); }, [passed, mission, progress.completed]);
+  useEffect(() => {
+    const element = canvas.current, ctx = element?.getContext('2d'); if (!element || !ctx) return;
+    const art = loadArcadeArt(gameId); let alive = true, raf = 0, last = performance.now(), reported = 0, w = 1, h = 1, dpr = 1, revision = run.revision;
+    const resize = () => { const r = element.getBoundingClientRect(); w = Math.max(1, r.width); h = Math.max(1, r.height); dpr = Math.min(window.devicePixelRatio || 1, 2); element.width = Math.round(w * dpr); element.height = Math.round(h * dpr); };
+    resize(); const observer = new ResizeObserver(resize); observer.observe(element);
+    const draw = (now: number) => {
+      if (!alive) return;
+      const dt = Math.min(0.06, Math.max(0, (now - last) / 1000)); last = now;
+      const held = blocked.current || menuOpen() || document.hidden || run.phase === 'paused';
+      if (held) { run.releaseInput(); run.pointer('cancel', 0, 0); }
+      if (revision !== run.revision) { effects.reset(); revision = run.revision; }
+      if (!held) { run.step(dt); effects.step(dt); }
+      const cues = run.cues.splice(0); effects.consume(cues, palette(run.config.palette).accent, reduced);
+      for (const kind of new Set(cues.map(c => c.kind))) sound.play(kind);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+      const fit = Math.min(w / spec.width, h / spec.height), x = (w - spec.width * fit) / 2, y = (h - spec.height * fit) / 2;
+      ctx.save(); ctx.translate(x, y); ctx.scale(fit, fit); ctx.beginPath(); ctx.rect(0, 0, spec.width, spec.height); ctx.clip();
+      if (!reduced && effects.shake) ctx.translate(Math.sin(effects.time * 72) * 2, Math.cos(effects.time * 61) * 2);
+      spec.draw(ctx, run, art, effects, reduced); effects.draw(ctx, reduced); ctx.restore();
+      if (now - reported > 100) { update(); reported = now; }
+      raf = requestAnimationFrame(draw);
+    };
+    draw(last);
+    return () => { alive = false; cancelAnimationFrame(raf); observer.disconnect(); art.sprites.onload = null; art.cover.src = ''; art.background.src = ''; art.sprites.src = ''; };
+  }, [run, spec, gameId, effects, sound, reduced, update]);
+  useEffect(() => {
+    const typing = () => Boolean((document.activeElement as HTMLElement | null)?.closest('.cm-editor,input,textarea,select,[contenteditable="true"]'));
+    const keydown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || typing() || blocked.current || menuOpen()) return;
+      if ((e.code === 'Space' || e.code === 'Enter') && (e.target as Element | null)?.closest('button,a,summary')) return;
+      const direction = KEY_DIRECTIONS[e.code];
+      if (direction) { e.preventDefault(); run.input[direction] = true; if (!e.repeat) run.action(direction); }
+      if (!e.repeat && ['Space', 'Enter', 'KeyE', 'KeyN', 'KeyP'].includes(e.code)) {
+        e.preventDefault(); sound.unlock();
+        if (e.code === 'KeyP') run.phase === 'paused' ? run.resume() : run.pause();
+        else if (run.phase === 'ready' || run.phase === 'gameover') run.launch();
+        else if (run.phase === 'cleared') run.advance();
+        else run.action(e.code === 'KeyE' ? 'ability' : e.code === 'KeyN' ? 'nudge' : 'primary');
+      }
+      update();
+    };
+    const keyup = (e: KeyboardEvent) => {
+      if (['ArrowLeft', 'KeyA'].includes(e.code)) run.input.left = false;
+      if (['ArrowRight', 'KeyD'].includes(e.code)) run.input.right = false;
+      if (['ArrowUp', 'KeyW'].includes(e.code)) run.input.up = false;
+      if (['ArrowDown', 'KeyS'].includes(e.code)) run.input.down = false;
+    };
+    const blur = () => { run.pause(); run.pointer('cancel', 0, 0); update(); }, visibility = () => { if (document.hidden) blur(); };
+    window.addEventListener('keydown', keydown); window.addEventListener('keyup', keyup); window.addEventListener('blur', blur); document.addEventListener('visibilitychange', visibility);
+    return () => { run.releaseInput(); window.removeEventListener('keydown', keydown); window.removeEventListener('keyup', keyup); window.removeEventListener('blur', blur); document.removeEventListener('visibilitychange', visibility); };
+  }, [run, sound, update]);
+  const pointer = (phase: 'down' | 'move' | 'up' | 'cancel', e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (libraryOpen || settingsOpen || menuOpen() || run.phase !== 'playing') return;
+    if (phase === 'down') { engage(); e.currentTarget.focus({ preventScroll: true }); e.currentTarget.setPointerCapture?.(e.pointerId); }
+    const r = e.currentTarget.getBoundingClientRect(), fit = Math.min(r.width / spec.width, r.height / spec.height);
+    run.pointer(phase, (e.clientX - r.left - (r.width - spec.width * fit) / 2) / fit, (e.clientY - r.top - (r.height - spec.height * fit) / 2) / fit, e.pointerId); update();
+  };
+  const colors = palette(run.config.palette);
+  return <GameWorkspace gameId={gameId} gameTitle={spec.title} touch={touch} coding={focused} expandedGame={expandedGame}
+    header={<TopBar gameName={spec.title} missions={catalog.missions} completed={progress.completed} paused={run.phase === 'paused'} sound={progress.settings.sound}
+      restartLabel="Retry saved stage" onRestart={launch} onTogglePause={togglePause} onHome={() => navigate({ name: 'landing' })} onResetCode={() => onChange(starter)}
+      onResetFullGame={() => { if (window.confirm(`Reset ${spec.title} missions, code and score?`)) { useProgress.getState().resetCurrentGame(); navigate({ name: 'landing' }); } }}
+      onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onSettings={() => setSettingsOpen(true)} onOpenLibrary={() => setLibraryOpen(true)}
+      onFullscreen={() => { if (document.fullscreenElement) void document.exitFullscreen(); else void stage.current?.closest('.lab')?.requestFullscreen?.(); }} />}
+    editor={{ value: code, onChange, language, mods: catalog.mods, runtimeLabels: ARCADE_RUNTIME_LABELS, coachTargets: { 'arcade-rule': /^\s*if.*\bscore\b/ }, errorLines: diagnostic ? [diagnostic.line] : [], onFocusChange: setFocused, onViewReady: view => { editor.current = view; }, ariaLabel: `${language} ${spec.title} code editor` }}
+    editorToolbar={<><span className="lab__filename mono">{fileNameForLanguage(language)}</span><span className="lab__autosave">Auto-save <b>ON</b></span></>}
+    feedback={{ status: diagnostic ? 'error' : passed ? 'complete' : 'ready', diagnostic, ruleCount: liveProgram.rules.length, guidance }}
+    modStrip={{ mods, tools, totalMods: catalog.mods.length, collapsed, onToggleCollapsed: () => setCollapsed(v => !v), onInsert: insert, onOpenLibrary: () => setLibraryOpen(true), language, activeTargetId: guidance.targetId }}
+    library={{ open: libraryOpen, onClose: () => setLibraryOpen(false), onInsert: (snippet, mode) => { setLibraryOpen(false); insert(snippet, mode); } }} stageRef={stage}
+    stage={<div className={`stage premium-stage premium-stage--${gameId}`} style={{ '--arcade-accent': colors.accent, '--arcade-warm': colors.warm, '--arcade-dark': colors.dark, '--arcade-cover': `url('/art/${gameId}/cover.webp')`, '--arcade-background': `url('/art/${gameId}/background.webp')` } as CSSProperties}>
+      <div className="premium__head"><div><span className="premium__eyebrow">{spec.eyebrow}</span><img className="premium__logo" src={`/art/${gameId}/logo.svg`} alt={spec.title} /><span className="premium__player">{run.config.playerName} <i>·</i> STAGE {String(run.level).padStart(2, '0')}</span></div><div className="premium__best"><small>PERSONAL BEST</small><strong>♛ {progress.bestScore.toLocaleString()}</strong></div></div>
+      <div className="premium__stats" aria-label="Live game stats"><div><small>SCORE</small><strong>{run.score.toLocaleString()}</strong></div>{run.stats().map(stat => <div key={stat.label}><small>{stat.label}</small><strong>{stat.value}</strong></div>)}</div>
+      <div className="premium__field"><canvas ref={canvas} className="premium__canvas" tabIndex={0} aria-label={`${spec.title} playfield. ${spec.instructions}`} onPointerDown={e => pointer('down', e)} onPointerMove={e => pointer('move', e)} onPointerUp={e => pointer('up', e)} onPointerCancel={e => pointer('cancel', e)} /><button className="premium__expand" aria-label={expandedGame ? 'Restore code view' : 'Expand game view'} aria-pressed={expandedGame} onClick={() => { engage(); setExpandedGame(value => !value); }}>⛶ <span>{expandedGame ? 'SHOW CODE' : 'EXPAND'}</span></button></div>
+      <div className="premium__notice" role="status" aria-live="polite">{focused ? 'EDITING · GAME HELD' : run.notice}</div>
+      <div className="premium__controls">{spec.controls.map(control => <button key={control.label} className={control.primary ? 'premium__control--primary' : ''} disabled={run.phase !== 'playing' || control.action === 'ability' && !run.config.overdrive} aria-label={control.label} title={control.action === 'ability' && !run.config.overdrive ? `Unlock ${catalog.mods.find(m => m.id === 'overdrive')?.label} in your code` : undefined}
+        onClick={event => { if (!control.hold || event.detail === 0) act(control.action); }}
+        onPointerDown={e => { if (control.hold && !libraryOpen && !settingsOpen && !menuOpen()) { engage(); e.currentTarget.setPointerCapture?.(e.pointerId); run.input[control.hold] = true; } }}
+        onPointerUp={() => { if (control.hold) run.input[control.hold] = false; }} onPointerCancel={() => { if (control.hold) run.input[control.hold] = false; }} onBlur={() => { if (control.hold) run.input[control.hold] = false; }}>{control.label}</button>)}</div>
+      <div className="premium__missionNav">{previous ? <button onClick={() => go(previous)}>← Previous mission</button> : <span />}{passed && next ? <button className="premium__next" onClick={() => go(next)}>{mission.kind === 'final' ? 'PLAY FULL GAME' : 'NEXT MISSION'} →</button> : null}</div>
+      {run.phase !== 'playing' ? <div className={`premium__overlay premium__overlay--${run.phase}`}><div className="premium__intro"><span className="premium__eyebrow">{run.phase === 'ready' ? spec.eyebrow : run.phase === 'paused' ? 'TAKE A BREATHER' : run.phase === 'cleared' ? 'ANOTHER ONE FOR THE HIGHLIGHT REEL' : 'YOUR NEXT RUN STARTS HERE'}</span><img src={`/art/${gameId}/logo.svg`} alt={spec.title} className="premium__introLogo" />
+        <h1>{run.phase === 'ready' ? spec.goal : run.phase === 'paused' ? 'HOLD THAT THOUGHT.' : run.phase === 'cleared' ? 'BEAUTIFULLY DONE.' : 'ONE MORE TRY.'}</h1>
+        <p>{run.phase === 'ready' ? spec.description : run.phase === 'paused' ? 'Your game is right here when you are ready.' : run.phase === 'cleared' ? `Stage ${run.level} secured. ${run.score.toLocaleString()} points and a tougher challenge ahead.` : 'Retry this stage with your latest code. A different approach can change everything.'}</p>
+        <div className="premium__how"><b>HOW TO PLAY</b><span>{spec.instructions}</span></div>
+        <button className="premium__start" onClick={() => { engage(); if (run.phase === 'paused') run.resume(); else if (run.phase === 'cleared') run.advance(); else run.launch(); update(); canvas.current?.focus({ preventScroll: true }); }}>{run.phase === 'paused' ? 'BACK TO IT' : run.phase === 'cleared' ? 'NEXT STAGE' : run.phase === 'gameover' ? 'RETRY SAVED STAGE' : run.hasCheckpoint ? 'CONTINUE PLAYING' : 'LET’S PLAY'} →</button>
+        <small>{mission.kind === 'sandbox' ? 'EVERY MOD UNLOCKED · MAKE IT YOURS' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</small>
+      </div></div> : null}
+    </div>}
+    overlays={<><SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} bestScore={progress.bestScore} completedCount={progress.completed.length} onRename={name => useProgress.getState().setStudentName(name)} onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onToggleDebug={() => useProgress.getState().setSetting('debug', !progress.settings.debug)} onResetProgress={() => { useProgress.getState().resetProgress(); navigate({ name: 'landing' }); }} />{debugFlag || progress.settings.debug ? <pre className="premium__debug">{JSON.stringify({ gameId, phase: run.phase, score: run.score, level: run.level, lives: run.lives, metrics: run.metrics }, null, 2)}</pre> : null}</>} />;
+}

@@ -375,6 +375,33 @@ describe('MODBOX app shell', () => {
     expect(useProgress.getState().getGameProgress('block-forge').codes['python:m00']).toContain('sunset');
   }, 15000);
 
+  it.each([
+    ['makita-slingers', 'MAKITA SLINGERS', 'amber'],
+    ['naja-run', 'NAJA RUN', 'orchid'],
+    ['pinballerz', 'PINBALLERZ', 'sunset'],
+    ['speed-stack', 'SPEED STACK', 'mint'],
+  ])('launches %s, applies its own code, carries the mission and pauses cleanly', async (id, title, color) => {
+    window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
+    await act(async () => host.querySelector<HTMLButtonElement>(`.home-game--${id}`)?.click()); await flush();
+    expect(host.querySelector('.languages__game h2')?.textContent).toBe(title);
+    await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
+    expect(await waitFor(() => Boolean(host.querySelector('.premium__start')))).toBe(true);
+    expect(host.querySelector('.premium__introLogo')?.getAttribute('alt')).toBe(title);
+    const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: `palette = "${color}"` } }));
+    expect(await waitFor(() => Boolean(host.querySelector('.premium__next')))).toBe(true);
+    await act(async () => host.querySelector<HTMLButtonElement>('.premium__start')?.click());
+    expect(host.querySelector('.premium__overlay')).toBeNull(); expect(host.querySelectorAll('.premium__controls button').length).toBeGreaterThan(1);
+    await act(async () => host.querySelector<HTMLButtonElement>('.premium__control--primary')?.click());
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
+    expect(host.querySelector('.premium__intro h1')?.textContent).toBe('HOLD THAT THOUGHT.');
+    await act(async () => host.querySelector<HTMLButtonElement>('.premium__next')?.click());
+    expect(await waitFor(() => host.querySelector('.feedback__message')?.textContent?.includes('YOUR SIGNATURE') ?? false)).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain(`palette = "${color}"`);
+    expect(useProgress.getState().getGameProgress(id).completed).toContain('m00');
+    expect(useProgress.getState().getGameProgress('block-forge').completed).toEqual([]);
+  }, 15000);
+
   it('renders the landing screen', async () => {
     window.location.hash = '#/';
     const { host, root } = mount();
@@ -387,7 +414,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.home__games')).toBeTruthy();
     expect(host.querySelector('.home__languages')).toBeNull();
     const games = [...host.querySelectorAll('.home-game')];
-    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE']);
+    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK']);
     expect(games.every(card => card.tagName === 'BUTTON' && card.textContent?.includes('AVAILABLE NOW'))).toBe(true);
     expect(games.every(card => card.querySelector('.home-game__art .game-art'))).toBe(true);
   });
@@ -421,7 +448,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.lab__filename')?.textContent).toBe('main.swift');
   });
 
-  it('renders all five playable games in the arcade', async () => {
+  it('renders all nine playable games in the arcade', async () => {
     window.location.hash = '#/arcade';
     const { host, root } = mount();
     await act(async () => {
@@ -432,7 +459,7 @@ describe('MODBOX app shell', () => {
     expect(host.textContent).toContain('MAKITAS VS ZOMBIES');
     expect(host.textContent).not.toContain('RUNNER');
     expect(host.textContent).not.toContain('COMING SOON');
-    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE']);
+    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK']);
     expect(host.querySelectorAll('.cabinet--locked button')).toHaveLength(0);
   });
 
