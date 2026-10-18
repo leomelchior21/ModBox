@@ -25,7 +25,21 @@
 .home .home__sectionHead h2 svg { width:22px; height:22px; }
 .home .home__sectionHead > button { font-size:12px; }
 .home__catalogMeta { font:12px/1.4 var(--font-mono); color:#a6c0ad; margin-top:4px; }
-.home .home__gameGrid { flex:1 1 auto; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; padding:2px 2px 8px; scroll-padding:4px; }
+.home .home__gameGrid {
+  flex:1 1 auto; grid-template-columns:none; grid-template-rows:minmax(0,1fr); grid-auto-flow:column;
+  grid-auto-columns:calc((100% - 36px) / 4); gap:12px; padding:2px 0 10px;
+  overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; scroll-snap-type:x mandatory;
+  scrollbar-width:thin; scrollbar-color:#96d5ad #0c2718;
+}
+.home__gameGrid > .home-game { scroll-snap-align:start; }
+.home__gameGrid:focus-visible { outline:2px solid #caff8a; outline-offset:-2px; border-radius:10px; }
+.home__gameControls { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.home__gameControls .home__gameArrow { width:44px; min-height:44px; border:1px solid #7bab87; border-radius:6px; color:#dcffea; background:#0c2718; font-size:24px; }
+.home__gameArrow:disabled { opacity:.3; cursor:default; }
+.home__gameArrow:enabled:hover { background:#244735; border-color:#baff8a; }
+.home__gameControls .home__viewAll { min-height:44px; padding:0 4px; border:0; background:none; color:#c3d9ca; font-size:12px; }
+.home__viewAll span { font-size:18px; margin-left:4px; }
+.home__gameControls button:focus-visible { outline:2px solid #caff8a; outline-offset:2px; }
 .home .home-game {
   display:flex; align-items:stretch; justify-content:flex-start; height:auto; min-height:0;
   padding:0; border:1px solid #4b7a61; border-radius:10px; color:#edffe9; background:#071a11;
@@ -111,8 +125,9 @@
   .home .home__wordmark { max-width:340px; max-height:70%; }
   .home .home__heroArt { opacity:.6; }
   .home .home__nav button { font-size:13px; }
-  .home .home__gameGrid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-  .home .home__games { max-height:62%; }
+  .home .home__gameGrid { grid-template-rows:repeat(2,minmax(0,1fr)); grid-auto-columns:calc((100% - 10px) / 2); gap:10px; }
+  .home__gameControls .home__viewAll { font-size:10px; padding:0; }
+  .home .home__games { max-height:70%; }
   .home .home__sectionHead h2 { font-size:13px; }
   .home__catalogMeta { font-size:11px; }
   .home .home__sectionHead > button { font-size:11px; }

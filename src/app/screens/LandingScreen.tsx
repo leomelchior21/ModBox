@@ -15,6 +15,8 @@ export function LandingScreen({ games: catalog, onSelectGame, getProgress, onArc
   onArcade: () => void; onProfile: () => void; studentName: string;
 }): JSX.Element {
   const games = useRef<HTMLElement>(null);
+  const rail = useRef<HTMLDivElement>(null);
+  const [scroll, setScroll] = useState({ start: true, end: catalog.length <= 4 });
   const readyCount = catalog.filter(game => game.status === 'play').length;
   const [heroIndex, setHeroIndex] = useState(0);
   const hero = catalog[heroIndex % catalog.length];
@@ -23,6 +25,18 @@ export function LandingScreen({ games: catalog, onSelectGame, getProgress, onArc
     const timer = window.setInterval(() => setHeroIndex(index => (index + 1) % Math.max(1, catalog.length)), 5200);
     return () => { window.clearInterval(timer); preload.forEach(image => { image.src = ''; }); };
   }, [catalog]);
+  useEffect(() => {
+    const element = rail.current; if (!element) return;
+    const update = () => setScroll({ start: element.scrollLeft <= 2, end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 2 });
+    element.addEventListener('scroll', update, { passive: true });
+    const observer = new ResizeObserver(update); observer.observe(element); update();
+    return () => { element.removeEventListener('scroll', update); observer.disconnect(); };
+  }, [catalog.length]);
+  const browse = (direction: number) => {
+    const element = rail.current, card = element?.firstElementChild as HTMLElement | null;
+    if (!element || !card) return;
+    element.scrollBy({ left: direction * (card.offsetWidth + parseFloat(getComputedStyle(element).columnGap)), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  };
   const scrollTo = (element: HTMLElement | null) => element?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   return <main className="home crt-cabinet">
       <CrtGlass />
@@ -47,8 +61,8 @@ export function LandingScreen({ games: catalog, onSelectGame, getProgress, onArc
       <span className="home__sector" aria-hidden="true">ARCADE SIGNAL / {hero?.title}</span>
     </section>
     <section className="home__games crt-panel" id="games" ref={games} tabIndex={-1} aria-label="Our games">
-      <header className="home__sectionHead"><div><h2><button onClick={onArcade}><Icon /> YOUR NEXT GAME</button></h2><p className="home__catalogMeta">{readyCount} ready to play · {catalog.length - readyCount} coming soon</p></div><button onClick={onArcade}>VIEW ALL <span aria-hidden="true">→</span></button></header>
-      <div className="home__gameGrid">
+      <header className="home__sectionHead"><div><h2><button onClick={onArcade}><Icon /> YOUR NEXT GAME</button></h2><p className="home__catalogMeta">{readyCount} ready to play · {catalog.length - readyCount} coming soon</p></div><div className="home__gameControls"><button className="home__gameArrow" aria-label="Previous games" aria-controls="home-game-carousel" disabled={scroll.start} onClick={() => browse(-1)}>←</button><button className="home__gameArrow" aria-label="Next games" aria-controls="home-game-carousel" disabled={scroll.end} onClick={() => browse(1)}>→</button><button className="home__viewAll" onClick={onArcade}>VIEW ALL <span aria-hidden="true">↗</span></button></div></header>
+      <div className="home__gameGrid" id="home-game-carousel" ref={rail} tabIndex={0} role="region" aria-label="Game carousel, scroll left or right for more games" onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) { event.preventDefault(); browse(event.key === 'ArrowLeft' ? -1 : 1); } }}>
         {catalog.map(game => {
           const className = `home-game home-game--${game.cardStyle ?? game.id}`;
           if (game.status !== 'play') return <article key={game.id} className={`${className} home-game--soon`} aria-label={`${game.title}, coming soon`}>
