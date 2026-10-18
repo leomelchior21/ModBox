@@ -14,6 +14,7 @@ import './styles/crt-refinements.css';
 import './styles/lab-layout.css';
 import './styles/vhs-boot.css';
 import './styles/library.css';
+import './styles/tablet-workspace.css';
 
 const host = document.getElementById('root');
 if (!host) throw new Error('MODBOX could not find #root');

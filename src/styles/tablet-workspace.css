@@ -1,0 +1,33 @@
+/* Tablet labels stay readable independently of canvas dimensions. */
+@media (min-width:601px) and (max-width:1400px) and (min-height:650px) {
+  .lab .lab__editor .cm-editor { font-size:16px; }
+  .lab .feedback__body,.lab .feedback__message,.lab .feedback__hint { font-size:13px; line-height:1.5; }
+  .lab .feedback { max-height:155px; }
+  .lab .feedback__heading strong { font-size:13px; }
+  .lab .modstrip__toggle,.lab .modstrip__all { min-height:36px; }
+  .lab .console-button { min-height:44px; }
+  .lab .console-button--icon { width:44px; }
+  .lab .topbar__more > summary { min-width:36px; min-height:44px; }
+  .lab .topbar__game strong { font-size:11px; }
+  .lab .lab__body { grid-template-columns:minmax(0,35%) minmax(0,1fr); }
+  .lab .lab__autosave { font-size:11px; }
+  .lab .lab__filename { font-size:16px; }
+}
+/* Portrait iPads need a wide game above a full-width coding desk. */
+@media (min-width:601px) and (max-width:1100px) and (min-height:700px) and (orientation:portrait) {
+  .lab .lab__body { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1.9fr) minmax(0,1fr); gap:12px; }
+  .lab .lab__right { grid-row:1; }
+  .lab .lab__left { grid-row:2; }
+  .lab .lab__editorZone { grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); gap:8px 12px; }
+  .lab .lab__editor { grid-column:1; grid-row:1 / -1; }
+  .lab .feedback { grid-column:2; grid-row:1; max-height:160px; }
+  .lab .lab__modArea { grid-column:2; grid-row:2; min-height:0; }
+  .lab .lab__modArea .modstrip { height:100%; min-height:0; }
+  .lab .modtile-wrap { flex-basis:150px; min-width:150px; }
+}
+/* On phones these board games keep usable tiles and let the desk scroll below. */
+@media (max-width:600px) and (orientation:portrait) {
+  .lab:is([data-game-id="block-forge"],[data-game-id="makitas-vs-zombies"]) .lab__body { overflow-y:auto; overscroll-behavior-y:contain; grid-template-rows:540px 410px; align-content:start; }
+  .lab:is([data-game-id="block-forge"],[data-game-id="makitas-vs-zombies"]) .lab__right { min-height:540px; }
+  .lab:is([data-game-id="block-forge"],[data-game-id="makitas-vs-zombies"]) .lab__left { min-height:410px; }
+}

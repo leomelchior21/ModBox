@@ -5,9 +5,9 @@ behind them and rebuild the world while they fly it.
 
 > CODE IS THE GAME MODIFIER.
 
-Version 1 ships **VECTOR ZERO** — an original minimalist vector asteroid survival shooter — with a
-guided C# campaign, a final "build your own level" challenge, and a free sandbox where every
-discovered Mod is unlocked.
+Play **VECTOR ZERO**, **NEON MAZE**, **DEVIL FLOOR**, **MAKITAS VS ZOMBIES** and **BLOCK FORGE**.
+Each game has a guided Python, Swift and C# campaign, a final challenge, and a free sandbox
+where every discovered Mod is unlocked.
 
 ---
 
@@ -77,7 +77,7 @@ Every concept unlocks a new form of control over the game:
 | FINAL MOD | everything | a whole level with rules inside it |
 | FREE MOD MODE | sandbox | every Mod you discovered |
 
-The four-game mission progression and world-building mods are documented in [Current campaigns](docs/current-campaigns.md).
+The five-game mission progression and world-building mods are documented in [Current campaigns](docs/current-campaigns.md).
 
 Code feedback is live: parse + apply is debounced ~380 ms, so editing a value changes the world
 without a compile step. Changes that would disrupt an active run are applied at the right moment

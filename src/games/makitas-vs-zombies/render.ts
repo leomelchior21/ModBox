@@ -1,7 +1,7 @@
 import { COLS, ROWS, UNIT_INFO, ZOMBIE_INFO, type UnitKind, type YardRun, type YardTool } from './run';
 import type { YardEffects } from './effects';
 
-export const VIEW = { width: 1080, height: 760, x: 92, y: 178, cw: 98, ch: 86 };
+export const VIEW = { width: 1080, height: 500, x: 72, y: 25, cw: 104, ch: 90 };
 export const TOOL_COLORS: Record<string, string> = { teal: '#64e7d5', amber: '#ffca70', violet: '#c4a0ff', lime: '#ccf18a' };
 export interface YardArt { yard: HTMLImageElement; sprites: HTMLImageElement }
 const ready = (im: HTMLImageElement) => im.complete && im.naturalWidth > 0;
@@ -37,14 +37,18 @@ export function drawYard(ctx: CanvasRenderingContext2D, run: YardRun, art: YardA
   ctx.save(); ctx.scale(width / VIEW.width, height / VIEW.height);
   ctx.fillStyle = '#0b1720'; ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   if (run.config.background !== 'none' && ready(art.yard)) {
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, VIEW.width, VIEW.y - 12); ctx.clip();
-    ctx.drawImage(art.yard, 0, 0, VIEW.width, VIEW.height); ctx.restore();
+    ctx.drawImage(art.yard, 0, 0, VIEW.width, VIEW.height);
+    ctx.fillStyle = '#092a20b8'; ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   }
-  if (run.config.background === 'night') { ctx.fillStyle = '#06172ca0'; ctx.fillRect(0, 0, VIEW.width, VIEW.y - 12); ctx.fillStyle = '#e3ebbc'; ctx.beginPath(); ctx.arc(930, 98, 24, 0, Math.PI * 2); ctx.fill(); }
-  if (run.config.ground !== 'none') { ctx.fillStyle = run.config.ground === 'concrete' ? '#555b58' : '#395d32'; ctx.fillRect(VIEW.x - 10, VIEW.y - 10, COLS * VIEW.cw + 20, ROWS * VIEW.ch + 20); }
+  if (run.config.background === 'night') { ctx.fillStyle = '#06172c90'; ctx.fillRect(0, 0, VIEW.width, VIEW.height); ctx.fillStyle = '#e3ebbc'; ctx.beginPath(); ctx.arc(1048, 18, 10, 0, Math.PI * 2); ctx.fill(); }
+  if (run.config.ground !== 'none') {
+    ctx.shadowColor = '#0009'; ctx.shadowBlur = 22; ctx.fillStyle = '#09271c';
+    ctx.fillRect(VIEW.x - 10, VIEW.y - 10, COLS * VIEW.cw + 20, ROWS * VIEW.ch + 20); ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#b9cf8255'; ctx.lineWidth = 3; ctx.strokeRect(VIEW.x - 9, VIEW.y - 9, COLS * VIEW.cw + 18, ROWS * VIEW.ch + 18);
+  }
   if (run.config.decorations) {
-    for (let i = 0; i < 16; i++) { ctx.fillStyle = '#936b49'; ctx.fillRect(80 + i * 60, VIEW.y - 24, 7, 18); ctx.fillStyle = '#ffd58a'; ctx.fillRect(80 + i * 60, VIEW.y - 27, 7, 4); }
-    ctx.fillStyle = '#997047'; ctx.fillRect(22, 540, 45, 45); ctx.strokeStyle = '#c5a776'; ctx.strokeRect(26, 544, 37, 37); ctx.beginPath(); ctx.moveTo(26, 544); ctx.lineTo(63, 581); ctx.stroke();
+    for (let i = 0; i < 16; i++) { ctx.fillStyle = '#936b49'; ctx.fillRect(80 + i * 60, 0, 7, 13); ctx.fillStyle = '#ffd58a'; ctx.fillRect(80 + i * 60, 1, 7, 4); }
+    ctx.fillStyle = '#997047'; ctx.fillRect(17, 466, 35, 29); ctx.strokeStyle = '#c5a776'; ctx.strokeRect(20, 469, 29, 23); ctx.beginPath(); ctx.moveTo(20, 469); ctx.lineTo(49, 492); ctx.stroke();
   }
   const shade = ctx.createLinearGradient(0, 0, 0, VIEW.height); shade.addColorStop(0, '#061b18dc'); shade.addColorStop(0.25, '#08261b16'); shade.addColorStop(0.77, '#0a29191a'); shade.addColorStop(1, '#051d18f5');
   ctx.fillStyle = shade; ctx.fillRect(0, 0, VIEW.width, VIEW.height);
@@ -59,10 +63,18 @@ export function drawYard(ctx: CanvasRenderingContext2D, run: YardRun, art: YardA
   for (let row = 0; run.config.ground !== 'none' && row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
       const x = px(col), y = VIEW.y + row * VIEW.ch;
-      ctx.fillStyle = (col + row) % 2 ? '#7aa94a20' : '#182f2230'; ctx.fillRect(x + 1, y + 1, VIEW.cw - 2, VIEW.ch - 2);
-      ctx.strokeStyle = '#b3cb732b'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, VIEW.cw - 1, VIEW.ch - 1);
+      const concrete = run.config.ground === 'concrete';
+      ctx.fillStyle = concrete ? (col + row) % 2 ? '#657065' : '#566456' : (col + row) % 2 ? '#466c36' : '#36592d';
+      ctx.fillRect(x + 1, y + 1, VIEW.cw - 2, VIEW.ch - 2);
+      const turf = ctx.createLinearGradient(x, y, x, y + VIEW.ch); turf.addColorStop(0, '#c7ed7712'); turf.addColorStop(1, '#061f2440');
+      ctx.fillStyle = turf; ctx.fillRect(x + 1, y + 1, VIEW.cw - 2, VIEW.ch - 2);
+      ctx.strokeStyle = '#c8dfa22a'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, VIEW.cw - 1, VIEW.ch - 1);
+      if (concrete) { ctx.strokeStyle = '#233f3540'; ctx.beginPath(); ctx.moveTo(x + 9, y + 18); ctx.lineTo(x + 20, y + 24); ctx.lineTo(x + 17, y + 34); ctx.stroke(); }
       for (let i = 0; i < 3; i++) { const gx = x + 17 + (i * 29 + row * 13) % 75, gy = y + 64 + i * 4; ctx.strokeStyle = '#a1b86020'; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx - 2, gy - 5); ctx.lineTo(gx + 2, gy - 2); ctx.stroke(); }
     }
+    const danger = run.zombies.some(z => z.row === row && z.hp > 0 && z.x < 3);
+    if (danger) { ctx.fillStyle = `rgba(255,125,80,${reduced ? 0.13 : 0.1 + Math.sin(effects.time * 5) * 0.05})`; ctx.fillRect(VIEW.x, VIEW.y + row * VIEW.ch, COLS * VIEW.cw, VIEW.ch); }
+    ctx.fillStyle = danger ? '#ffb18a' : '#83ab71'; ctx.fillRect(VIEW.x - 8, VIEW.y + row * VIEW.ch + 8, 4, VIEW.ch - 16);
     ctx.fillStyle = '#d5d9a3'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.fillText(String(row + 1).padStart(2, '0'), VIEW.x - 44, py(row) + 5);
     const sweep = run.sweepers[row];
     if (run.config.toolbox !== 'none' && (!sweep.used || sweep.active)) { const x = sweep.active ? px(sweep.x) : VIEW.x - 15; ctx.fillStyle = '#2e8472'; ctx.fillRect(x - 22, py(row) - 13, 36, 26); blade(x + 7, py(row), 19, reduced ? 0 : effects.time * (sweep.active ? 30 : 2), '#ffd585'); }
@@ -98,9 +110,15 @@ export function drawYard(ctx: CanvasRenderingContext2D, run: YardRun, art: YardA
       if (z.hp < z.maxHp || brute) bar(ctx, x, y - (brute ? 67 : 51) * geometry.y, z.hp / z.maxHp, z.slowed > 0 ? '#a4e6ff' : '#f2b36f');
     }
   }
-  for (const b of run.blades) { ctx.shadowBlur = 8; ctx.shadowColor = b.frost ? '#a7e9ff' : color; blade(px(b.x), py(b.row) - 14, 14, reduced ? 0 : effects.time * 35 + b.id, b.frost ? '#a7e9ff' : color); ctx.shadowBlur = 0; }
+  for (const b of run.blades) {
+    const tint = b.frost ? '#a7e9ff' : color;
+    if (!reduced) { const trail = ctx.createLinearGradient(px(b.x - 0.7), 0, px(b.x), 0); trail.addColorStop(0, `${tint}00`); trail.addColorStop(1, `${tint}99`); ctx.fillStyle = trail; ctx.fillRect(px(b.x - 0.7), py(b.row) - 17, VIEW.cw * 0.7, 6); }
+    ctx.shadowBlur = 14; ctx.shadowColor = tint; blade(px(b.x), py(b.row) - 14, 17, reduced ? 0 : effects.time * 35 + b.id, tint); ctx.shadowBlur = 0;
+  }
+  for (const ring of effects.rings) { ctx.globalAlpha = 1 - ring.age / 0.6; ctx.strokeStyle = ring.color; ctx.lineWidth = 4 * (1 - ring.age / 0.6); ctx.beginPath(); ctx.ellipse(px(ring.x), py(ring.row), (18 + ring.age * (ring.large ? 160 : 80)) * geometry.x, (10 + ring.age * 60) * geometry.y, 0, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.globalAlpha = 1;
   for (const p of effects.particles) { ctx.globalAlpha = 1 - p.age / p.life; ctx.fillStyle = p.color; ctx.fillRect(px(p.x), py(p.row) - 12, 4, 3); }
-  ctx.globalAlpha = 1; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center'; ctx.lineWidth = 3;
+  ctx.globalAlpha = 1; ctx.font = 'bold 23px monospace'; ctx.textAlign = 'center'; ctx.lineWidth = 4;
   for (const f of effects.floaters) { const y = py(f.row) - 32 - (reduced ? 0 : f.age * 25); ctx.globalAlpha = Math.min(1, (1.25 - f.age) * 3); ctx.strokeStyle = '#08251a'; ctx.strokeText(f.text, px(f.x), y); ctx.fillStyle = f.color; ctx.fillText(f.text, px(f.x), y); }
   ctx.restore();
 }

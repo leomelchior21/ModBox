@@ -12,6 +12,17 @@ const advance = (run: YardRun, seconds: number) => { for (let i = 0; i < seconds
 const zombie = (kind: ZombieKind = 'worker', row = 2, x = 5): Zombie => ({ id: 999, kind, row, x, hp: ZOMBIE_INFO[kind].hp, maxHp: ZOMBIE_INFO[kind].hp, slowed: 0, flash: 0, biteTimer: 0.1, chewing: false });
 
 describe('workshop defense simulation', () => {
+  it('power surge damages and slows every live zombie, costs power once and holds its cooldown while paused', () => {
+    const r = builtRun(); r.launch(); r.power = 200;
+    expect(r.surge()).toBe(false); expect(r.power).toBe(200);
+    r.zombies = [zombie('worker', 0, 5), { ...zombie('brute', 4, 6), id: 1000 }, { ...zombie('worker', 2, 3), id: 1001, hp: 30 }];
+    expect(r.surge()).toBe(true); expect(r.power).toBe(125); expect(r.zombies[0].hp).toBe(20); expect(r.zombies[1].hp).toBe(315); expect(r.zombies[0].slowed).toBe(3); expect(r.metrics.kills).toBe(1);
+    expect(r.surge()).toBe(false); expect(r.power).toBe(125); expect(r.metrics.kills).toBe(1);
+    r.pause(); advance(r, 3); expect(r.surgeCooldown).toBe(24); expect(r.surge()).toBe(false);
+    r.resume(); advance(r, 1); expect(r.surgeCooldown).toBeCloseTo(23);
+    r.surgeCooldown = 0; r.power = 74; expect(r.surge()).toBe(false); expect(r.power).toBe(74);
+    r.launch(); expect(r.surgeCooldown).toBe(0);
+  });
   it('requires launch, charges for deployment and prevents invalid or occupied placement', () => {
     const r = builtRun(); expect(r.interact('saw', 2, 0)).toBe(false); r.launch();
     expect(r.interact('saw', 2, 0)).toBe(true); expect(r.power).toBe(250);

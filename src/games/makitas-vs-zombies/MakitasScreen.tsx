@@ -42,6 +42,8 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
   const [focused, setFocused] = useState(false), [libraryOpen, setLibraryOpen] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false), [dismissed, setDismissed] = useState('');
   const [selected, setSelected] = useState<YardTool>('saw'), [activeCell, setActiveCell] = useState({ row: 2, col: 0 });
+  const [speed, setSpeed] = useState(1);
+  const speedRef = useRef(speed); speedRef.current = speed;
   const [hover, setHover] = useState<{ row: number; col: number } | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null), editor = useRef<EditorView | null>(null), stage = useRef<HTMLDivElement>(null);
   const blocked = useRef(false); blocked.current = focused || libraryOpen || settingsOpen;
@@ -87,7 +89,7 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
       const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)), before = run.phase; last = now;
       const held = blocked.current || interactionOpen() || run.phase === 'paused';
       if (revision !== run.revision) { effects.reset(); revision = run.revision; }
-      if (!held) { run.step(dt); effects.step(dt); }
+      if (!held) { run.step(dt * speedRef.current); effects.step(dt * speedRef.current); }
       effects.consume(run.feedback.splice(0), TOOL_COLORS[run.config.toolColor] ?? TOOL_COLORS.teal, reduced);
       // Coalesce sounds from a large fight into one cue per event per frame.
       for (const event of new Set(run.events.splice(0))) sound.play(event);
@@ -104,6 +106,7 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
     const keydown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || blocked.current || interactionOpen() || typing()) return;
       const tool = Number(e.key); if (tool >= 1 && tool <= 6) { e.preventDefault(); setSelected(TOOLS[tool - 1]); }
+      if (e.code === 'KeyS') { e.preventDefault(); sound.unlock(); run.surge(); update(); }
       if (e.code === 'KeyB') { e.preventDefault(); sound.unlock(); run.collectAll(); update(); }
       if (e.code === 'KeyP') { e.preventDefault(); run.phase === 'paused' ? run.resume() : run.pause(); update(); }
       if (e.code === 'Enter' && run.phase === 'launch' && document.activeElement?.tagName !== 'BUTTON') launch();
@@ -141,16 +144,20 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
       activeTargetId: guidance.targetId, coach: showCoach && guidance.targetId && !editorTarget ? guidance : undefined, onDismissCoach: dismiss }}
     library={{ open: libraryOpen, onClose: () => { setLibraryOpen(false); focusGame(); }, onInsert: (snippet, mode) => { setLibraryOpen(false); insert(snippet, mode); } }} stageRef={stage}
     stage={<div className={`stage yard-stage ${passed && next ? 'stage--missionReady' : ''} ${fullGameReady ? 'stage--fullGameReady' : ''}`} style={{ '--yard-glow': TOOL_COLORS[snapshot.config.toolColor] } as React.CSSProperties}>
-      <canvas ref={canvas} className="stage__canvas" tabIndex={-1} aria-label="Animated five-lane workshop battlefield" />
       <div className="yard__hud"><div className="yard__brand"><span className="yard__brandIcon">✹</span><div><small>NIGHT {String(snapshot.night).padStart(2, '0')} / WORKSHOP DEFENSE</small><strong>{snapshot.config.workshopName}</strong></div></div>
         <div className="yard__power" key={`power-${Math.floor(snapshot.power / 25)}`}><span>ϟ</span><div><strong>{snapshot.power}</strong><small>BATTERY POWER</small></div></div>
         <div className="yard__integrity" aria-label={`${snapshot.lives} workshop integrity`}><span>{[0, 1, 2].map(i => <b key={i} className={i >= snapshot.lives ? 'yard__heart--lost' : ''}>♥</b>)}</span><small>{String(snapshot.score).padStart(5, '0')} PTS</small></div>
       </div>
-      <div className="yard__waveTrack" aria-label={`Wave ${snapshot.wave} of 3`}><span>INVASION</span>{[1, 2, 3].map(w => <i key={w} className={snapshot.wave >= w ? 'yard__wave--active' : ''}><b>{w}</b>{w === 3 ? 'FOREMAN' : `WAVE ${w}`}</i>)}<small>{snapshot.spawning || snapshot.remaining ? `${snapshot.remaining} INCOMING` : !run.invasionReady ? 'BUILD MODE' : `NEXT IN ${snapshot.countdown}s - SAVED`}</small></div>
-      {playing ? <>
+      <div className="yard__waveTrack" aria-label={`Wave ${snapshot.wave} of 3`}><span>INVASION</span>{[1, 2, 3].map(w => <i key={w} className={snapshot.wave >= w ? 'yard__wave--active' : ''}><b>{w}</b>{w === 3 ? 'FOREMAN' : `WAVE ${w}`}</i>)}<small>{snapshot.spawning || snapshot.remaining ? `${snapshot.remaining} INCOMING` : !run.invasionReady ? 'BUILD MODE' : `NEXT IN ${snapshot.countdown}s`}</small></div>
+      <div className="yard__command">
         <div className="yard__fieldActions"><span>{focused ? 'EDITING · DEFENSE HELD' : snapshot.config.overdrive ? '⚡ OVERDRIVE ACTIVE' : snapshot.config.doubleShot ? '» TWIN BLADES ACTIVE' : `⌁ ${snapshot.messages[0]}`}</span>
           {run.invasionReady && !snapshot.spawning && snapshot.remaining === 0 && snapshot.wave < 3 ? <button onClick={() => { engage(); run.sendWave(); update(); }}>SEND WAVE {snapshot.wave + 1} →</button> : <span className="yard__danger">{snapshot.wave === 3 ? 'FINAL INVASION' : 'DEFEND EVERY LANE'}</span>}
         </div>
+        <div className="yard__tactics"><button onClick={() => setSpeed(v => v === 1 ? 2 : 1)} aria-label={`Game speed ${speed} times. Switch speed.`}>{speed}× SPEED</button><button className="yard__surge" disabled={!playing || !run.invasionReady || snapshot.power < 75 || snapshot.surgeCooldown > 0 || !snapshot.remaining} onClick={() => { engage(); run.surge(); update(); }}>ϟ {snapshot.surgeCooldown ? `SURGE ${snapshot.surgeCooldown}s` : 'POWER SURGE · 75'}</button></div>
+      </div>
+      <div className="yard__battlefield">
+        <canvas ref={canvas} className="stage__canvas" tabIndex={-1} aria-label="Animated five-lane workshop battlefield" />
+        {playing ? <>
         <div className="yard__grid" role="grid" aria-label="Defense lawn. Arrow keys choose a tile; Enter deploys the selected tool.">
           {Array.from({ length: ROWS }, (_, row) => <div key={row} role="row">{Array.from({ length: COLS }, (_, col) => {
             const u = run.units.find(unit => unit.row === row && unit.col === col);
@@ -160,6 +167,10 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
           })}</div>)}
         </div>
         <div className="yard__drops">{drops.map(b => <button key={b.id} className="yard__battery" aria-label={`Collect ${b.value} battery power`} style={{ left: `${(VIEW.x + b.x * VIEW.cw) / VIEW.width * 100}%`, top: `${(VIEW.y + (b.row + 0.5) * VIEW.ch) / VIEW.height * 100}%` }} onClick={() => { engage(); run.collect(b.id); update(); }}><span>ϟ</span><b>{b.value}</b></button>)}</div>
+        </> : null}
+        {effects.bannerAge < 2.4 && playing ? <div className="yard__battleBanner" key={`${effects.banner}-${run.wave}`}>{effects.banner}</div> : null}
+      </div>
+      {playing ? <>
         <div className={`yard__notice yard__notice--${snapshot.noticeKind}`} role="status" aria-live="polite"><span key={snapshot.noticeId}>{snapshot.notice}</span><button disabled={!snapshot.batteries} onClick={() => { engage(); run.collectAll(); update(); }}>ϟ COLLECT {snapshot.batteries || ''}</button></div>
         <div className="yard__tools" aria-label="Defender tools">{(Object.keys(UNIT_INFO) as UnitKind[]).map((kind, index) => <button key={kind} disabled={!run.toolAvailable(kind)} className={`yard__tool ${selected === kind ? 'yard__tool--selected' : ''} ${snapshot.power < UNIT_INFO[kind].cost ? 'yard__tool--poor' : ''}`} aria-pressed={selected === kind} aria-label={`Select ${UNIT_INFO[kind].name}, ${UNIT_INFO[kind].cost} power. ${UNIT_INFO[kind].detail}`} onClick={() => { engage(); setSelected(kind); }}>
           <svg className="yard__toolSprite" viewBox={`0 ${SPRITE_ROWS[index] * 1000} 250 ${(SPRITE_ROWS[index + 1] - SPRITE_ROWS[index]) * 1000}`} aria-hidden="true"><defs><clipPath id={`yard-icon-${kind}`}><rect x="0" y={SPRITE_ROWS[index] * 1000} width="250" height={(SPRITE_ROWS[index + 1] - SPRITE_ROWS[index]) * 1000} /></clipPath></defs><image clipPath={`url(#yard-icon-${kind})`} href="/art/makitas/machines-zombies-v2.png" width="1000" height="1000" /></svg><span className="yard__toolCopy"><b>{kind === 'saw' ? 'SAW' : kind === 'charger' ? 'CHARGER' : kind === 'wall' ? 'BARRIER' : 'FROST'}</b><small>{run.toolAvailable(kind) ? `ϟ ${UNIT_INFO[kind].cost}` : 'ADD MACHINES'}</small></span><kbd>{index + 1}</kbd></button>)}
@@ -170,10 +181,10 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
         <div className="yard__panel"><span className="yard__eyebrow">{mission.kind === 'sandbox' ? 'ALL MODS UNLOCKED · ENDLESS NIGHTS' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</span>
           <span className="yard__tagline">BATTERIES INCLUDED. MERCY SOLD SEPARATELY.</span>
           <h1>{snapshot.phase === 'launch' ? <>MAKITAS<span>VS <em>ZOMBIES</em></span></> : snapshot.phase === 'paused' ? 'TOOLS DOWN' : snapshot.phase === 'cleared' ? 'YARD SECURED' : 'WORKSHOP LOST'}</h1>
-          <p>{snapshot.phase === 'launch' ? 'Build the scene with mods: scenery, lanes, props, machines, then zombies. Each wave saves your defense so you can continue later.' : snapshot.phase === 'paused' ? 'Your defense is on hold. The zombies can wait.' : snapshot.phase === 'cleared' ? 'Three waves. One workshop. Still standing. A tougher night is waiting.' : 'The invasion got through. Add chargers, cover every lane, and protect your saws with barricades.'}</p>
+          <p>{snapshot.phase === 'launch' ? 'Your workshop. Your last stand. Build the yard with code, power up your machines, and turn the invasion into scrap.' : snapshot.phase === 'paused' ? 'Your defense is on hold. The zombies can wait.' : snapshot.phase === 'cleared' ? 'Three waves. One workshop. Still standing. A tougher night is waiting.' : 'The invasion got through. Add chargers, cover every lane, and protect your saws with barricades.'}</p>
           {snapshot.phase === 'cleared' || snapshot.phase === 'gameover' ? <div className="yard__results"><div><small>SCORE</small><b>{snapshot.score}</b></div><div><small>DEFEATED</small><b>{snapshot.metrics.kills}</b></div><div><small>WAVES</small><b>{snapshot.wave}/3</b></div></div> : snapshot.phase === 'launch' ? <div className="yard__introSteps"><span><b>01</b> CHARGE UP</span><span><b>02</b> DEPLOY SAWS</span><span><b>03</b> HOLD THE LINE</span></div> : null}
           <button className="btn yard__enter" onClick={() => { sound.unlock(); if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch(); update(); focusGame(); }}>{snapshot.phase === 'paused' ? 'RESUME DEFENSE →' : snapshot.phase === 'cleared' ? 'NEXT NIGHT →' : snapshot.phase === 'gameover' ? 'RETRY SAVED WAVE →' : run.checkpoint ? 'CONTINUE SAVED WAVE →' : 'START BUILDING →'}</button>
-          <small>{snapshot.phase === 'launch' ? `Start with ${snapshot.config.startingPower} power · 5 emergency sweepers · 3 waves` : 'Select a tool, then an empty tile. Collect the glowing batteries.'}</small>
+          <small>{snapshot.phase === 'launch' ? `Start with ${snapshot.config.startingPower} power · 5 emergency sweepers · 3 waves` : 'Deploy saws in every lane. Build chargers. Save 75 power for a surge.'}</small>
         </div>
       </div>}
       {previous ? <button className="stage__missionBack" onClick={() => go(previous)}>← Previous mission</button> : null}

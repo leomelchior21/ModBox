@@ -32,7 +32,7 @@ export interface YardMetrics { placed: number; collected: number; kills: number;
 const freshMetrics = (): YardMetrics => ({ placed: 0, collected: 0, kills: 0, upgrades: 0, slowed: 0, clears: 0, shots: 0, ruleTraces: [] });
 export interface YardSnapshot {
   phase: YardPhase; config: YardConfig; power: number; score: number; lives: number; wave: number; night: number;
-  countdown: number; spawning: boolean; remaining: number; batteries: number; deployed: number;
+  countdown: number; spawning: boolean; remaining: number; batteries: number; deployed: number; surgeCooldown: number;
   metrics: YardMetrics; messages: string[]; notice: string; noticeKind: YardEvent; noticeId: number;
 }
 
@@ -77,7 +77,7 @@ export class YardRun {
   private base = { ...YARD_DEFAULTS }; private activeRules = new Set<string>();
   checkpoint: YardCheckpoint | null = null; checkpointRevision = 0;
   constructor(checkpoint?: unknown) { this.checkpoint = readYardCheckpoint(checkpoint); }
-  private nextId = 1; private skyTimer = 3;
+  private nextId = 1; private skyTimer = 3; surgeCooldown = 0;
   setProgram(program: ProgramResult<YardConfig>): void {
     if (!program.ok) return;
     this.program = program; this.base = { ...YARD_DEFAULTS, ...program.config }; this.evaluate();
@@ -99,7 +99,7 @@ export class YardRun {
     this.wave = 0; this.elapsed = 0; this.countdown = 15; this.spawning = false; this.spawnIndex = 0; this.spawnTotal = 0; this.spawnTimer = 0;
     this.units = []; this.zombies = []; this.blades = []; this.batteries = []; this.feedback = []; this.events = [];
     this.sweepers = Array.from({ length: ROWS }, (_, row) => ({ row, x: -0.4, active: false, used: false }));
-    this.skyTimer = 3; this.activeRules.clear(); this.revision++; this.phase = 'playing'; this.evaluate();
+    this.skyTimer = 3; this.surgeCooldown = 0; this.activeRules.clear(); this.revision++; this.phase = 'playing'; this.evaluate();
     this.announce('place', this.invasionReady ? 'Build your defense. First invasion arrives in 15 seconds.' : 'BUILD MODE - Add scenery, lanes, machines, then zombies.');
   }
   advance(): void { if (this.phase === 'cleared') { this.night++; this.reset(); this.saveCheckpoint(1); } }
@@ -108,7 +108,7 @@ export class YardRun {
   snapshot(): YardSnapshot {
     return { phase: this.phase, config: { ...this.config }, power: this.power, score: this.score, lives: this.lives, wave: this.wave, night: this.night,
       countdown: Math.ceil(this.countdown), spawning: this.spawning, remaining: this.zombies.length + (this.spawning ? this.spawnTotal - this.spawnIndex : 0),
-      batteries: this.batteries.length, deployed: this.units.length, metrics: { ...this.metrics, ruleTraces: [...this.metrics.ruleTraces] },
+      batteries: this.batteries.length, deployed: this.units.length, surgeCooldown: Math.ceil(this.surgeCooldown), metrics: { ...this.metrics, ruleTraces: [...this.metrics.ruleTraces] },
       messages: [...this.messages], notice: this.notice, noticeKind: this.noticeKind, noticeId: this.noticeId };
   }
   toolAvailable(tool: YardTool): boolean {
@@ -157,6 +157,21 @@ export class YardRun {
     this.announce('charge', `+${drop.value} battery power.`); this.evaluate(); return true;
   }
   collectAll(): void { for (const b of [...this.batteries]) this.collect(b.id); }
+  surge(): boolean {
+    if (this.phase !== 'playing' || !this.invasionReady) return false;
+    if (this.surgeCooldown > 0) return this.fail(2, 4, `Power surge recharging: ${Math.ceil(this.surgeCooldown)}s.`);
+    if (!this.zombies.some(z => z.hp > 0)) return this.fail(2, 4, 'Save your surge for the invasion.');
+    if (this.power < 75) return this.fail(2, 4, 'Power surge needs 75 battery power.');
+    this.power -= 75; this.surgeCooldown = 24;
+    for (const z of this.zombies) {
+      if (z.hp <= 0) continue;
+      z.hp -= 45; z.slowed = Math.max(z.slowed, 3); z.flash = 0.25;
+      this.cue('hit', z.row, z.x, 'SURGE −45');
+      if (z.hp <= 0) this.defeat(z);
+    }
+    this.cue('upgrade', 2, 4.5, 'POWER SURGE'); this.announce('upgrade', 'POWER SURGE! Every zombie shocked and slowed.');
+    this.evaluate(); return true;
+  }
   sendWave(): boolean {
     if (!this.invasionReady || this.phase !== 'playing' || this.spawning || this.zombies.length || this.wave >= WAVES) return false;
     this.saveCheckpoint(this.wave + 1);
@@ -171,6 +186,7 @@ export class YardRun {
     this.evaluate();
   }
   private tick(dt: number): void {
+    this.surgeCooldown = Math.max(0, this.surgeCooldown - dt);
     this.elapsed += dt; this.skyTimer -= dt;
     if (this.skyTimer <= 0) { this.skyTimer += 6; this.drop((Math.floor(this.elapsed / 6) * 3) % ROWS, 2 + Math.floor(this.elapsed / 6) % 5, this.config.chargeRate * 5); }
     for (const b of this.batteries) b.age += dt;
