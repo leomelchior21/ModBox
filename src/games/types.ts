@@ -29,6 +29,8 @@ export interface PlayableGame extends GameMetadata {
   languages: readonly LanguageId[];
   starterMissionId: string;
   sandboxMissionId?: string;
+  /** Complete basic game and all mods are available before any challenges. */
+  playFirst?: boolean;
   missions: readonly GameMissionMeta[];
   loadScreen: () => Promise<{ default: ComponentType<GameScreenProps> }>;
 }

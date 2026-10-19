@@ -11,7 +11,6 @@ import { StackRun, overlap1D } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
 import { readCampaign, type ArcadeConfig, type ArcadeRun } from './core';
 import { ArcadeEffects } from './visuals';
-import { playableArcadeProgram } from './catalog';
 
 const games = [
   { id: 'makita-slingers', catalog: slingersCatalog, create: (save?: unknown) => new SlingersRun(save) },
@@ -23,25 +22,31 @@ const advance = (run: ArcadeRun, time: number) => { for (let frame = 0; frame < 
 
 describe.each(games)('$id campaign and interpreter', ({ id, catalog, create }) => {
   it.each(['python', 'swift', 'csharp'] as const)('parses every control, starter and sandbox in %s', language => {
-    for (const source of [catalog.starter, catalog.sandbox, ...catalog.mods.map(m => m.example)]) {
+    for (const source of [catalog.starter, catalog.remix, ...catalog.mods.map(m => m.example)]) {
       const program = parseGameScript<ArcadeConfig>(formatCodeForLanguage(source, language), language, catalog.schema);
       expect(program.diagnostics.filter(d => d.severity === 'error'), source).toEqual([]); expect(program.ok, source).toBe(true);
     }
   });
   it('keeps the last valid script, clamps controls, and applies rules without accumulating', () => {
     const run = create(), parse = (source: string) => parseGameScript<ArcadeConfig>(source, 'csharp', catalog.schema);
-    run.setProgram(parse(catalog.sandbox)); run.launch();
+    run.setProgram(parse(catalog.remix)); run.launch();
     expect(run.config.overdrive).toBe(false); run.score = 1; run.step(0.01); expect(run.config.overdrive).toBe(true); expect(run.metrics.ruleTraces.length).toBeGreaterThan(0);
     run.score = 0; run.step(0.01); expect(run.config.overdrive).toBe(false);
     const before = { ...run.config }; run.setProgram(parse('int nonsense = ;')); expect(run.config).toEqual(before);
     const power = catalog.mods.find(m => m.id === 'power')!; run.setProgram(parse(`int ${power.name} = 99999;`)); expect(run.config.power).toBe(power.limits!.max);
   });
-  it('keeps future controls and live rule actions locked during the first mission', () => {
-    const run = create(), program = parseGameScript<ArcadeConfig>(catalog.sandbox, 'csharp', catalog.schema), filtered = playableArcadeProgram(program, ['palette']);
-    expect(Object.keys(filtered.config)).toEqual(['palette']); expect(filtered.rules).toEqual([]); run.setProgram(filtered); expect(run.config.power).toBe(catalog.defaults.power); expect(run.config.assist).toBe(false);
+  it.each(['python', 'swift', 'csharp'] as const)('starts a complete basic game and accepts every mod immediately in %s', language => {
+    const run = create(), parse = (source: string) => parseGameScript<ArcadeConfig>(formatCodeForLanguage(source, language), language, catalog.schema);
+    const basic = parse(catalog.starter); run.setProgram(basic); run.launch();
+    expect(basic.ok).toBe(true); expect(Object.keys(basic.config)).toHaveLength(catalog.mods.length);
+    expect(run.config).toEqual(catalog.defaults); expect(run.phase).toBe('playing');
+    expect(run.config.assist).toBe(false); expect(run.config.overdrive).toBe(false);
+    run.setProgram(parse(catalog.remix)); expect(run.config.assist).toBe(true);
+    run.score = 1; run.step(.01); expect(run.config.overdrive).toBe(true);
+    expect(run.metrics.ruleTraces.length).toBeGreaterThan(0);
   });
   it('teaches eight missions with available targets and requires real arithmetic, assistance and executed rules', () => {
-    const run = create(), parse = (s: string) => parseGameScript<ArcadeConfig>(s, 'csharp', catalog.schema), full = parse(catalog.sandbox); run.setProgram(full); run.launch();
+    const run = create(), parse = (s: string) => parseGameScript<ArcadeConfig>(s, 'csharp', catalog.schema), full = parse(catalog.remix); run.setProgram(full); run.launch();
     expect(catalog.missions.filter(m => m.kind !== 'sandbox')).toHaveLength(8);
     for (const mission of catalog.missions) if (mission.targetId) expect([...catalog.mods, ...catalog.tools].find(m => m.id === mission.targetId)!.unlockAt).toBeLessThanOrEqual(mission.order);
     expect(catalog.passed(catalog.missions[0], full, run)).toBe(true); expect(catalog.passed(catalog.missions[2], full, run)).toBe(true);

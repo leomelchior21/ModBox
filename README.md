@@ -7,8 +7,11 @@ behind them and rebuild the world while they fly it.
 
 Play **VECTOR ZERO**, **NEON MAZE**, **DEVIL FLOOR**, **MAKITAS VS ZOMBIES**, **BLOCK FORGE**,
 **MAKITA SLINGERS**, **NAJA RUN**, **PINBALLERZ** and **SPEED STACK**.
-Each game has a guided Python, Swift and C# campaign, a final challenge, and a free sandbox
-where every discovered Mod is unlocked.
+Each game supports Python, Swift and C#. Makitas vs Zombies, Block Forge and the four newest
+games open in Free Play with a complete basic game and every mod available immediately.
+Enable upgrades, change the physics and add live rules to see their effects. Their eight
+guided challenges are optional; existing code and saves are preserved. Vector Zero, Neon Maze
+and Devil Floor retain their progressive learning campaigns.
 
 ---
 

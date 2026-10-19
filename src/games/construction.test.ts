@@ -71,8 +71,10 @@ describe('world construction and discovery', () => {
     expect(run.collapsed.has(1)).toBe(true);
   });
 
-  it.each(['csharp', 'python', 'swift'] as const)('builds the yard in layers using %s', language => {
+  it.each(['csharp', 'python', 'swift'] as const)('can dismantle and rebuild the playable yard using %s', language => {
     const run = new YardRun(); run.launch();
+    expect(run.invasionReady).toBe(true);
+    run.setProgram(parseGameScript<YardConfig>(formatCodeForLanguage('string ground = "none";\nstring toolbox = "none";\nstring zombieType = "none";', language), language, yardSchema));
     expect(run.sendWave()).toBe(false); expect(run.interact('saw', 0, 0)).toBe(false);
     run.setProgram(parseGameScript<YardConfig>(formatCodeForLanguage(yardCode, language), language, yardSchema));
     expect(run.interact('saw', 0, 0)).toBe(true); expect(run.sendWave()).toBe(true);

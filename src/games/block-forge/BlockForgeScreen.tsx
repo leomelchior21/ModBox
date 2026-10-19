@@ -13,8 +13,9 @@ import { useProgress } from '../../state/progressStore';
 import { useDebouncedValue, useMediaQuery } from '../../utils/hooks';
 import { useGameCode } from '../useGameCode';
 import type { GameScreenProps } from '../types';
+import { PlayModeNav } from '../PlayModeNav';
 import { FORGE_MODS, FORGE_RUNTIME_LABELS, FORGE_TOOLS, forgeSchema, type ForgeConfig } from './mods';
-import { FORGE_MISSIONS, FORGE_STARTER, FORGE_SANDBOX, getForgeMission, forgeGuidance, forgeMissionPassed, forgeUnlocked, playableForgeProgram } from './missions';
+import { FORGE_MISSIONS, FORGE_STARTER, getForgeMission, forgeGuidance, forgeMissionPassed } from './missions';
 import { ForgeRun, SIZE, type Piece, type Placement } from './run';
 import { ForgeSound } from './sound';
 import './forge.css';
@@ -31,12 +32,11 @@ export function BlockForgeScreen({ gameId, missionId, debugFlag }: GameScreenPro
   const progress = useProgress(), language = progress.activeLanguage, mission = getForgeMission(missionId ?? progress.currentMissionId);
   const starter = useMemo(() => {
     const saved = useProgress.getState().getGameProgress(gameId).codes, previous = FORGE_MISSIONS[mission.order - 1];
-    return normalizeVariableSpacing(previous && saved[codeKey(language, previous.id)] || formatCodeForLanguage(mission.kind === 'sandbox' ? FORGE_SANDBOX : FORGE_STARTER, language), language);
+    return normalizeVariableSpacing(previous && saved[codeKey(language, previous.id)] || formatCodeForLanguage(FORGE_STARTER, language), language);
   }, [gameId, mission.id, mission.order, mission.kind, language]);
   const { code, onChange } = useGameCode(gameId, mission.id, language, starter), debounced = useDebouncedValue(code, 180);
   const program = useMemo(() => parseGameScript<ForgeConfig>(debounced, language, forgeSchema), [debounced, language]);
-  const unlocked = useMemo(() => forgeUnlocked(mission, progress.completed, progress.freeModeUnlocked), [mission, progress.completed, progress.freeModeUnlocked]);
-  const liveProgram = useMemo(() => playableForgeProgram(program, unlocked.map(m => m.id)), [program, unlocked]);
+  const unlocked = FORGE_MODS, liveProgram = program;
   const run = useMemo(() => new ForgeRun(2026, useProgress.getState().getGameProgress(gameId).checkpoint), [gameId]), sound = useMemo(() => new ForgeSound(), []);
   const [, render] = useState(0);
   const [focused, setFocused] = useState(false), [libraryOpen, setLibraryOpen] = useState(false), [settingsOpen, setSettingsOpen] = useState(false), [collapsed, setCollapsed] = useState(false);
@@ -58,7 +58,7 @@ export function BlockForgeScreen({ gameId, missionId, debugFlag }: GameScreenPro
   const passed = forgeMissionPassed(mission, liveProgram, run) || progress.completed.includes(mission.id), guidance = forgeGuidance(mission, passed);
   const diagnostic = program.diagnostics.find(d => d.severity === 'error'), next = FORGE_MISSIONS[mission.order + 1], previous = FORGE_MISSIONS[mission.order - 1];
   const mods = useMemo(() => unlocked.map(m => localizeMod(m, language)), [unlocked, language]);
-  const tools = useMemo(() => FORGE_TOOLS.filter(t => mission.kind === 'sandbox' || progress.freeModeUnlocked || t.unlockAt <= mission.order).map(t => localizeTool(t, language)), [mission, progress.freeModeUnlocked, language]);
+  const tools = useMemo(() => FORGE_TOOLS.map(t => localizeTool(t, language)), [language]);
   const insert = useCallback((snippet: string, mode?: ModInsertMode) => applyModToEditor(editor.current, snippet, mode, language), [language]);
   const reset = () => { run.launch(true); setSelected(0); setHover(null); setFlash(null); focusGame(); update(); };
   const interact = () => !libraryOpen && !settingsOpen && !menuOpen();
@@ -77,7 +77,7 @@ export function BlockForgeScreen({ gameId, missionId, debugFlag }: GameScreenPro
   const hint = () => { if (!interact()) return; focusGame(); const result = run.hint(); if (result) { setSelected(result.slot); setHover({ row: result.row, col: result.col }); setActive(result.row * SIZE + result.col); } update(); };
   const reshuffle = () => { if (interact() && run.reshuffle()) { setSelected(0); setHover(null); setFlash(null); focusGame(); update(); } };
   const go = (target: typeof mission) => {
-    const store = useProgress.getState(); if (target.kind === 'sandbox' && store.codes[codeKey(language, target.id)] === undefined) store.setGameCode(gameId, codeKey(language, target.id), code);
+    const store = useProgress.getState(); if (store.codes[codeKey(language, target.id)] === undefined) store.setGameCode(gameId, codeKey(language, target.id), code);
     store.setMission(target.id); navigate({ name: 'lab', gameId, missionId: target.id, debug: debugFlag });
   };
   useEffect(() => {
@@ -125,7 +125,7 @@ export function BlockForgeScreen({ gameId, missionId, debugFlag }: GameScreenPro
     if (e.key.toLowerCase() === 'p') { e.preventDefault(); run.phase === 'paused' ? run.resume() : run.pause(); update(); }
   };
   return <GameWorkspace gameId={gameId} gameTitle="BLOCK FORGE" touch={touch} coding={focused}
-    header={<TopBar gameName="BLOCK FORGE" missions={FORGE_MISSIONS} completed={progress.completed} paused={run.phase === 'paused'} sound={progress.settings.sound}
+    header={<TopBar progressLabel="OPTIONAL CHALLENGES" gameName="BLOCK FORGE" missions={FORGE_MISSIONS} completed={progress.completed} paused={run.phase === 'paused'} sound={progress.settings.sound}
       restartLabel="Start a fresh board" onHome={() => navigate({ name: 'landing' })} onRestart={reset} onTogglePause={() => { run.phase === 'paused' ? run.resume() : run.pause(); update(); focusGame(); }}
       onResetCode={() => onChange(starter)} onResetFullGame={() => { if (window.confirm('Reset BLOCK FORGE missions, code and high score?')) { useProgress.getState().resetCurrentGame(); navigate({ name: 'landing' }); } }}
       onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onSettings={() => setSettingsOpen(true)} onOpenLibrary={() => setLibraryOpen(true)}
@@ -157,8 +157,8 @@ export function BlockForgeScreen({ gameId, missionId, debugFlag }: GameScreenPro
       </button>)}</div>
       <div className="forge__actions"><button disabled={!run.config.rotations || !run.tray[selected] || run.phase !== 'playing'} onClick={rotate} title="Enable rotations in your code">↻ <span>ROTATE</span></button><button disabled={!run.config.showHints || run.phase !== 'playing'} onClick={hint} title="Enable showHints in your code">✧ <span>HINT</span></button><button disabled={!run.canUndo} onClick={undo} title="Enable allowUndo in your code">↶ <span>UNDO</span></button><button disabled={!run.rerolls || run.phase !== 'playing'} onClick={reshuffle}>⤨ <span>RESHUFFLE</span><b>{run.rerolls}</b></button></div>
       <div className="forge__footer"><span>{touch ? 'DRAG A PIECE, OR SELECT + TAP' : '1–3 SELECT · R ROTATE · H HINT · U UNDO'}</span><span>NO CLOCK. JUST ONE MORE BLOCK.</span></div>
-      <div className="forge__missionNav">{previous ? <button onClick={() => go(previous)}>← Previous mission</button> : <span />}{passed && next ? <button className="forge__next" onClick={() => go(next)}>{mission.kind === 'final' ? 'PLAY FULL GAME' : 'NEXT MISSION'} →</button> : null}</div>
-      {run.phase !== 'playing' ? <div className="forge__overlay"><div className="forge__intro"><span className="forge__eyebrow">{run.phase === 'ready' ? 'YOUR NEXT LITTLE OBSESSION' : run.phase === 'paused' ? 'TAKE YOUR TIME' : 'EVERY BLOCK IS A NEW BEGINNING'}</span><span className="forge__introIcon">▦</span><h2>{run.phase === 'ready' ? <>Find your <em>flow.</em></> : run.phase === 'paused' ? 'Room to breathe.' : 'A beautiful run.'}</h2><p>{run.phase === 'ready' ? 'Fit colorful pieces into the board. Fill any row or column to clear it. Chain clears, make space, and build something brilliant.' : run.phase === 'paused' ? 'Your board is right here when you are ready.' : `${run.score.toLocaleString()} points. ${run.lines} lines. Try a different fit and go a little further.`}</p>{run.phase === 'ready' ? <div className="forge__introSteps"><span><b>01</b> FIT BLOCKS</span><span><b>02</b> CLEAR LINES</span><span><b>03</b> CHAIN COMBOS</span></div> : null}<button className="forge__start" onClick={() => { if (run.phase === 'paused') { run.resume(); update(); } else if (run.phase === 'ready' && run.hasSavedBoard) { run.launch(false); setSelected(run.tray.findIndex(Boolean)); update(); } else reset(); }}> {run.phase === 'ready' && run.hasSavedBoard ? 'CONTINUE YOUR BOARD' : run.phase === 'ready' ? 'LET’S MAKE ROOM' : run.phase === 'paused' ? 'BACK TO THE BOARD' : 'FRESH BOARD'} →</button>{run.phase === 'gameover' ? <div className="forge__rescue">{run.canUndo ? <button onClick={undo}>↶ Undo last move</button> : null}{run.rerolls > 0 ? <button onClick={reshuffle}>⤨ Reshuffle ({run.rerolls} left)</button> : null}</div> : <small>Tap to place or drag and drop. No timer, no rush.</small>}</div></div> : null}
+      <PlayModeNav className="forge__missionNav" nextClassName="forge__next" exploring={mission.kind === 'sandbox'} onExplore={() => go(FORGE_MISSIONS[8])} onGuide={() => go(FORGE_MISSIONS[0])} onPrevious={previous ? () => go(previous) : undefined} onNext={next ? () => go(next) : undefined} />
+      {run.phase !== 'playing' ? <div className="forge__overlay"><div className="forge__intro"><span className="forge__eyebrow">{run.phase === 'ready' ? 'YOUR NEXT LITTLE OBSESSION' : run.phase === 'paused' ? 'TAKE YOUR TIME' : 'EVERY BLOCK IS A NEW BEGINNING'}</span><span className="forge__introIcon">▦</span><h2>{run.phase === 'ready' ? <>Find your <em>flow.</em></> : run.phase === 'paused' ? 'Room to breathe.' : 'A beautiful run.'}</h2><p>{run.phase === 'ready' ? 'Fit colorful pieces into the board. Fill any row or column to clear it. Chain clears, make space, and build something brilliant.' : run.phase === 'paused' ? 'Your board is right here when you are ready.' : `${run.score.toLocaleString()} points. ${run.lines} lines. Try a different fit and go a little further.`}</p>{run.phase === 'ready' ? <div className="forge__introSteps"><span><b>01</b> FIT BLOCKS</span><span><b>02</b> CLEAR LINES</span><span><b>03</b> CHAIN COMBOS</span></div> : null}<button className="forge__start" onClick={() => { if (run.phase === 'paused') { run.resume(); update(); } else if (run.phase === 'ready' && run.hasSavedBoard) { run.launch(false); setSelected(run.tray.findIndex(Boolean)); update(); } else reset(); }}> {run.phase === 'ready' && run.hasSavedBoard ? 'CONTINUE YOUR BOARD' : run.phase === 'ready' ? 'LET’S MAKE ROOM' : run.phase === 'paused' ? 'BACK TO THE BOARD' : 'FRESH BOARD'} →</button>{run.phase === 'gameover' ? <div className="forge__rescue">{run.canUndo ? <button onClick={undo}>↶ Undo last move</button> : null}{run.rerolls > 0 ? <button onClick={reshuffle}>⤨ Reshuffle ({run.rerolls} left)</button> : null}</div> : <small>Tap to place or drag and drop. No timer, no rush.</small>}{run.phase === 'ready' ? <button className="play-mode__intro" onClick={() => go(FORGE_MISSIONS[mission.kind === 'sandbox' ? 0 : 8])}>{mission.kind === 'sandbox' ? 'TRY OPTIONAL CHALLENGES' : 'SWITCH TO FREE PLAY'}</button> : null}</div></div> : null}
     </div>}
     overlays={<><SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} bestScore={progress.bestScore} completedCount={progress.completed.length} onRename={name => useProgress.getState().setStudentName(name)} onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onToggleDebug={() => useProgress.getState().setSetting('debug', !progress.settings.debug)} onResetProgress={() => { useProgress.getState().resetProgress(); navigate({ name: 'landing' }); }} />{debugFlag || progress.settings.debug ? <pre className="forge__debug">{JSON.stringify({ phase: run.phase, score: run.score, lines: run.lines, combo: run.combo, metrics: run.metrics }, null, 2)}</pre> : null}</>} />;
 }

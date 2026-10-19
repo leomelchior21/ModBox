@@ -311,68 +311,84 @@ describe('MODBOX app shell', () => {
     expect(useProgress.getState().getGameProgress('platform').codes['python:m00']).toContain('background = "volcano"');
   }, 15000);
 
-  it('launches workshop defense, deploys tools, applies its own mods and preserves isolated progress', async () => {
+  it('opens a finished basic workshop, applies advanced mods immediately and offers optional challenges', async () => {
     window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
     await act(async () => host.querySelector<HTMLButtonElement>('.home-game--makitas')?.click()); await flush();
-    expect(host.querySelector('.languages__game h2')?.textContent).toBe('MAKITAS VS ZOMBIES');
+    expect(window.location.hash).toContain('mission=free');
     await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
     expect(await waitFor(() => Boolean(host.querySelector('.yard__enter')))).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('background = "none"');
-    const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'background = "sunset"' } }));
-    expect(await waitFor(() => Boolean(host.querySelector('.stage .mission__next--ready')))).toBe(true);
-    expect(useProgress.getState().getGameProgress('makitas-vs-zombies').completed).toContain('m00');
+    expect(host.querySelector('.cm-content')?.textContent).toContain('background = "sunset"');
+    expect(host.querySelector('.cm-content')?.textContent).toContain('toolbox = "full"');
+    expect(host.querySelector('.cm-content')?.textContent).toContain('doubleShot = False');
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(19);
     await act(async () => host.querySelector<HTMLButtonElement>('.yard__enter')?.click());
     expect(host.querySelectorAll('[role="gridcell"]')).toHaveLength(45);
+    expect(host.querySelector<HTMLButtonElement>('.yard__tool')?.disabled).toBe(false);
     await act(async () => host.querySelector<HTMLButtonElement>('[data-cell="2:0"]')?.click());
-    expect(host.querySelector('[data-cell="2:0"]')?.getAttribute('aria-label')).toContain('empty');
-    expect(host.querySelector('.yard__power strong')?.textContent).toBe('350');
-    expect(host.querySelector<HTMLButtonElement>('.yard__tool')?.disabled).toBe(true);
-    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
-    expect(host.querySelector('.yard__panel h1')?.textContent).toBe('TOOLS DOWN');
-    await act(async () => host.querySelector<HTMLButtonElement>('.stage .mission__next--ready')?.click());
-    expect(await waitFor(() => host.querySelector('.yard__eyebrow')?.textContent?.includes('LAY THE LANES') ?? false)).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('background = "sunset"');
+    expect(host.querySelector('[data-cell="2:0"]')?.getAttribute('aria-label')).toContain('CIRCULAR SAW');
+    expect(host.querySelector('.yard__power strong')?.textContent).toBe('250');
+    const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
+    const enhanced = view!.state.doc.toString().replace('doubleShot = False', 'doubleShot = True').replace('background = "sunset"', 'background = "night"');
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: enhanced } }));
+    expect(await waitFor(() => host.querySelector('.yard__fieldActions')?.textContent?.includes('TWIN BLADES ACTIVE') ?? false)).toBe(true);
+    expect(useProgress.getState().getGameProgress('makitas-vs-zombies').completed).toEqual([]);
+    await act(async () => host.querySelector<HTMLButtonElement>('.play-mode button')?.click());
+    expect(await waitFor(() => window.location.hash.includes('mission=m00'))).toBe(true);
+    expect(await waitFor(() => useProgress.getState().completed.includes('m00'))).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('doubleShot = True');
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(19);
     await act(async () => { window.location.hash = '#/lab?game=platform&mission=m00'; });
     expect(await waitFor(() => Boolean(host.querySelector('.floor-stage')))).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('background');
-    expect(useProgress.getState().getGameProgress('makitas-vs-zombies').codes['python:m00']).toContain('background = "sunset"');
+    expect(useProgress.getState().getGameProgress('makitas-vs-zombies').codes['python:free']).toContain('doubleShot = True');
   }, 15000);
 
-  it('launches Block Forge, clears and undoes a line, carries mission code, and restores its board after navigation', async () => {
+  it('opens basic Block Forge, enables mods live and preserves its board and code across optional challenges', async () => {
     window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
     await act(async () => host.querySelector<HTMLButtonElement>('.home-game--block-forge')?.click()); await flush();
-    expect(host.querySelector('.languages__game h2')?.textContent).toBe('BLOCK FORGE');
+    expect(window.location.hash).toContain('mission=free');
     await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
     expect(await waitFor(() => Boolean(host.querySelector('.forge__start')))).toBe(true);
-    const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'palette = "sunset"' } }));
-    expect(await waitFor(() => Boolean(host.querySelector('.forge__next')))).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('allowUndo = False');
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(10);
     await act(async () => host.querySelector<HTMLButtonElement>('.forge__start')?.click());
-    expect(host.querySelectorAll('[role="gridcell"]')).toHaveLength(64);
+    expect(host.querySelector<HTMLButtonElement>('.forge__actions button:nth-child(1)')?.disabled).toBe(true);
     await act(async () => host.querySelector<HTMLButtonElement>('[data-forge-cell="62"]')?.click());
     expect(host.querySelector('.forge__stats > div:nth-child(2) strong')?.textContent).toBe('01');
     expect(useProgress.getState().getGameProgress('block-forge').bestScore).toBe(110);
-    await act(async () => host.querySelector<HTMLButtonElement>('.forge__next')?.click());
-    expect(await waitFor(() => host.querySelector('.feedback__message')?.textContent?.includes('YOUR SIGNATURE') ?? false)).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('palette = "sunset"');
-    expect(host.querySelector('.forge__start')?.textContent).toContain('CONTINUE YOUR BOARD');
-    await act(async () => host.querySelector<HTMLButtonElement>('.forge__start')?.click());
-    expect(host.querySelector('.forge__stats > div:nth-child(2) strong')?.textContent).toBe('01');
-    expect(host.querySelectorAll('.forge__cell--filled')).toHaveLength(0);
-    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
-    expect(host.querySelector('.forge__intro h2')?.textContent).toBe('Room to breathe.');
-    await act(async () => { window.location.hash = '#/lab?game=block-forge&mission=free'; });
-    expect(await waitFor(() => host.querySelector('.cm-content')?.textContent?.includes('allowUndo') ?? false)).toBe(true);
-    await act(async () => host.querySelector<HTMLButtonElement>('.forge__start')?.click());
+    const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
+    const enhanced = view!.state.doc.toString().replace('allowUndo = False', 'allowUndo = True').replace('rotations = False', 'rotations = True').replace('palette = "aurora"', 'palette = "sunset"');
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: enhanced } }));
+    expect(await waitFor(() => !host.querySelector<HTMLButtonElement>('.forge__actions button:nth-child(1)')?.disabled)).toBe(true);
     await act(async () => host.querySelector<HTMLButtonElement>('.forge__piece:nth-child(2)')?.click());
     await act(async () => host.querySelector<HTMLButtonElement>('[data-forge-cell="0"]')?.click());
     expect(host.querySelectorAll('.forge__cell--filled')).toHaveLength(4);
     await act(async () => host.querySelector<HTMLButtonElement>('.forge__actions button:nth-child(3)')?.click());
     expect(host.querySelectorAll('.forge__cell--filled')).toHaveLength(0);
+    await act(async () => host.querySelector<HTMLButtonElement>('.play-mode button')?.click());
+    expect(await waitFor(() => window.location.hash.includes('mission=m00'))).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('allowUndo = True');
+    await act(async () => host.querySelector<HTMLButtonElement>('.forge__start')?.click());
+    expect(host.querySelector('.forge__stats > div:nth-child(2) strong')?.textContent).toBe('01');
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
+    expect(host.querySelector('.forge__intro h2')?.textContent).toBe('Room to breathe.');
     await act(async () => { window.location.hash = '#/lab?game=maze&mission=m00'; });
     expect(await waitFor(() => Boolean(host.querySelector('.neon-stage')))).toBe(true);
-    expect(useProgress.getState().getGameProgress('block-forge').codes['python:m00']).toContain('sunset');
+    expect(useProgress.getState().getGameProgress('block-forge').codes['python:free']).toContain('sunset');
+  }, 15000);
+
+  it('preserves existing guided saves when a game switches to the play-first entry', async () => {
+    const store = useProgress.getState(), savedCode = 'palette = "candy"\nrotations = True\nplayerName = "My old forge"';
+    store.selectGame('block-forge', 'm00', 'python'); store.setCode('python:m00', savedCode);
+    window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
+    await act(async () => host.querySelector<HTMLButtonElement>('.home-game--block-forge')?.click()); await flush();
+    expect(window.location.hash).toContain('mission=m00');
+    await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
+    expect(await waitFor(() => Boolean(host.querySelector('.forge__start')))).toBe(true);
+    expect(EditorView.findFromDOM(host.querySelector('.cm-editor')!)?.state.doc.toString()).toBe(savedCode);
+    await act(async () => host.querySelector<HTMLButtonElement>('.forge__start')?.click());
+    expect(host.querySelector<HTMLButtonElement>('.forge__actions button')?.disabled).toBe(false);
+    expect(useProgress.getState().codes['python:m00']).toBe(savedCode);
+    expect(useProgress.getState().freeModeUnlocked).toBe(false);
   }, 15000);
 
   it.each([
@@ -380,21 +396,29 @@ describe('MODBOX app shell', () => {
     ['naja-run', 'NAJA RUN', 'orchid'],
     ['pinballerz', 'PINBALLERZ', 'sunset'],
     ['speed-stack', 'SPEED STACK', 'mint'],
-  ])('launches %s, applies its own code, carries the mission and pauses cleanly', async (id, title, color) => {
+  ])('opens %s in basic free play, enables every mod and keeps challenges optional', async (id, title, color) => {
     window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
     await act(async () => host.querySelector<HTMLButtonElement>(`.home-game--${id}`)?.click()); await flush();
     expect(host.querySelector('.languages__game h2')?.textContent).toBe(title);
     await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
     expect(await waitFor(() => Boolean(host.querySelector('.premium__start')))).toBe(true);
     expect(host.querySelector('.premium__introLogo')?.getAttribute('alt')).toBe(title);
+    expect(window.location.hash).toContain('mission=free');
+    expect(host.querySelector('.cm-content')?.textContent).toContain('playerName');
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(9);
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: `palette = "${color}"` } }));
-    expect(await waitFor(() => Boolean(host.querySelector('.premium__next')))).toBe(true);
+    const enhanced = view!.state.doc.toString().replace(/palette = "[^"]+"/, `palette = "${color}"`).replace(/(blastBlade|venomRush|jackpotMode|focusMode) = False/, '$1 = True');
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: enhanced } }));
+    expect(await waitFor(() => host.querySelector('.premium-stage')?.getAttribute('style')?.includes('--arcade-accent') ?? false)).toBe(true);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 260)); });
     await act(async () => host.querySelector<HTMLButtonElement>('.premium__start')?.click());
     expect(host.querySelector('.premium__overlay')).toBeNull(); expect(host.querySelectorAll('.premium__controls button').length).toBeGreaterThan(1);
+    expect(host.querySelector<HTMLButtonElement>('.premium__controls button:last-child')?.disabled).toBe(false);
     await act(async () => host.querySelector<HTMLButtonElement>('.premium__control--primary')?.click());
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
     expect(host.querySelector('.premium__intro h1')?.textContent).toBe('HOLD THAT THOUGHT.');
+    await act(async () => host.querySelector<HTMLButtonElement>('.play-mode button')?.click());
+    expect(await waitFor(() => window.location.hash.includes('mission=m00'))).toBe(true);
     await act(async () => host.querySelector<HTMLButtonElement>('.premium__next')?.click());
     expect(await waitFor(() => host.querySelector('.feedback__message')?.textContent?.includes('YOUR SIGNATURE') ?? false)).toBe(true);
     expect(host.querySelector('.cm-content')?.textContent).toContain(`palette = "${color}"`);

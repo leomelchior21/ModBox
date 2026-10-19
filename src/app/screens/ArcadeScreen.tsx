@@ -86,8 +86,8 @@ export function ArcadeScreen({ games, getProgress, onSelectGame, onBack, onSetti
               <p className="cabinet__note mono">{saved.completed.length} MISSIONS CLEARED · BEST {saved.bestScore}</p>
               <div className="cabinet__actions">
                 <button className="btn btn--primary btn--block" onClick={() => onSelectGame(game, game.starterMissionId)}>PLAY {game.title}</button>
-                {hasProgress ? <button className="btn btn--ghost btn--block" onClick={() => onSelectGame(game, currentMission)}>CONTINUE MISSION</button> : null}
-                {saved.freeModeUnlocked && game.sandboxMissionId ? <button className="btn btn--flare btn--block" onClick={() => onSelectGame(game, game.sandboxMissionId!)}>FREE MOD MODE</button> : null}
+                {hasProgress ? <button className="btn btn--ghost btn--block" onClick={() => onSelectGame(game, currentMission)}>{game.playFirst ? 'CONTINUE PLAYING' : 'CONTINUE MISSION'}</button> : null}
+                {game.playFirst ? <button className="btn btn--flare btn--block" onClick={() => onSelectGame(game, game.missions.find(m => m.kind === 'mission')!.id)}>OPTIONAL CHALLENGES</button> : saved.freeModeUnlocked && game.sandboxMissionId ? <button className="btn btn--flare btn--block" onClick={() => onSelectGame(game, game.sandboxMissionId!)}>FREE MOD MODE</button> : null}
               </div>
             </div>
           </article>;

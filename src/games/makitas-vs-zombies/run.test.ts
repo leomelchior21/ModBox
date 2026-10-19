@@ -3,7 +3,7 @@ import { parseGameScript } from '../../interpreter/gameScript';
 import { formatCodeForLanguage } from '../../interpreter/languageSyntax';
 import { YARD_DEFAULTS, YARD_MODS, yardSchema, type YardConfig } from './mods';
 import { YardRun, ZOMBIE_INFO, type Zombie, type ZombieKind } from './run';
-import { YARD_MISSIONS, YARD_SANDBOX, YARD_STARTER, yardUnlocked, playableYardProgram, yardMissionPassed } from './missions';
+import { YARD_MISSIONS, YARD_REMIX, YARD_STARTER, yardMissionPassed } from './missions';
 import { YardEffects } from './effects';
 
 const parse = (s: string) => parseGameScript<YardConfig>('string ground = "grass"; string toolbox = "full"; string zombieType = "mixed";\n' + s, 'csharp', yardSchema);
@@ -100,18 +100,23 @@ describe('workshop defense simulation', () => {
 
 describe('workshop scripts, mission gates and feedback', () => {
   for (const language of ['csharp','python','swift'] as const) it(`parses starter, sandbox and live rules in ${language}`, () => {
-    for (const code of [YARD_STARTER,YARD_SANDBOX]) expect(parseGameScript<YardConfig>(formatCodeForLanguage(code,language),language,yardSchema).ok).toBe(true);
-    const r=builtRun(); r.setProgram(parseGameScript<YardConfig>(formatCodeForLanguage(YARD_SANDBOX,language),language,yardSchema)); r.launch(); r.metrics.kills=3; r.wave=2; r.step(.1);
+    for (const code of [YARD_STARTER,YARD_REMIX]) expect(parseGameScript<YardConfig>(formatCodeForLanguage(code,language),language,yardSchema).ok).toBe(true);
+    const r=builtRun(); r.setProgram(parseGameScript<YardConfig>(formatCodeForLanguage(YARD_REMIX,language),language,yardSchema)); r.launch(); r.metrics.kills=3; r.wave=2; r.step(.1);
     expect(r.config.doubleShot).toBe(true); expect(r.config.overdrive).toBe(true);
   });
-  it('locks future mods and rule actions until their mission and carries explicit free-mode unlocks', () => {
-    const unlocked=yardUnlocked(YARD_MISSIONS[0],[],false); expect(unlocked.map(m=>m.id)).toEqual(['background']);
-    const p=playableYardProgram(parse(YARD_SANDBOX),unlocked.map(m=>m.id)); expect(p.config).toEqual({background:'sunset'}); expect(p.rules).toHaveLength(0);
-    expect(yardUnlocked(YARD_MISSIONS[0],[],true)).toHaveLength(YARD_MODS.length);
-    const r=builtRun();r.setProgram(p);expect(r.config.bladeDamage).toBe(YARD_DEFAULTS.bladeDamage);
+  it.each(['python', 'swift', 'csharp'] as const)('provides a finished basic yard and immediate upgrades in %s', language => {
+    const r = new YardRun(), basic = parseGameScript<YardConfig>(formatCodeForLanguage(YARD_STARTER, language), language, yardSchema);
+    r.setProgram(basic); r.launch();
+    expect(basic.config).toEqual(YARD_DEFAULTS); expect(Object.keys(basic.config)).toHaveLength(YARD_MODS.length);
+    expect(r.invasionReady).toBe(true); expect(r.toolAvailable('frost')).toBe(true); expect(r.toolAvailable('wall')).toBe(true);
+    expect(r.config.autoCollect).toBe(false); expect(r.config.doubleShot).toBe(false); expect(r.config.overdrive).toBe(false);
+    expect(r.interact('saw', 2, 0)).toBe(true); expect(r.sendWave()).toBe(true); advance(r, 1);
+    expect(r.zombies.length).toBeGreaterThan(0);
+    r.setProgram(parseGameScript<YardConfig>(formatCodeForLanguage(YARD_REMIX, language), language, yardSchema));
+    r.metrics.kills = 3; r.wave = 2; r.step(.1); expect(r.config.doubleShot).toBe(true); expect(r.config.overdrive).toBe(true);
   });
   it('requires real arithmetic, play actions and executed rules for mission completion', () => {
-    const r=builtRun(); r.launch(); expect(yardMissionPassed(YARD_MISSIONS[0],parse('string background = "sunset";'),r.snapshot())).toBe(true);
+    const r=builtRun(); r.launch(); expect(yardMissionPassed(YARD_MISSIONS[0],parse('string background = "night";'),r.snapshot())).toBe(true);
     expect(yardMissionPassed(YARD_MISSIONS[4],parse('int bladeDamage = 35;'),r.snapshot())).toBe(false);
     expect(yardMissionPassed(YARD_MISSIONS[4],parse('int bladeDamage = 25 + 10;'),r.snapshot())).toBe(true);
     const p=parse('int chargeRate = 7; bool autoCollect = true;'); expect(yardMissionPassed(YARD_MISSIONS[5],p,r.snapshot())).toBe(false);
@@ -126,7 +131,7 @@ describe('workshop scripts, mission gates and feedback', () => {
     fx.consume([{...cue,kind:'breach'}],'#64e7d5',true);expect(fx.shake).toBe(0);expect(fx.particles).toHaveLength(0);expect(fx.floaters).toHaveLength(1);
   });
   it('requires the final mission to keep an executed runtime rule in the current script', () => {
-    const r=new YardRun(), p=parse(YARD_SANDBOX);r.setProgram(p);r.launch();r.metrics.kills=3;r.step(.1);r.metrics.clears=1;
+    const r=new YardRun(), p=parse(YARD_REMIX);r.setProgram(p);r.launch();r.metrics.kills=3;r.step(.1);r.metrics.clears=1;
     expect(yardMissionPassed(YARD_MISSIONS[7],p,r.snapshot())).toBe(true);
     const noRule=parse('string toolColor = "teal";\nstring workshopName = "Saw Society";\nint bladeDamage = 35;\nbool doubleShot = true;\nConsole.WriteLine(workshopName);');
     expect(yardMissionPassed(YARD_MISSIONS[7],noRule,r.snapshot())).toBe(false);

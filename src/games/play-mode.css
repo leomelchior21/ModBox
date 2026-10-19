@@ -1,0 +1,7 @@
+.play-mode { position:relative; z-index:5; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; flex-shrink:0; }
+.play-mode > span { flex:1; min-width:120px; color:#cee0c8; font:10px var(--font-mono); line-height:1.4; }
+.play-mode button,.play-mode__intro { min-height:40px; padding:7px 10px; border:1px solid #b8d9ac55; border-radius:5px; background:#10272cec; color:#dcebd7; font:11px var(--font-mono); cursor:pointer; }
+.stage .play-mode button { min-height:40px; }
+.play-mode button:focus-visible,.play-mode__intro:focus-visible { outline:2px solid #f5ffdb; outline-offset:2px; }
+.yard-stage .play-mode { margin-top:auto; }
+@media(pointer:coarse) { .stage .play-mode button,.play-mode__intro { min-height:44px; } }

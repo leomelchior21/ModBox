@@ -15,9 +15,6 @@ export interface CatalogOptions {
   lives: { name: string; label: string; min: number; max: number };
   final: string;
 }
-export function playableArcadeProgram(program: ProgramResult<ArcadeConfig>, unlocked: readonly (keyof ArcadeConfig)[]): ProgramResult<ArcadeConfig> {
-  return { ...program, config: Object.fromEntries(Object.entries(program.config).filter(([key]) => unlocked.includes(key as keyof ArcadeConfig))), rules: program.rules.map(r => ({ ...r, actions: r.actions.filter(a => unlocked.includes(a.target)) })).filter(r => r.actions.length || r.writes.length) };
-}
 export function createArcadeCatalog(o: CatalogOptions) {
   const d = o.defaults;
   const mods: readonly ModDefinition<keyof ArcadeConfig>[] = [
@@ -41,10 +38,10 @@ export function createArcadeCatalog(o: CatalogOptions) {
     { id: 'm05', order: 5, kind: 'mission', title: 'CHANGE THE FEEL', targetId: o.physics.key, message: `Change ${o.physics.name} to ${o.physics.goal}, then make a move to feel the difference.` },
     { id: 'm06', order: 6, kind: 'mission', title: 'REACTIVE PLAY', targetId: 'arcade-rule', message: `Add ${o.overdrive.label} set to false, then THE GAME CAN THINK. Score once to activate the rule.` },
     { id: 'final', order: 7, kind: 'final', title: 'THE COMPLETE GAME', message: `${o.final} Keep your custom palette, name, arithmetic and activated live rule.` },
-    { id: 'free', order: 8, kind: 'sandbox', title: 'FREE MOD MODE', message: 'Every mod is yours. Change the physics, build new rules, and chase your best score.' },
+    { id: 'free', order: 8, kind: 'sandbox', title: 'FREE PLAY', message: 'Your basic game is ready. Try any mod or change a value in the code, then play to feel the difference. Challenges are optional.' },
   ];
-  const starter = `string palette = "${d.palette}";`;
-  const sandbox = mods.map(m => m.id === 'palette' ? `string palette = "${o.palettes[1]}";` : m.id === 'playerName' ? 'string playerName = "Pixel Pilot";' : m.example).join('\n') + `\n${tools[0].example}`;
+  const starter = mods.map(m => `${m.type} ${m.name} = ${JSON.stringify(m.defaultValue)};`).join('\n');
+  const remix = mods.map(m => m.id === 'palette' ? `string palette = "${o.palettes[1]}";` : m.id === 'playerName' ? 'string playerName = "Pixel Pilot";' : m.example).join('\n') + `\n${tools[0].example}`;
   const reads = (e: Expr, name: string): boolean => e.kind === 'identifier' ? e.name === name : e.kind === 'literal' ? false : e.kind === 'unary' ? reads(e.operand, name) : reads(e.left, name) || reads(e.right, name);
   function passed(mission: ArcadeMission, program: ProgramResult<ArcadeConfig>, run: ArcadeRun): boolean {
     if (!program.ok || mission.kind === 'sandbox') return false;
@@ -62,6 +59,6 @@ export function createArcadeCatalog(o: CatalogOptions) {
       default: return false;
     }
   }
-  return { mods, tools, schema, missions, starter, sandbox, passed, defaults: d };
+  return { mods, tools, schema, missions, starter, sandbox: starter, remix, passed, defaults: d };
 }
 export type ArcadeCatalog = ReturnType<typeof createArcadeCatalog>;

@@ -1,11 +1,11 @@
 # Current campaigns
 
-All games have seven teaching missions, a final challenge and Free Mod Mode. Mods are cumulative and work in Python, Swift and C#.
+All games support Python, Swift and C#. Makitas vs Zombies, Block Forge, Makita Slingers, Naja Run, Pinballerz and Speed Stack start in Free Play with complete basic settings and every mod and rule tool available. Their seven teaching missions and final challenge are optional suggestions, with unrestricted navigation back to Free Play. Upgrades start off so enabling one produces a noticeable change. Switching modes seeds unsaved challenge code from the current experiment while preserving existing saved code and checkpoints. The original three games retain progressive unlocks.
 
 | Stage | Vector Zero | Neon Maze | Devil Floor | Makitas vs Zombies | Block Forge |
 | --- | --- | --- | --- | --- | --- |
-| 00 | Change the rock type | Recolor the ball and maze, initially dark and without enemies | Add a backdrop to the starting island | Add sunset or night scenery | Change the block palette |
-| 01 | Name the ship and transmit | Create three or more sentinels | Build six or more platforms | Add grass or concrete lanes and props | Give the forge a custom name |
+| 00 | Change the rock type | Recolor the ball and maze, initially dark and without enemies | Add a backdrop to the starting island | Change sunset scenery to night | Change the block palette |
+| 01 | Name the ship and transmit | Create three or more sentinels | Build six or more platforms | Change grass lanes to concrete with props | Give the forge a custom name |
 | 02 | Set the rock count | Increase movement speed with arithmetic | Add glowing or crumbling platform effects | Enable and deploy machines | Increase line value with arithmetic |
 | 03 | Increase weapon power with arithmetic | Collect a stun gem and catch a sentinel | Increase jump strength and jump | Add a zombie type and defeat one | Enable and rotate a piece |
 | 04 | Declare shield and rapid fire as false | Extend and perform a phase jump | Increase running speed with arithmetic | Increase blade damage with arithmetic | Enable and request a placement hint |
@@ -28,11 +28,11 @@ The four additional campaigns use the same eight-stage learning arc with indepen
 | 06 | Activate blast blades with a score rule | Activate Jade Rush with a score rule | Activate jackpot scoring with a score rule | Activate Focus with a score rule |
 | Final | Dismantle every robot in a quarry | Collect five fruits and clear a garden | Reach the table target | Place fifteen slabs and complete a skyline |
 
-Each final also requires the current custom palette, player name, arithmetic and an executed score rule. Free Mod Mode exposes the full catalog in Python, Swift and C#.
+Each optional final challenge also requires the current custom palette, player name, arithmetic and an executed score rule. Challenge completion never gates a mod, a live rule or Free Play.
 
 - Maze gems stun the squad. Touching a stunned sentinel awards 100 points once per capture; it returns away from the player after the stun expires. Phase jumps show a raised arc, a path and expanding rings. Pickups, catches and impacts emit bounded effects, with reduced-motion support.
 - Devil Floor starts with zero additional platforms. `platforms` builds or shortens the route live. Removing the player's platform returns them safely to an available platform. `platformEffect` chooses plain, glowing or crumbling platforms; `background`, `timeOfDay` and `fireballStyle` control the world presentation. Fireball styles also enable or disable their hazards.
-- Makitas starts in build mode. `ground` enables the board, `toolbox` enables machine choices and `zombieType` enables the invasion. A mixed invasion introduces tougher variants by wave; individual types can also be selected.
+- Makitas starts with sunset scenery, grass lanes, props, the full toolbox and a worker invasion. Damage, power supply and speed use basic settings; auto collection, twin blades and overdrive start off. Deploying defenders and collecting batteries are normal gameplay. `ground`, `toolbox` and `zombieType` can still be set to `none` to experiment with construction. A mixed invasion introduces tougher variants by wave; individual types can also be selected.
 - Makitas automatically saves the defense at each wave boundary, including machines, upgrades, health, power, score, sweepers and cumulative run metrics. Retry and reload restore that boundary, so an interrupted wave is replayed without resetting earlier waves. Build changes between waves also update the checkpoint. Resetting the game's progress clears it. Code edits continue to apply to the restored defense.
 - The new [machine and zombie atlas](makitas-sprites-v2.md) provides four frames for each of eight actors. The game preserves sprite proportions and displays still frames with reduced motion enabled.
 - Makitas has a 75-power surge: 45 damage and three seconds of slowdown against all live zombies, recharging over 24 simulation seconds. Use S or the surge button. A speed toggle accelerates the simulation and its feedback together. HUD labels no longer shrink with the battlefield; tool cards, collection and tactical buttons have larger touch targets.

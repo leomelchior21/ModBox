@@ -8,6 +8,6 @@ export function ForgeCover(): JSX.Element {
 export const blockForge: PlayableGame = {
   id: 'block-forge', title: 'BLOCK FORGE', genre: 'block puzzle · combos & creativity', status: 'play', Cover: ForgeCover,
   hero: { src: '/art/block-forge/cover.svg', alt: 'Pastel jewel blocks filling a glowing puzzle board in a violet workshop' },
-  languages: ['python', 'swift', 'csharp'], starterMissionId: 'm00', sandboxMissionId: 'free', missions: FORGE_MISSIONS,
+  languages: ['python', 'swift', 'csharp'], playFirst: true, starterMissionId: 'free', sandboxMissionId: 'free', missions: FORGE_MISSIONS,
   loadScreen: () => import('./BlockForgeScreen').then(module => ({ default: module.BlockForgeScreen })),
 };

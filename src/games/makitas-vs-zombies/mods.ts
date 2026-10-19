@@ -8,17 +8,17 @@ export interface YardConfig {
   zombieSpeed: number; startingPower: number;
 }
 export const YARD_DEFAULTS: YardConfig = {
-  background: 'none', ground: 'none', decorations: false, toolbox: 'none', zombieType: 'none',
+  background: 'sunset', ground: 'grass', decorations: true, toolbox: 'full', zombieType: 'worker',
   toolColor: 'teal', workshopName: 'The Last Workshop', bladeDamage: 25, chargeRate: 5,
   autoCollect: false, doubleShot: false, overdrive: false, barricadeHealth: 450,
   zombieSpeed: 3, startingPower: 350,
 };
 export const YARD_MODS: readonly ModDefinition<keyof YardConfig>[] = [
-  { id: 'background', name: 'background', type: 'string', label: 'BUILD SCENERY', blurb: 'Add the workshop backdrop at sunset or under the night sky.', example: 'string background = "sunset";', values: ['none', 'sunset', 'night'], defaultValue: 'none', glyph: '◈', unlockAt: 0 },
-  { id: 'ground', name: 'ground', type: 'string', label: 'BUILD THE YARD', blurb: 'Lay out five lanes of grass or concrete for your machines.', example: 'string ground = "grass";', values: ['none', 'grass', 'concrete'], defaultValue: 'none', glyph: '▦', unlockAt: 1 },
-  { id: 'decorations', name: 'decorations', type: 'bool', label: 'WORKSHOP PROPS', blurb: 'Add fence posts, crates and workshop lights around the yard.', example: 'bool decorations = true;', defaultValue: false, glyph: '✦', unlockAt: 1 },
-  { id: 'toolbox', name: 'toolbox', type: 'string', label: 'ADD MACHINES', blurb: 'Saws adds saw turrets and chargers. Full also adds barricades and frost saws.', example: 'string toolbox = "saws";', values: ['none', 'saws', 'full'], defaultValue: 'none', glyph: '⚒', unlockAt: 2 },
-  { id: 'zombieType', name: 'zombieType', type: 'string', label: 'ADD ZOMBIES', blurb: 'Choose workers, hardhats, sprinters, brutes or a mixed invasion. None holds the invasion.', example: 'string zombieType = "worker";', values: ['none', 'worker', 'hardhat', 'sprinter', 'brute', 'mixed'], defaultValue: 'none', glyph: '☠', unlockAt: 3 },
+  { id: 'background', name: 'background', type: 'string', label: 'BUILD SCENERY', blurb: 'Add the workshop backdrop at sunset or under the night sky.', example: 'string background = "sunset";', values: ['none', 'sunset', 'night'], defaultValue: 'sunset', glyph: '◈', unlockAt: 0 },
+  { id: 'ground', name: 'ground', type: 'string', label: 'BUILD THE YARD', blurb: 'Lay out five lanes of grass or concrete for your machines.', example: 'string ground = "grass";', values: ['none', 'grass', 'concrete'], defaultValue: 'grass', glyph: '▦', unlockAt: 1 },
+  { id: 'decorations', name: 'decorations', type: 'bool', label: 'WORKSHOP PROPS', blurb: 'Add fence posts, crates and workshop lights around the yard.', example: 'bool decorations = true;', defaultValue: true, glyph: '✦', unlockAt: 1 },
+  { id: 'toolbox', name: 'toolbox', type: 'string', label: 'ADD MACHINES', blurb: 'Saws adds saw turrets and chargers. Full also adds barricades and frost saws.', example: 'string toolbox = "saws";', values: ['none', 'saws', 'full'], defaultValue: 'full', glyph: '⚒', unlockAt: 2 },
+  { id: 'zombieType', name: 'zombieType', type: 'string', label: 'ADD ZOMBIES', blurb: 'Choose workers, hardhats, sprinters, brutes or a mixed invasion. None holds the invasion.', example: 'string zombieType = "worker";', values: ['none', 'worker', 'hardhat', 'sprinter', 'brute', 'mixed'], defaultValue: 'worker', glyph: '☠', unlockAt: 3 },
   { id: 'toolColor', name: 'toolColor', type: 'string', label: 'TOOL COLOR', blurb: 'Choose the glow of your saws and spinning blades.', example: 'string toolColor = "amber";', values: ['teal', 'amber', 'violet', 'lime'], defaultValue: 'teal', glyph: '◈', unlockAt: 2 },
   { id: 'workshopName', name: 'workshopName', type: 'string', label: 'WORKSHOP NAME', blurb: 'Give your last line of defense a name.', example: 'string workshopName = "Saw Society";', maxLength: 22, defaultValue: 'The Last Workshop', glyph: '⚑', unlockAt: 7 },
   { id: 'bladeDamage', name: 'bladeDamage', type: 'int', label: 'BLADE DAMAGE', blurb: 'Damage dealt by each circular saw disc.', example: 'int bladeDamage = 25;', limits: { min: 15, max: 60 }, range: '15–60', defaultValue: 25, glyph: '✹', unlockAt: 4 },

@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { parseGameScript } from '../../interpreter/gameScript';
 import { formatCodeForLanguage } from '../../interpreter/languageSyntax';
 import { ForgeRun, SIZE, canPlace, completedLines, rotateCells, readForgeCheckpoint, type Piece } from './run';
-import { FORGE_MODS, FORGE_TOOLS, forgeSchema, type ForgeConfig } from './mods';
-import { FORGE_MISSIONS, FORGE_STARTER, FORGE_SANDBOX, forgeMissionPassed, forgeUnlocked, playableForgeProgram } from './missions';
+import { FORGE_DEFAULTS, FORGE_MODS, FORGE_TOOLS, forgeSchema, type ForgeConfig } from './mods';
+import { FORGE_MISSIONS, FORGE_STARTER, FORGE_REMIX, forgeMissionPassed } from './missions';
 
 const parse = (source: string) => parseGameScript<ForgeConfig>(source, 'csharp', forgeSchema);
 const single = (id = 90): Piece => ({ id, cells: [[0, 0]], color: 1 });
-const launch = (code = FORGE_SANDBOX) => { const run = new ForgeRun(42); run.setProgram(parse(code)); run.launch(); return run; };
+const launch = (code = FORGE_REMIX) => { const run = new ForgeRun(42); run.setProgram(parse(code)); run.launch(); return run; };
 
 describe('Block Forge puzzle rules', () => {
   it('offers a first clear, charges no time and rejects occupied or out-of-bounds placements atomically', () => {
@@ -47,7 +47,7 @@ describe('Block Forge puzzle rules', () => {
   });
   it('finds a clearing hint without mutating the board and gates hint, rotation and undo behind mods', () => {
     const run = launch(FORGE_STARTER), board = [...run.board]; expect(run.hint()).toBeNull(); expect(run.rotate(0)).toBe(false);
-    run.setProgram(parse(FORGE_SANDBOX)); const hint = run.hint()!; expect(run.preview(hint.slot, hint.row, hint.col)?.lines).toBe(1); expect(run.board).toEqual(board);
+    run.setProgram(parse(FORGE_REMIX)); const hint = run.hint()!; expect(run.preview(hint.slot, hint.row, hint.col)?.lines).toBe(1); expect(run.board).toEqual(board);
     expect(run.metrics.hints).toBe(1); const cells = structuredClone(run.tray[2]!.cells);
     for (let i = 0; i < 4; i++) expect(run.rotate(2)).toBe(true); expect(run.tray[2]!.cells).toEqual(cells);
   });
@@ -73,7 +73,7 @@ describe('Block Forge puzzle rules', () => {
   });
   it('validates and restores a saved board, tray and resources without sharing mutable state', () => {
     const run = launch(); run.place(0, 7, 6); run.rotate(1); run.reshuffle(); const saved = run.checkpoint();
-    const restored = new ForgeRun(2026, saved); restored.setProgram(parse(FORGE_SANDBOX)); expect(restored.hasSavedBoard).toBe(true);
+    const restored = new ForgeRun(2026, saved); restored.setProgram(parse(FORGE_REMIX)); expect(restored.hasSavedBoard).toBe(true);
     restored.launch(false); expect(restored.board).toEqual(run.board); expect(restored.tray).toEqual(run.tray); expect(restored.score).toBe(run.score); expect(restored.rerolls).toBe(2); expect(restored.config.comboBoost).toBe(true);
     restored.board[0] = 6; expect(saved.board[0]).toBe(0); expect(restored.canUndo).toBe(false);
     expect(readForgeCheckpoint({ ...saved, board: [0] })).toBeNull(); expect(readForgeCheckpoint({ ...saved, rerolls: -1 })).toBeNull();
@@ -86,25 +86,27 @@ describe('Block Forge puzzle rules', () => {
 
 describe('Block Forge learning and languages', () => {
   it.each(['python', 'swift', 'csharp'] as const)('parses every mod and starter in %s and executes the combo rule', language => {
-    for (const source of [FORGE_STARTER, FORGE_SANDBOX, ...FORGE_MODS.map(m => m.example), ...FORGE_TOOLS.map(t => `bool comboBoost = false;\n${t.example}`)]) {
+    for (const source of [FORGE_STARTER, FORGE_REMIX, ...FORGE_MODS.map(m => m.example), ...FORGE_TOOLS.map(t => `bool comboBoost = false;\n${t.example}`)]) {
       const program = parseGameScript<ForgeConfig>(formatCodeForLanguage(source, language), language, forgeSchema);
       expect(program.diagnostics.filter(d => d.severity === 'error'), source).toEqual([]); expect(program.ok, source).toBe(true);
     }
-    const run = new ForgeRun(); run.setProgram(parseGameScript<ForgeConfig>(formatCodeForLanguage(FORGE_SANDBOX, language), language, forgeSchema)); run.launch(); run.place(0, 7, 6); expect(run.config.comboBoost).toBe(true);
+    const run = new ForgeRun(); run.setProgram(parseGameScript<ForgeConfig>(formatCodeForLanguage(FORGE_REMIX, language), language, forgeSchema)); run.launch(); run.place(0, 7, 6); expect(run.config.comboBoost).toBe(true);
   });
-  it('keeps future mods and rule actions locked and exposes each mission target when taught', () => {
-    const unlocked = forgeUnlocked(FORGE_MISSIONS[0], [], false), program = playableForgeProgram(parse(FORGE_SANDBOX), unlocked.map(m => m.id));
-    expect(program.config).toEqual({ palette: 'aurora' }); expect(program.rules).toEqual([]);
-    expect(forgeUnlocked(FORGE_MISSIONS[0], [], true)).toHaveLength(FORGE_MODS.length);
-    for (const mission of FORGE_MISSIONS) if (mission.targetId) expect([...FORGE_MODS, ...FORGE_TOOLS].find(m => m.id === mission.targetId)!.unlockAt).toBeLessThanOrEqual(mission.order);
+  it.each(['python', 'swift', 'csharp'] as const)('starts basic and applies rotation, hints, undo and live rules without mission gates in %s', language => {
+    const run = new ForgeRun(), basic = parseGameScript<ForgeConfig>(formatCodeForLanguage(FORGE_STARTER, language), language, forgeSchema);
+    run.setProgram(basic); run.launch();
+    expect(basic.config).toEqual(FORGE_DEFAULTS); expect(run.hint()).toBeNull(); expect(run.rotate(0)).toBe(false);
+    run.setProgram(parseGameScript<ForgeConfig>(formatCodeForLanguage(FORGE_REMIX, language), language, forgeSchema));
+    expect(run.rotate(2)).toBe(true); expect(run.hint()).not.toBeNull();
+    expect(run.place(0, 7, 6)?.lines).toBe(1); expect(run.config.comboBoost).toBe(true); expect(run.undo()).toBe(true);
   });
   it('requires actual arithmetic, player actions and an executed current rule for completion', () => {
     const run = launch(); expect(forgeMissionPassed(FORGE_MISSIONS[2], parse('int linePoints = 150;'), run)).toBe(false);
-    expect(forgeMissionPassed(FORGE_MISSIONS[2], parse(FORGE_SANDBOX), run)).toBe(true);
-    for (const i of [3, 4, 5, 6]) expect(forgeMissionPassed(FORGE_MISSIONS[i], parse(FORGE_SANDBOX), run)).toBe(false);
+    expect(forgeMissionPassed(FORGE_MISSIONS[2], parse(FORGE_REMIX), run)).toBe(true);
+    for (const i of [3, 4, 5, 6]) expect(forgeMissionPassed(FORGE_MISSIONS[i], parse(FORGE_REMIX), run)).toBe(false);
     run.rotate(0); run.hint(); run.place(0, 0, 0); run.undo();
-    for (const i of [3, 4, 5]) expect(forgeMissionPassed(FORGE_MISSIONS[i], parse(FORGE_SANDBOX), run)).toBe(true);
-    run.launch(); run.place(0, 7, 6); expect(forgeMissionPassed(FORGE_MISSIONS[6], parse(FORGE_SANDBOX), run)).toBe(true);
+    for (const i of [3, 4, 5]) expect(forgeMissionPassed(FORGE_MISSIONS[i], parse(FORGE_REMIX), run)).toBe(true);
+    run.launch(); run.place(0, 7, 6); expect(forgeMissionPassed(FORGE_MISSIONS[6], parse(FORGE_REMIX), run)).toBe(true);
     expect(forgeMissionPassed(FORGE_MISSIONS[6], parse('bool comboBoost = true;'), run)).toBe(false);
   });
 });

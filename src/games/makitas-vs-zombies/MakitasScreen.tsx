@@ -13,8 +13,9 @@ import { useProgress } from '../../state/progressStore';
 import { useDebouncedValue, useMediaQuery } from '../../utils/hooks';
 import { useGameCode } from '../useGameCode';
 import type { GameScreenProps } from '../types';
+import { PlayModeNav } from '../PlayModeNav';
 import { YARD_MODS, YARD_RUNTIME_LABELS, YARD_TOOLS, yardSchema, type YardConfig } from './mods';
-import { YARD_MISSIONS, YARD_STARTER, YARD_SANDBOX, getYardMission, yardGuidance, yardMissionPassed, yardUnlocked, playableYardProgram } from './missions';
+import { YARD_MISSIONS, YARD_STARTER, getYardMission, yardGuidance, yardMissionPassed } from './missions';
 import { COLS, ROWS, UNIT_INFO, YardRun, type YardTool, type UnitKind } from './run';
 import { drawYard, TOOL_COLORS, VIEW, SPRITE_ROWS } from './render';
 import { YardEffects } from './effects';
@@ -30,12 +31,11 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
   const mission = getYardMission(missionId ?? progress.currentMissionId);
   const starter = useMemo(() => {
     const saved = useProgress.getState().getGameProgress(gameId).codes, previous = YARD_MISSIONS[mission.order - 1];
-    return normalizeVariableSpacing(previous && saved[codeKey(language, previous.id)] || formatCodeForLanguage(mission.kind === 'sandbox' ? YARD_SANDBOX : YARD_STARTER, language), language);
+    return normalizeVariableSpacing(previous && saved[codeKey(language, previous.id)] || formatCodeForLanguage(YARD_STARTER, language), language);
   }, [gameId, mission.id, mission.kind, mission.order, language]);
   const { code, onChange } = useGameCode(gameId, mission.id, language, starter), debounced = useDebouncedValue(code, 220);
   const program = useMemo(() => parseGameScript<YardConfig>(debounced, language, yardSchema), [debounced, language]);
-  const unlocked = useMemo(() => yardUnlocked(mission, progress.completed, progress.freeModeUnlocked), [mission, progress.completed, progress.freeModeUnlocked]);
-  const liveProgram = useMemo(() => playableYardProgram(program, unlocked.map(m => m.id)), [program, unlocked]);
+  const unlocked = YARD_MODS, liveProgram = program;
   const run = useMemo(() => new YardRun(useProgress.getState().getGameProgress(gameId).checkpoint), [gameId]), effects = useMemo(() => new YardEffects(), []), sound = useMemo(() => new YardSound(), []);
   const [snapshot, setSnapshot] = useState(() => run.snapshot());
   const [drops, setDrops] = useState(() => [...run.batteries]);
@@ -51,7 +51,7 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
   const touch = useMediaQuery('(any-pointer: coarse)'), reduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const diagnostic = program.diagnostics.find(d => d.severity === 'error');
   const passed = yardMissionPassed(mission, liveProgram, snapshot) || progress.completed.includes(mission.id);
-  const fullGameReady = mission.kind === 'final' && passed, next = YARD_MISSIONS[mission.order + 1], previous = YARD_MISSIONS[mission.order - 1];
+  const next = YARD_MISSIONS[mission.order + 1], previous = YARD_MISSIONS[mission.order - 1];
   const guidance = yardGuidance(mission, liveProgram, snapshot, passed), showCoach = !diagnostic && dismissed !== `${mission.id}:${guidance.message}`;
   const editorTarget = Boolean(guidance.targetId && program.symbols.some(s => s.mod === guidance.targetId));
   const savedRevision = useRef(0);
@@ -116,11 +116,11 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
     return () => { window.removeEventListener('keydown', keydown); window.removeEventListener('blur', blur); document.removeEventListener('visibilitychange', hidden); };
   }, [run, sound, update, launch]);
   const go = (target: typeof mission) => {
-    const store = useProgress.getState(); if (target.kind === 'sandbox' && store.codes[codeKey(language, target.id)] === undefined) store.setGameCode(gameId, codeKey(language, target.id), code);
+    const store = useProgress.getState(); if (store.codes[codeKey(language, target.id)] === undefined) store.setGameCode(gameId, codeKey(language, target.id), code);
     store.setMission(target.id); navigate({ name: 'lab', gameId, missionId: target.id, debug: debugFlag });
   };
   const mods = useMemo(() => unlocked.map(m => localizeMod(m, language)), [unlocked, language]);
-  const tools = useMemo(() => YARD_TOOLS.filter(t => mission.kind === 'sandbox' || progress.freeModeUnlocked || t.unlockAt <= mission.order).map(t => localizeTool(t, language)), [mission.kind, mission.order, progress.freeModeUnlocked, language]);
+  const tools = useMemo(() => YARD_TOOLS.map(t => localizeTool(t, language)), [language]);
   const playing = snapshot.phase === 'playing';
   const keyCell = (e: React.KeyboardEvent, row: number, col: number) => {
     const delta = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key]; if (!delta) return;
@@ -129,7 +129,7 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
   };
 
   return <GameWorkspace gameId={gameId} gameTitle="MAKITAS VS ZOMBIES" touch={touch} coding={focused}
-    header={<TopBar gameName="MAKITAS VS ZOMBIES" missions={YARD_MISSIONS} completed={progress.completed} paused={snapshot.phase === 'paused'} sound={progress.settings.sound}
+    header={<TopBar progressLabel="OPTIONAL CHALLENGES" gameName="MAKITAS VS ZOMBIES" missions={YARD_MISSIONS} completed={progress.completed} paused={snapshot.phase === 'paused'} sound={progress.settings.sound}
       restartLabel="Retry saved wave" onHome={() => navigate({ name: 'landing' })} onRestart={launch}
       onTogglePause={() => { run.phase === 'paused' ? run.resume() : run.pause(); update(); focusGame(); }} onResetCode={() => onChange(starter)}
       onResetFullGame={() => { if (window.confirm('Reset MAKITAS VS ZOMBIES? This clears its missions, code and high score.')) { useProgress.getState().resetCurrentGame(); navigate({ name: 'landing' }); } }}
@@ -143,7 +143,7 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
     modStrip={{ mods, tools, totalMods: YARD_MODS.length, collapsed, onToggleCollapsed: () => setCollapsed(v => !v), onInsert: insert, onOpenLibrary: () => setLibraryOpen(true), language,
       activeTargetId: guidance.targetId, coach: showCoach && guidance.targetId && !editorTarget ? guidance : undefined, onDismissCoach: dismiss }}
     library={{ open: libraryOpen, onClose: () => { setLibraryOpen(false); focusGame(); }, onInsert: (snippet, mode) => { setLibraryOpen(false); insert(snippet, mode); } }} stageRef={stage}
-    stage={<div className={`stage yard-stage ${passed && next ? 'stage--missionReady' : ''} ${fullGameReady ? 'stage--fullGameReady' : ''}`} style={{ '--yard-glow': TOOL_COLORS[snapshot.config.toolColor] } as React.CSSProperties}>
+    stage={<div className={`stage yard-stage `} style={{ '--yard-glow': TOOL_COLORS[snapshot.config.toolColor] } as React.CSSProperties}>
       <div className="yard__hud"><div className="yard__brand"><span className="yard__brandIcon">✹</span><div><small>NIGHT {String(snapshot.night).padStart(2, '0')} / WORKSHOP DEFENSE</small><strong>{snapshot.config.workshopName}</strong></div></div>
         <div className="yard__power" key={`power-${Math.floor(snapshot.power / 25)}`}><span>ϟ</span><div><strong>{snapshot.power}</strong><small>BATTERY POWER</small></div></div>
         <div className="yard__integrity" aria-label={`${snapshot.lives} workshop integrity`}><span>{[0, 1, 2].map(i => <b key={i} className={i >= snapshot.lives ? 'yard__heart--lost' : ''}>♥</b>)}</span><small>{String(snapshot.score).padStart(5, '0')} PTS</small></div>
@@ -178,17 +178,17 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
         </div>
         <div className="yard__footer"><span>{selected === 'upgrade' ? 'TAP A DEFENDER · 90 / 150 POWER' : selected === 'recycle' ? 'TAP A DEFENDER · 50% REFUND' : UNIT_INFO[selected].detail.toUpperCase()}</span><span>{touch ? 'SELECT TOOL → TAP TILE' : '1–6 TOOLS · B COLLECT · P PAUSE'}</span></div>
       </> : <div className={`overlay yard__overlay yard__overlay--${snapshot.phase}`}>
-        <div className="yard__panel"><span className="yard__eyebrow">{mission.kind === 'sandbox' ? 'ALL MODS UNLOCKED · ENDLESS NIGHTS' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</span>
+        <div className="yard__panel"><span className="yard__eyebrow">{mission.kind === 'sandbox' ? 'BASIC DEFENSE · EVERY MOD IS READY TO TRY' : `OPTIONAL CHALLENGE ${mission.order + 1}/8 · ${mission.title}`}</span>
           <span className="yard__tagline">BATTERIES INCLUDED. MERCY SOLD SEPARATELY.</span>
           <h1>{snapshot.phase === 'launch' ? <>MAKITAS<span>VS <em>ZOMBIES</em></span></> : snapshot.phase === 'paused' ? 'TOOLS DOWN' : snapshot.phase === 'cleared' ? 'YARD SECURED' : 'WORKSHOP LOST'}</h1>
-          <p>{snapshot.phase === 'launch' ? 'Your workshop. Your last stand. Build the yard with code, power up your machines, and turn the invasion into scrap.' : snapshot.phase === 'paused' ? 'Your defense is on hold. The zombies can wait.' : snapshot.phase === 'cleared' ? 'Three waves. One workshop. Still standing. A tougher night is waiting.' : 'The invasion got through. Add chargers, cover every lane, and protect your saws with barricades.'}</p>
+          <p>{snapshot.phase === 'launch' ? 'Your yard and toolbox are ready. Deploy defenders, collect batteries and hold off three waves. Try any mod to change how the battle feels.' : snapshot.phase === 'paused' ? 'Your defense is on hold. The zombies can wait.' : snapshot.phase === 'cleared' ? 'Three waves. One workshop. Still standing. A tougher night is waiting.' : 'The invasion got through. Add chargers, cover every lane, and protect your saws with barricades.'}</p>
           {snapshot.phase === 'cleared' || snapshot.phase === 'gameover' ? <div className="yard__results"><div><small>SCORE</small><b>{snapshot.score}</b></div><div><small>DEFEATED</small><b>{snapshot.metrics.kills}</b></div><div><small>WAVES</small><b>{snapshot.wave}/3</b></div></div> : snapshot.phase === 'launch' ? <div className="yard__introSteps"><span><b>01</b> CHARGE UP</span><span><b>02</b> DEPLOY SAWS</span><span><b>03</b> HOLD THE LINE</span></div> : null}
-          <button className="btn yard__enter" onClick={() => { sound.unlock(); if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch(); update(); focusGame(); }}>{snapshot.phase === 'paused' ? 'RESUME DEFENSE →' : snapshot.phase === 'cleared' ? 'NEXT NIGHT →' : snapshot.phase === 'gameover' ? 'RETRY SAVED WAVE →' : run.checkpoint ? 'CONTINUE SAVED WAVE →' : 'START BUILDING →'}</button>
+          <button className="btn yard__enter" onClick={() => { sound.unlock(); if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch(); update(); focusGame(); }}>{snapshot.phase === 'paused' ? 'RESUME DEFENSE →' : snapshot.phase === 'cleared' ? 'NEXT NIGHT →' : snapshot.phase === 'gameover' ? 'RETRY SAVED WAVE →' : run.checkpoint ? 'CONTINUE SAVED WAVE →' : 'PLAY BASIC DEFENSE →'}</button>
           <small>{snapshot.phase === 'launch' ? `Start with ${snapshot.config.startingPower} power · 5 emergency sweepers · 3 waves` : 'Deploy saws in every lane. Build chargers. Save 75 power for a surge.'}</small>
+          {snapshot.phase === 'launch' ? <button className="play-mode__intro" onClick={() => go(YARD_MISSIONS[mission.kind === 'sandbox' ? 0 : 8])}>{mission.kind === 'sandbox' ? 'TRY OPTIONAL CHALLENGES' : 'SWITCH TO FREE PLAY'}</button> : null}
         </div>
       </div>}
-      {previous ? <button className="stage__missionBack" onClick={() => go(previous)}>← Previous mission</button> : null}
-      {passed && next ? <div className="stage__missionNext"><button className="mission__next mission__next--ready" onClick={() => go(next)}>{fullGameReady ? 'Play full game' : 'NEXT MISSION'} →</button></div> : null}
+      <PlayModeNav exploring={mission.kind === 'sandbox'} nextClassName="mission__next--ready" onExplore={() => go(YARD_MISSIONS[8])} onGuide={() => go(YARD_MISSIONS[0])} onPrevious={previous ? () => go(previous) : undefined} onNext={next ? () => go(next) : undefined} />
     </div>}
     overlays={<><SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} bestScore={progress.bestScore} completedCount={progress.completed.length}
       onRename={name => useProgress.getState().setStudentName(name)} onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onToggleDebug={() => useProgress.getState().setSetting('debug', !progress.settings.debug)} onResetProgress={() => { useProgress.getState().resetProgress(); navigate({ name: 'landing' }); }} />

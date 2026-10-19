@@ -17,6 +17,7 @@ export interface TopBarProps {
   onSettings: () => void;
   onOpenLibrary: () => void;
   restartLabel?: string;
+  progressLabel?: string;
 }
 
 export function TopBar({
@@ -35,6 +36,7 @@ export function TopBar({
   onSettings,
   onOpenLibrary,
   restartLabel = 'Restart flight',
+  progressLabel = 'MISSION PROGRESS',
 }: TopBarProps): JSX.Element {
   const learning = missions.filter((mission) => mission.kind !== 'sandbox');
   const done = completed.filter((id) => learning.some((mission) => mission.id === id)).length;
@@ -43,7 +45,7 @@ export function TopBar({
     <header className="topbar">
       <div className="topbar__left">
         <div className="topbar__progress">
-          <label htmlFor="mission-progress">MISSION PROGRESS</label>
+          <label htmlFor="mission-progress">{progressLabel}</label>
           <div>
             <progress id="mission-progress" max={learning.length} value={done} />
             <span>{done}/{learning.length}</span>

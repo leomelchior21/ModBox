@@ -73,7 +73,7 @@ export function LandingScreen({ games: catalog, onSelectGame, getProgress, onArc
           const hasProgress = saved.completed.length > 0 || Object.values(saved.codes).some(code => code.trim());
           return <button key={game.id} className={`${className} home-game--ready`} onClick={() => onSelectGame(game)} aria-label={`Play ${game.title.toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase())}`}>
             <div className="home-game__art"><GameArtwork game={game} eager /><GameAvailability ready /></div>
-            <div className="home-game__body"><h3>{game.title}</h3><p>{game.genre}</p><span className="home-game__status">{hasProgress ? 'CONTINUE MISSION' : 'PLAY GAME'} <span aria-hidden="true">→</span></span></div>
+            <div className="home-game__body"><h3>{game.title}</h3><p>{game.genre}</p><span className="home-game__status">{hasProgress ? game.playFirst ? 'CONTINUE PLAYING' : 'CONTINUE MISSION' : 'PLAY GAME'} <span aria-hidden="true">→</span></span></div>
           </button>;
         })}
       </div>
