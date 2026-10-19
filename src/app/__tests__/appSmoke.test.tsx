@@ -12,6 +12,12 @@ import { VectorZeroEngine } from '../../games/vector-zero/engine/gameEngine';
 import type { RuntimeMetrics } from '../../games/vector-zero/engine/types';
 import { MODS } from '../../interpreter/core/mods';
 
+// Real WebGL scenes are exercised in browser checks; jsdom verifies the app/editor pipeline.
+vi.mock('../../games/three-kit/runner-view', () => ({ RunnerView: class { resize() {} render() {} dispose() {} } }));
+vi.mock('../../games/team-counters/view', () => ({ TeamView: class { resize() {} render() {} dispose() {} } }));
+vi.mock('../../games/monster-strider/view', () => ({ MonsterView: class { resize() {} render() {} dispose() {} } }));
+vi.mock('../../games/roomba-run/view', () => ({ RoombaView: class { resize() {} render() {} dispose() {} } }));
+
 /* ============================================================================
    MODBOX — APP SMOKE TEST
    Mounts the real screens in jsdom with a stubbed canvas so the whole pipeline
@@ -396,6 +402,11 @@ describe('MODBOX app shell', () => {
     ['naja-run', 'NAJA RUN', 'orchid'],
     ['pinballerz', 'PINBALLERZ', 'sunset'],
     ['speed-stack', 'SPEED STACK', 'mint'],
+    ['temple-race', 'TEMPLE RACE', 'gold'],
+    ['subway-runnerz', 'SUBWAY RUNNERZ', 'sunset'],
+    ['team-counters', 'TEAM COUNTERS', 'violet'],
+    ['monster-strider', 'MONSTER STRIDER', 'teal'],
+    ['roomba-run', 'ROOMBA RUN', 'coral'],
   ])('opens %s in basic free play, enables every mod and keeps challenges optional', async (id, title, color) => {
     window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
     await act(async () => host.querySelector<HTMLButtonElement>(`.home-game--${id}`)?.click()); await flush();
@@ -405,9 +416,9 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.premium__introLogo')?.getAttribute('alt')).toBe(title);
     expect(window.location.hash).toContain('mission=free');
     expect(host.querySelector('.cm-content')?.textContent).toContain('playerName');
-    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(9);
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'roomba-run' ? 11 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 10 : 9);
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    const enhanced = view!.state.doc.toString().replace(/palette = "[^"]+"/, `palette = "${color}"`).replace(/(blastBlade|venomRush|jackpotMode|focusMode) = False/, '$1 = True');
+    const enhanced = view!.state.doc.toString().replace(/palette = "[^"]+"/, `palette = "${color}"`).replace(/(blastBlade|venomRush|jackpotMode|focusMode|relicShield|hoverboard|teamShield|nitro|turboBrush) = False/, '$1 = True');
     await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: enhanced } }));
     expect(await waitFor(() => host.querySelector('.premium-stage')?.getAttribute('style')?.includes('--arcade-accent') ?? false)).toBe(true);
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 260)); });
@@ -438,7 +449,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.home__games')).toBeTruthy();
     expect(host.querySelector('.home__languages')).toBeNull();
     const games = [...host.querySelectorAll('.home-game')];
-    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK']);
+    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK', 'TEMPLE RACE', 'SUBWAY RUNNERZ', 'TEAM COUNTERS', 'MONSTER STRIDER', 'ROOMBA RUN']);
     expect(games.every(card => card.tagName === 'BUTTON' && card.textContent?.includes('AVAILABLE NOW'))).toBe(true);
     expect(games.every(card => card.querySelector('.home-game__art .game-art'))).toBe(true);
   });
@@ -472,7 +483,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.lab__filename')?.textContent).toBe('main.swift');
   });
 
-  it('renders all nine playable games in the arcade', async () => {
+  it('renders all fourteen playable games in the arcade', async () => {
     window.location.hash = '#/arcade';
     const { host, root } = mount();
     await act(async () => {
@@ -481,9 +492,8 @@ describe('MODBOX app shell', () => {
     await flush();
     expect(host.textContent).toContain('VECTOR ZERO');
     expect(host.textContent).toContain('MAKITAS VS ZOMBIES');
-    expect(host.textContent).not.toContain('RUNNER');
     expect(host.textContent).not.toContain('COMING SOON');
-    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK']);
+    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK', 'TEMPLE RACE', 'SUBWAY RUNNERZ', 'TEAM COUNTERS', 'MONSTER STRIDER', 'ROOMBA RUN']);
     expect(host.querySelectorAll('.cabinet--locked button')).toHaveLength(0);
   });
 

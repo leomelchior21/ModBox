@@ -9,6 +9,16 @@ import { najaRun } from './naja-run/definition';
 import { pinballerz } from './pinballerz/definition';
 import { speedStack } from './speed-stack/definition';
 
+import { templeRace } from './temple-race/definition';
+
+import { subwayRunnerz } from './subway-runnerz/definition';
+
+import { teamCounters } from './team-counters/definition';
+
+import { monsterStrider } from './monster-strider/definition';
+
+import { roombaRun } from './roomba-run/definition';
+
 /** Register a finished game's definition here to expose it in both libraries. */
 export const gameRegistry = createGameRegistry([
   vectorZero,
@@ -20,4 +30,9 @@ export const gameRegistry = createGameRegistry([
   najaRun,
   pinballerz,
   speedStack,
+  templeRace,
+  subwayRunnerz,
+  teamCounters,
+  monsterStrider,
+  roombaRun,
 ]);

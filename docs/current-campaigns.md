@@ -1,6 +1,6 @@
 # Current campaigns
 
-All games support Python, Swift and C#. Makitas vs Zombies, Block Forge, Makita Slingers, Naja Run, Pinballerz and Speed Stack start in Free Play with complete basic settings and every mod and rule tool available. Their seven teaching missions and final challenge are optional suggestions, with unrestricted navigation back to Free Play. Upgrades start off so enabling one produces a noticeable change. Switching modes seeds unsaved challenge code from the current experiment while preserving existing saved code and checkpoints. The original three games retain progressive unlocks.
+All games support Python, Swift and C#. Makitas vs Zombies, Block Forge, Makita Slingers, Naja Run, Pinballerz, Speed Stack, Temple Race, Subway Runnerz, Team Counters, Monster Strider and Roomba Run start in Free Play with complete basic settings and every mod and rule tool available. Their seven teaching missions and final challenge are optional suggestions, with unrestricted navigation back to Free Play. Upgrades start off so enabling one produces a noticeable change. Switching modes seeds unsaved challenge code from the current experiment while preserving existing saved code and checkpoints. The original three games retain progressive unlocks.
 
 | Stage | Vector Zero | Neon Maze | Devil Floor | Makitas vs Zombies | Block Forge |
 | --- | --- | --- | --- | --- | --- |
@@ -42,3 +42,17 @@ Each optional final challenge also requires the current custom palette, player n
 - Pinballerz simulates a ball against table rails, three jet bumpers, three star targets and two moving flipper capsules. The launch-lane deflector feeds the bumper cluster. A newly pressed flipper adds a stronger upward impulse than a resting flipper. Space launches or pulses both flippers; Left/Right or A/D holds them separately. Touch controls support both hands. N gives one of three stage nudges. An enabled ball save rescues one drain during the first seven seconds after launch. Three stars award a jackpot, while the score target advances the table.
 - Speed Stack alternates movement along two isometric axes. Intersections determine the surviving slab; overhangs become bounded falling offcuts. Three consecutive perfects widen the tower, up to its maximum size. Magnetic alignment adds a small tolerance. Focus slows movement for three seconds with a twelve-second recharge. A full miss consumes a chance. Stage goals rise from fifteen slabs, capped at twenty-five.
 - These four games save stage starts and clears. Retrying restores that boundary, including score and mission metrics; it replays an interrupted stage. Finishing a stage and leaving restores its cleared screen. Editing, menus, tab hiding and pausing hold the simulation and effects, and release held input. Expand Game gives the stage the full workspace; Show Code restores the desk. Original artwork, measured sprite cells and wordmarks are documented in [the art manifest](premium-arcade-art.json).
+
+## The five 3D campaigns
+
+Temple Race, Subway Runnerz, Team Counters, Monster Strider and Roomba Run also use eight optional challenges: palette, name, arithmetic, assistance, scoring, physics, a live rule and a completed stage. They enter a complete basic game in Free Play with all mods and tools available.
+
+| Game | Complete stage | Distinctive mods | Extra runtime names |
+| --- | --- | --- | --- |
+| Temple Race | Reach the beacon along the turning causeway | jumpPower, coinMagnet, runSpeed, relicShield | distance, coins, streak |
+| Subway Runnerz | Reach the station using tracks and train roofs | jumpPower, coinMagnet, runSpeed, hoverboard | distance, coins, streak |
+| Team Counters | Win the castle clash and reach the victory steps | recruitBonus, gatePreview, runSpeed, teamShield | distance, team, gates |
+| Monster Strider | Cross the bridges and both gaps to the finish | enginePower, autoBalance, gravity, nitro | distance, velocity, airborne |
+| Roomba Run | Clean 90% of accessible floor and return to dock | suction, smartRoute, driveSpeed, turboBrush | battery, cleaned, patches |
+
+Stage boundaries save score and learning metrics. Truck recovery uses safe islands within a stage. Failed crowd choices rewind the choice and score together. Vacuum recharging preserves dirt progress during the current job. Original art and reference research are documented in [3d-arcade-research.md](3d-arcade-research.md).

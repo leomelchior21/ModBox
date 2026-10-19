@@ -6,12 +6,16 @@ behind them and rebuild the world while they fly it.
 > CODE IS THE GAME MODIFIER.
 
 Play **VECTOR ZERO**, **NEON MAZE**, **DEVIL FLOOR**, **MAKITAS VS ZOMBIES**, **BLOCK FORGE**,
-**MAKITA SLINGERS**, **NAJA RUN**, **PINBALLERZ** and **SPEED STACK**.
-Each game supports Python, Swift and C#. Makitas vs Zombies, Block Forge and the four newest
-games open in Free Play with a complete basic game and every mod available immediately.
+**MAKITA SLINGERS**, **NAJA RUN**, **PINBALLERZ**, **SPEED STACK**, **TEMPLE RACE**,
+**SUBWAY RUNNERZ**, **TEAM COUNTERS**, **MONSTER STRIDER** and **ROOMBA RUN**.
+Each game supports Python, Swift and C#. The eleven newest games open in Free Play with a complete basic game and every mod available immediately.
 Enable upgrades, change the physics and add live rules to see their effects. Their eight
 guided challenges are optional; existing code and saves are preserved. Vector Zero, Neon Maze
 and Devil Floor retain their progressive learning campaigns.
+
+The five new 3D games use native WebGL worlds, animated mesh characters, original cover art,
+transparent item atlases and SVG wordmarks. See the [research and design brief](docs/3d-arcade-research.md)
+and [asset prompts and manifest](docs/3d-arcade-art.json). A browser with WebGL2 is required for these scenes.
 
 ---
 

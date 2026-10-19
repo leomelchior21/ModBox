@@ -1,0 +1,73 @@
+{
+  "generator": "Built-in image_gen",
+  "created": "2026-10-18",
+  "covers": [
+    {
+      "id": "temple-race",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-ead641b6-020b-46f1-b255-77466b15fd2d.png",
+      "path": "public/art/temple-race/cover.webp",
+      "prompt": "Use case: stylized-concept. Asset type: premium original 3D game cover, wide landscape. Create a polished cinematic key art image for TEMPLE RACE, an original jungle temple adventure runner. An athletic explorer with a teal scarf and copper backpack leaps across a broken mossy stone causeway in a misty tropical canyon. Glowing amber relic coins arc ahead toward a colossal geometric stone temple, fern canopies, waterfalls, sunset shafts, rich jade and warm sandstone, carefully crafted stylized 3D videogame materials, appealing large readable shapes, dynamic three-quarter view, dramatic depth, premium console game box art finish. Full bleed, no text, no logos, no UI, no watermark, no recognizable existing game characters. Landscape 1536x1024."
+    },
+    {
+      "id": "subway-runnerz",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-a11e0bfa-418a-459c-8b84-b4bcd1e1eaf9.png",
+      "path": "public/art/subway-runnerz/cover.webp",
+      "prompt": "Use case: stylized-concept. Asset type: premium original 3D game cover, wide landscape. Original subway runner key art: a stylish young street runner with a violet jacket, orange sneakers and cyan headphones jumps from a colorful commuter train onto a neon cyan hoverboard. Luminous sunset city rail district, three rails converge into the distance, bold coral and cobalt train carriages, colorful wall murals, floating gold tokens, soft mist, reflected cinematic lights. Fun energetic stylized 3D animated-film quality, crisp forms, premium rendered materials, dynamic low angle, readable silhouette, expressive motion. No text, no logo, no UI, no watermark, no existing game characters. Landscape 1536x1024."
+    },
+    {
+      "id": "team-counters",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-36c4f55b-664d-4428-bdd7-11a2df4c4496.png",
+      "path": "public/art/team-counters/cover.webp",
+      "prompt": "Use case: stylized-concept. Asset type: premium original 3D game cover, wide landscape. Original arithmetic crowd runner videogame key art: a playful cyan-blue crowd of small glossy helmeted runners charges along a floating ivory obstacle course above peach and turquoise clouds. Forked translucent mint gates imply a choice ahead, a small red opposing squad guards a toy-like sandstone castle. Dynamic cinematic angle from close behind the blue leader, sweeping path, satisfying many tiny characters, chunky colorful polished 3D models, dramatic rim lighting and ambient occlusion, premium mobile game advertising art. Gates have geometric plus and multiplication symbols only, no numbers or other text. No logos, no watermark, no UI. Landscape 1536x1024."
+    },
+    {
+      "id": "monster-strider",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-cabf0520-2b2b-4141-a6f5-b960b68e936c.png",
+      "path": "public/art/monster-strider/cover.webp",
+      "prompt": "Use case: stylized-concept. Asset type: premium original 3D game cover, wide landscape. A powerful compact yellow-orange monster truck with enormous chunky black off-road wheels and turquoise windshield, mid leap between narrow winding wooden ramps over an azure island lagoon. Stylized isometric three-quarter camera, tiny tropical islands with grass and pink sandstone cliffs, suspended plank bridges, golden pickup coins, cartoon shock absorbers visibly extended, appealing detailed 3D toy-like materials, cinematic sunlight, clean bright turquoise water, powdery clouds, exciting stunt racing composition, premium videogame illustration. No text, no logo, no UI, no watermark, no recognizable existing game vehicle. Landscape 1536x1024."
+    },
+    {
+      "id": "roomba-run",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-f5288e4b-a730-4b07-a0b6-72830532e445.png",
+      "path": "public/art/roomba-run/cover.webp",
+      "prompt": "Use case: stylized-concept. Asset type: premium original 3D game cover, wide landscape. A charming white and mint circular robot vacuum with a small lidar turret and warm amber status light, photographed at floor height as it cleans a satisfyingly perfect bright trail through dusty warm wood flooring. A beautifully designed cozy apartment with terracotta sofa, round coffee table, plants, sunbeams through windows, scattered crumbs and a small toy ball. Premium stylized 3D animation-film rendering, tactile fabric and brushed metal materials, inviting warm afternoon light, distinct clean-versus-dirty floor contrast, cinematic depth of field, expressive robot personality without a face. No text, no logos, no product branding, no UI, no watermark. Landscape 1536x1024."
+    }
+  ],
+  "sprites": [
+    {
+      "id": "temple-race",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-b881e7d5-a2d9-466e-bd98-e1ecf1fa0780.png",
+      "path": "public/art/temple-race/sprites.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production game UI sprite atlas with actual transparent background. Four distinct isolated polished 3D collectible illustrations for an original temple-race game. Arrange a precise 2 by 2 square grid with equal cells and generous clear padding, one object entirely contained per cell. In reading order: a faceted amber temple relic, a glowing ancient coin, a jade-and-gold protective shield, a carved sandstone temple gate. Premium tactile toy-like stylized 3D render, soft studio lighting, consistent three-quarter camera, crisp silhouettes, vibrant materials, subtle ambient occlusion on objects. Objects float isolated with no floor and no contact backdrop. No text, no numbers, no logo, no watermark, no extra props. True transparent background including between the objects. Square 1024x1024."
+    },
+    {
+      "id": "subway-runnerz",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-b6e68bed-63cb-4bd6-9d66-325002af491e.png",
+      "path": "public/art/subway-runnerz/sprites.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production game UI sprite atlas with actual transparent background. Four distinct isolated polished 3D collectible illustrations for an original subway-runnerz game. Arrange a precise 2 by 2 square grid with equal cells and generous clear padding, one object entirely contained per cell. In reading order: a neon cyan hoverboard, a gold rail token, a chunky horseshoe magnet, purple-and-orange running sneakers. Premium tactile toy-like stylized 3D render, soft studio lighting, consistent three-quarter camera, crisp silhouettes, vibrant materials, subtle ambient occlusion on objects. Objects float isolated with no floor and no contact backdrop. No text, no numbers, no logo, no watermark, no extra props. True transparent background including between the objects. Square 1024x1024."
+    },
+    {
+      "id": "team-counters",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-84010c6d-0df9-496c-9ea6-fc796984388b.png",
+      "path": "public/art/team-counters/sprites.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production game UI sprite atlas with actual transparent background. Four distinct isolated polished 3D collectible illustrations for an original team-counters game. Arrange a precise 2 by 2 square grid with equal cells and generous clear padding, one object entirely contained per cell. In reading order: a cyan helmeted tiny runner, a mint glass mathematical plus gate, a blue protective squad shield, a toy sandstone victory castle. Premium tactile toy-like stylized 3D render, soft studio lighting, consistent three-quarter camera, crisp silhouettes, vibrant materials, subtle ambient occlusion on objects. Objects float isolated with no floor and no contact backdrop. No text, no numbers, no logo, no watermark, no extra props. True transparent background including between the objects. Square 1024x1024."
+    },
+    {
+      "id": "monster-strider",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-96f321d0-b9e1-4fce-84b4-f0966393b8b9.png",
+      "path": "public/art/monster-strider/sprites.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production game UI sprite atlas with actual transparent background. Four distinct isolated polished 3D collectible illustrations for an original monster-strider game. Arrange a precise 2 by 2 square grid with equal cells and generous clear padding, one object entirely contained per cell. In reading order: a huge chunky off-road tire with orange hub, a gleaming gold trail coin, a cyan nitro canister, a checkered finish flag on a small sandstone island. Premium tactile toy-like stylized 3D render, soft studio lighting, consistent three-quarter camera, crisp silhouettes, vibrant materials, subtle ambient occlusion on objects. Objects float isolated with no floor and no contact backdrop. No text, no numbers, no logo, no watermark, no extra props. True transparent background including between the objects. Square 1024x1024."
+    },
+    {
+      "id": "roomba-run",
+      "source": "C:\\Users\\Administrador\\.codex\\generated_images\\01a150cc-2f8d-7a71-8a47-32542c09e859\\exec-94bd7886-0fa9-459e-8065-19fe961d752c.png",
+      "path": "public/art/roomba-run/sprites.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production game UI sprite atlas with actual transparent background. Four distinct isolated polished 3D collectible illustrations for an original roomba-run game. Arrange a precise 2 by 2 square grid with equal cells and generous clear padding, one object entirely contained per cell. In reading order: a white and mint circular robot vacuum with lidar turret, a glowing mint charging dock, an orange turbo cleaning brush, a bright green battery pack. Premium tactile toy-like stylized 3D render, soft studio lighting, consistent three-quarter camera, crisp silhouettes, vibrant materials, subtle ambient occlusion on objects. Objects float isolated with no floor and no contact backdrop. No text, no numbers, no logo, no watermark, no extra props. True transparent background including between the objects. Square 1024x1024."
+    }
+  ],
+  "nativeAssets": [
+    "Five SVG wordmarks in public/art/<game>/logo.svg",
+    "Animated explorer rig, instanced crowd bodies, monster truck and robot models authored in src/games/three-kit and each game view.ts",
+    "Code-authored stone, rail and wood textures; shaded meshes, pickup models and bounded 3D particles"
+  ]
+}

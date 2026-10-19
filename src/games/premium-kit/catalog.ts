@@ -14,6 +14,8 @@ export interface CatalogOptions {
   overdrive: { name: string; label: string; blurb: string };
   lives: { name: string; label: string; min: number; max: number };
   final: string;
+  runtime?: Record<string, string>;
+  extraTools?: readonly CodeToolDefinition[];
 }
 export function createArcadeCatalog(o: CatalogOptions) {
   const d = o.defaults;
@@ -28,7 +30,9 @@ export function createArcadeCatalog(o: CatalogOptions) {
     { id: 'lives', name: o.lives.name, type: 'int', label: o.lives.label, blurb: 'Starting chances when retrying a stage.', example: `int ${o.lives.name} = ${Math.min(o.lives.max, d.lives + 1)};`, limits: { min: o.lives.min, max: o.lives.max }, defaultValue: d.lives, glyph: '♥', unlockAt: 7 },
   ];
   const tools: readonly CodeToolDefinition[] = [{ id: 'arcade-rule', name: 'scoreRule', label: 'THE GAME CAN THINK', type: 'condition', blurb: `Switch on ${o.overdrive.label.toLowerCase()} after your first score.`, example: `if (score >= 1)\n{\n    ${o.overdrive.name} = true;\n}`, glyph: '?', unlockAt: 6 }];
-  const schema = createModSchema(mods, Object.keys(ARCADE_RUNTIME_LABELS));
+  const runtimeLabels = { ...ARCADE_RUNTIME_LABELS, ...o.runtime };
+  const allTools = [...tools, ...o.extraTools ?? []];
+  const schema = createModSchema(mods, Object.keys(runtimeLabels));
   const missions: readonly ArcadeMission[] = [
     { id: 'm00', order: 0, kind: 'mission', title: 'SET THE MOOD', targetId: 'palette', message: `Welcome to ${o.title}. Start playing, then use COLOR STUDIO to change palette to ${o.palettes[1]}.` },
     { id: 'm01', order: 1, kind: 'mission', title: 'MAKE YOUR MARK', targetId: 'playerName', message: 'Add YOUR SIGNATURE and give your player a name of your own.' },
@@ -59,6 +63,6 @@ export function createArcadeCatalog(o: CatalogOptions) {
       default: return false;
     }
   }
-  return { mods, tools, schema, missions, starter, sandbox: starter, remix, passed, defaults: d };
+  return { mods, tools: allTools, runtimeLabels, schema, missions, starter, sandbox: starter, remix, passed, defaults: d };
 }
 export type ArcadeCatalog = ReturnType<typeof createArcadeCatalog>;
