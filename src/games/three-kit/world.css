@@ -12,6 +12,6 @@
 .world__unavailable strong { font-size:20px; }.world__unavailable p { max-width:360px; }.world__unavailable button { min-height:48px; padding:12px 20px; border:1px solid var(--arcade-accent); border-radius:7px; background:var(--arcade-accent); color:#132933; font:700 13px var(--font-mono); cursor:pointer; }
 @container(max-height:580px) { .world-stage .premium__intro { gap:8px; }.world-stage .premium__introLogo { max-height:55px; }.world__features i { height:46px; width:46px; }.world__features { gap:9px; }.world-stage .premium__intro p { font-size:12px; line-height:1.5; } }
 @media(max-width:600px) { .world-stage .premium__controls button { font-size:10px; flex:1 1 24%; }.world__objective { padding:6px 8px; left:7px; top:7px; }.world__objective span { font-size:9px; }.world-stage .premium__intro { width:100%; gap:8px; }.world__features i { width:42px; height:42px; } }
-.lab.crt-cabinet:has(.world-stage)::before { opacity:.18; }
+.lab.crt-cabinet:has(.world-stage)::before { display:none; }
 .world-stage .premium__head .premium__logo { height:43px; }
 .world-stage .premium__head { min-height:74px; }

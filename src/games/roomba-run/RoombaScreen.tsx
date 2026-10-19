@@ -8,7 +8,7 @@ import '../three-kit/world.css';
 export const roombaSpec: PremiumGameSpec<RoombaRun> = {
   id: 'roomba-run', title: 'ROOMBA RUN', eyebrow: 'A LITTLE ROBOT. A BIG CLEAN FEELING.',
   description: 'Turn a dusty apartment into a spotless little sanctuary. Slip under tables, trace satisfying clean trails and make it home before your battery gives up.',
-  instructions: 'Use arrows / WASD or hold the direction buttons. Tap the floor to plan a route around furniture. DOCK returns to recharge. Clean 90%, then dock to finish. N changes camera; E uses enabled turbo.', goal: 'LEAVE A LITTLE SHINE.',
+  instructions: 'Use arrows / WASD. Tap the floor to route around furniture. Space returns to dock. Clean 90%, then dock to finish. N changes camera; E uses enabled turbo.', goal: 'LEAVE A LITTLE SHINE.',
   width: 1000, height: 760, catalog: roombaCatalog,
   controls: [{ label: '← LEFT', action: 'left', hold: 'left' }, { label: '↑ UP', action: 'up', hold: 'up' }, { label: 'DOCK', action: 'primary', primary: true }, { label: '↓ DOWN', action: 'down', hold: 'down' }, { label: 'RIGHT →', action: 'right', hold: 'right' }, { label: 'CAMERA · N', action: 'nudge' }, { label: 'TURBO · E', action: 'ability' }],
   create: checkpoint => new RoombaRun(checkpoint), createView: (canvas, run) => new RoombaView(canvas, run),

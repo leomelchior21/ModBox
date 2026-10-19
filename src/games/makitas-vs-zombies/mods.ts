@@ -2,18 +2,23 @@ import type { ModDefinition, CodeToolDefinition } from '../../mods/types';
 import { createModSchema } from '../../interpreter/core/schema';
 
 export interface YardConfig {
+  worldTheme: string; characterStyle: string; weather: string;
   background: string; ground: string; decorations: boolean; toolbox: string; zombieType: string;
   toolColor: string; workshopName: string; bladeDamage: number; chargeRate: number;
   autoCollect: boolean; doubleShot: boolean; overdrive: boolean; barricadeHealth: number;
   zombieSpeed: number; startingPower: number;
 }
 export const YARD_DEFAULTS: YardConfig = {
+  worldTheme: 'classic', characterStyle: 'original', weather: 'clear',
   background: 'sunset', ground: 'grass', decorations: true, toolbox: 'full', zombieType: 'worker',
   toolColor: 'teal', workshopName: 'The Last Workshop', bladeDamage: 25, chargeRate: 5,
   autoCollect: false, doubleShot: false, overdrive: false, barricadeHealth: 450,
   zombieSpeed: 3, startingPower: 350,
 };
 export const YARD_MODS: readonly ModDefinition<keyof YardConfig>[] = [
+  { id: 'worldTheme', name: 'worldTheme', type: 'string', label: 'WORLD BUILDER', blurb: 'Rebuild the workshop in snowy mountains, a lava wasteland or a neon city. Live scenery, materials and lighting.', example: 'string worldTheme = "neon";', values: ['classic', 'alpine', 'volcanic', 'neon'], defaultValue: 'classic', glyph: '◈', unlockAt: 0 },
+  { id: 'characterStyle', name: 'characterStyle', type: 'string', label: 'MACHINE LAB', blurb: 'Rebuild your defenders as robots, space machines or armored industrial turrets.', example: 'string characterStyle = "robot";', values: ['original', 'robot', 'astronaut', 'armored'], defaultValue: 'original', glyph: '♟', unlockAt: 0 },
+  { id: 'weather', name: 'weather', type: 'string', label: 'ATMOSPHERE', blurb: 'Add snow, rain or glowing embers to your battlefield.', example: 'string weather = "embers";', values: ['clear', 'snow', 'rain', 'embers'], defaultValue: 'clear', glyph: '☁', unlockAt: 0 },
   { id: 'background', name: 'background', type: 'string', label: 'BUILD SCENERY', blurb: 'Add the workshop backdrop at sunset or under the night sky.', example: 'string background = "sunset";', values: ['none', 'sunset', 'night'], defaultValue: 'sunset', glyph: '◈', unlockAt: 0 },
   { id: 'ground', name: 'ground', type: 'string', label: 'BUILD THE YARD', blurb: 'Lay out five lanes of grass or concrete for your machines.', example: 'string ground = "grass";', values: ['none', 'grass', 'concrete'], defaultValue: 'grass', glyph: '▦', unlockAt: 1 },
   { id: 'decorations', name: 'decorations', type: 'bool', label: 'WORKSHOP PROPS', blurb: 'Add fence posts, crates and workshop lights around the yard.', example: 'bool decorations = true;', defaultValue: true, glyph: '✦', unlockAt: 1 },

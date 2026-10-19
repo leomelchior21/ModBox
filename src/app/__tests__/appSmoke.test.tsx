@@ -13,6 +13,8 @@ import type { RuntimeMetrics } from '../../games/vector-zero/engine/types';
 import { MODS } from '../../interpreter/core/mods';
 
 // Real WebGL scenes are exercised in browser checks; jsdom verifies the app/editor pipeline.
+vi.mock('../../games/three-kit/arcade-views', () => { class View { resize() {} render() {} dispose() {} } return { SlingersView: View, NajaView: View, PinballView: View, StackView: View }; });
+vi.mock('../../games/makitas-vs-zombies/view', () => ({ YardView: class { resize() {} render() {} dispose() {} highlight() {} feedback() { return []; } cell() { return {}; } point() { return { x: .5, y: .5 }; } } }));
 vi.mock('../../games/three-kit/runner-view', () => ({ RunnerView: class { resize() {} render() {} dispose() {} } }));
 vi.mock('../../games/team-counters/view', () => ({ TeamView: class { resize() {} render() {} dispose() {} } }));
 vi.mock('../../games/monster-strider/view', () => ({ MonsterView: class { resize() {} render() {} dispose() {} } }));
@@ -326,7 +328,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.cm-content')?.textContent).toContain('background = "sunset"');
     expect(host.querySelector('.cm-content')?.textContent).toContain('toolbox = "full"');
     expect(host.querySelector('.cm-content')?.textContent).toContain('doubleShot = False');
-    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(19);
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(22);
     await act(async () => host.querySelector<HTMLButtonElement>('.yard__enter')?.click());
     expect(host.querySelectorAll('[role="gridcell"]')).toHaveLength(45);
     expect(host.querySelector<HTMLButtonElement>('.yard__tool')?.disabled).toBe(false);
@@ -342,7 +344,7 @@ describe('MODBOX app shell', () => {
     expect(await waitFor(() => window.location.hash.includes('mission=m00'))).toBe(true);
     expect(await waitFor(() => useProgress.getState().completed.includes('m00'))).toBe(true);
     expect(host.querySelector('.cm-content')?.textContent).toContain('doubleShot = True');
-    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(19);
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(22);
     await act(async () => { window.location.hash = '#/lab?game=platform&mission=m00'; });
     expect(await waitFor(() => Boolean(host.querySelector('.floor-stage')))).toBe(true);
     expect(useProgress.getState().getGameProgress('makitas-vs-zombies').codes['python:free']).toContain('doubleShot = True');
@@ -416,7 +418,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.premium__introLogo')?.getAttribute('alt')).toBe(title);
     expect(window.location.hash).toContain('mission=free');
     expect(host.querySelector('.cm-content')?.textContent).toContain('playerName');
-    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'roomba-run' ? 11 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 10 : 9);
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'roomba-run' ? 14 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 13 : 12);
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
     const enhanced = view!.state.doc.toString().replace(/palette = "[^"]+"/, `palette = "${color}"`).replace(/(blastBlade|venomRush|jackpotMode|focusMode|relicShield|hoverboard|teamShield|nitro|turboBrush) = False/, '$1 = True');
     await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: enhanced } }));

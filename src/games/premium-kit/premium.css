@@ -43,3 +43,27 @@
   .premium-stage { padding:9px; gap:5px; }.premium__head { min-height:48px; }.premium__head .premium__eyebrow { display:none; }.premium__logo { height:27px; }.premium__stats small { font-size:9px; }.premium__stats strong { font-size:19px; }.premium__controls button { min-height:44px; }.premium__intro { gap:13px; }.premium__intro p { font-size:12px; }.premium__introLogo { max-height:75px; }.premium__how span { font-size:11px; }.premium__notice { font-size:11px; }
 }
 @media(prefers-reduced-motion:reduce) { .premium-stage * { animation:none !important; transition:none !important; } }
+
+/* The stage is the game viewport. Every HUD element floats over its world. */
+.lab .premium-stage { display:block; position:absolute; inset:0; padding:0; gap:0; overflow:hidden; isolation:isolate; background:#122336; }
+.lab .premium-stage .premium__field { position:absolute; inset:0; width:100%; height:100%; min-height:0; border:0; border-radius:0; box-shadow:none; }
+.lab .premium__head { position:absolute; z-index:2; top:16px; left:16px; display:block; min-height:0; max-width:35%; pointer-events:none; filter:drop-shadow(0 2px 3px #0009); }
+.lab .premium__head .premium__eyebrow,.lab .premium__head .premium__best { display:none; }
+.lab .premium__head .premium__logo { height:25px; max-width:100%; margin:0 0 5px; }
+.lab .premium__player { display:block; font:700 9px/1.4 var(--font-mono); color:white; text-shadow:0 1px 3px #000; }
+.lab .premium__stats { position:absolute; z-index:2; top:14px; right:62px; width:54%; max-width:420px; padding:9px 12px; border:1px solid #fff4; border-radius:12px; background:#10213cc9; box-shadow:0 4px 15px #0002; backdrop-filter:blur(12px); pointer-events:none; gap:12px; }
+.lab .premium__stats > div { flex:1; padding-left:10px; }.lab .premium__stats small { font:700 8px/1.3 Arial,sans-serif; letter-spacing:.07em; color:#e2ecf8; white-space:nowrap; }.lab .premium__stats strong { font:900 clamp(16px,2.7cqw,22px)/1.1 Arial,sans-serif; color:white; margin-top:3px; }.lab .premium__stats > div:first-child strong { color:#ffe47a; }
+.lab .premium__expand { top:14px; right:12px; width:38px; height:38px; min-height:38px; padding:0; border-radius:11px; background:#10213cc9; border-color:#fff5; color:#fff; }.lab .premium__expand span { display:none; }
+.lab .world__objective { top:78px; left:16px; width:160px; border:0; border-radius:8px; background:#10213ca6; padding:8px 10px; backdrop-filter:blur(8px); }.lab .world__objective span { font:800 8px/1.4 Arial,sans-serif; letter-spacing:.08em; color:#fff; }
+.lab .premium__notice { position:absolute; z-index:2; bottom:58px; left:50%; transform:translateX(-50%); width:max-content; max-width:85%; min-height:0; padding:7px 12px; border-radius:20px; background:#10213cc2; color:white; font:600 11px/1.4 Arial,sans-serif; pointer-events:none; text-shadow:none; }
+.lab .premium__controls--desktop { display:none; }
+.lab .premium__controls--touch { position:absolute; z-index:3; left:12px; right:12px; bottom:62px; display:flex; justify-content:space-between; gap:8px; pointer-events:none; }
+.lab .premium__controls--touch button { flex:0 1 80px; min-height:52px; border:1px solid #fff7; border-radius:16px; background:#14304eae; color:#fff; backdrop-filter:blur(10px); pointer-events:auto; font:800 10px Arial,sans-serif; box-shadow:0 3px 8px #0002; }.lab .premium__controls--touch .premium__control--primary { background:#fffddd; color:#14304e; }.lab .premium-stage:has(.premium__controls--touch) .premium__notice { bottom:126px; font-size:10px; }
+.lab .premium__keyHint { position:absolute; z-index:2; bottom:17px; left:16px; max-width:60%; color:#fff; opacity:.85; font:600 9px/1.5 Arial,sans-serif; text-shadow:0 1px 4px #000; pointer-events:none; }.lab .premium-stage:has(.premium__controls--touch) .premium__keyHint { display:none; }
+.lab .premium__missionNav { position:absolute; z-index:5; right:12px; bottom:12px; min-height:0; max-width:40%; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:5px; }.lab .premium__missionNav > span { display:none; }.lab .premium__missionNav button { min-height:30px; padding:6px 10px; font:700 9px Arial,sans-serif; background:#10213cc9; color:#fff; border-color:#fff4; border-radius:9px; }
+.lab:has(.world-stage) .crt-glass,.lab:has(.yard-stage) .crt-glass { opacity:.12; }
+.lab.crt-cabinet:has(.world-stage)::before,.lab.crt-cabinet:has(.yard-stage)::before { opacity:0; }
+.lab .premium__overlay { z-index:4; }.lab .premium__overlay--paused { background:#07162b9c; }.lab .premium__intro { width:92%; }
+@container(max-width:480px) { .lab .premium__head { top:12px; left:12px; max-width:31%; }.lab .premium__head .premium__logo { height:22px; }.lab .premium__player { font-size:8px; }.lab .premium__stats { top:12px; right:54px; padding:7px 8px; gap:6px; max-width:54%; }.lab .premium__stats > div { padding-left:5px; }.lab .premium__stats small { font-size:7px; white-space:normal; }.lab .premium__stats strong { font-size:17px; }.lab .world__objective { top:72px; left:12px; width:140px; }.lab .premium__notice { max-width:90%; font-size:10px; }.lab .premium__missionNav { max-width:54%; } }
+
+@container(max-width:480px) { .lab .premium-stage:has(.premium__controls--touch) .premium__notice { top:130px; bottom:auto; font-size:9px; } }

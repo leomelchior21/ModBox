@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { RoombaRun, ROOM, ROOM_FURNITURE, cellPoint } from './run';
 import { World, material, mesh, label, floorTexture } from '../three-kit/world';
+import { unityModel } from '../three-kit/unity-assets';
 
 export class RoombaView extends World<RoombaRun> {
   private robot = new T.Group(); private brushes: T.Group[] = []; private dirt: T.InstancedMesh;
@@ -9,7 +10,7 @@ export class RoombaView extends World<RoombaRun> {
   constructor(canvas: HTMLCanvasElement, run: RoombaRun) {
     super(canvas, run, '#c9d9d5'); this.scene.fog = new T.Fog('#c9d9d5', 25, 80); this.scene.add(this.robot);
     const s = this.shapes, wood = material('#f4d3ab', .7); wood.map = floorTexture('wood'); wood.map.repeat.set(6, 5);
-    s.cube(this.scene, wood, 0, -.16, 0, 12.3, .3, 10.3, false);
+    s.cube(this.scene, wood, 0, -.16, 0, 17, .3, 17, false);
     const wall = material('#e8e5d5'); s.cube(this.scene, wall, 0, 1.7, -5.15, 12.5, 3.7, .24, false);
     for (const x of [-6.15, 6.15]) { s.cube(this.scene, material('#d8e0d2'), x, 1.7, -2.2, .24, 3.7, 6.1, false); s.cube(this.scene, material('#f4d7b5'), x, .13, -2.2, .3, .25, 6.2, false); }
     s.cube(this.scene, material('#f6d8b7'), 0, .13, -5, 12, .25, .12, false);
@@ -18,6 +19,13 @@ export class RoombaView extends World<RoombaRun> {
     for (const x of [-1.7, .3, 2.3]) s.cube(this.scene, material('#f9f0d6'), x, 2.2, -4.9, .1, 2.45, .1, false);
     s.cube(this.scene, material('#fff4d8'), .3, 2.2, -4.9, 4.2, .08, .1, false);
     const rug = s.cube(this.scene, material('#719e93'), .1, .005, -.4, 4.9, .04, 3.5, false); rug.rotation.y = .07;
+    for (let i = 0; i < 10; i++) { const stripe = s.cube(this.scene, material('#b5c7a5'), -2 + i * .45, .03, -.4, .035, .008, 3.1, false); stripe.rotation.y = .07; }
+    // Shelving, books, framed prints and a television make this a lived-in room.
+    const oak = material('#9c7653'), charcoal = material('#24373d');
+    s.cube(this.scene, oak, -5.9, 1.4, -.8, .35, 2.8, 3.2); for (const y of [.35, 1.1, 1.85, 2.6]) s.cube(this.scene, material('#d1aa7d'), -5.6, y, -.8, .85, .1, 3.2);
+    for (let i = 0; i < 14; i++) s.cube(this.scene, material(['#668b93', '#d8b06f', '#ab7676', '#7e8963'][i % 4]), -5.54, .64 + Math.floor(i / 7) * .75, -2.05 + i % 7 * .32, .43, .48 + i % 3 * .05, .18);
+    s.cube(this.scene, charcoal, -3.9, 2.2, -4.98, 2.1, 1.35, .08); s.cube(this.scene, material('#6c9caa', .25, .4), -3.9, 2.2, -4.92, 1.92, 1.15, .035);
+    for (const x of [3.7, 5]) { s.cube(this.scene, material('#b99675'), x, 2.4, -4.95, .87, 1.15, .06); s.cube(this.scene, material(x > 4 ? '#86a093' : '#e0b481'), x, 2.4, -4.9, .72, 1, .025); }
     for (const f of ROOM_FURNITURE) {
       if (f.type === 'sofa') {
         const fabric = material('#cb8c76'), cushions = material('#dea28a'), legs = material('#51423c');
@@ -38,9 +46,9 @@ export class RoombaView extends World<RoombaRun> {
     s.tube(this.scene, material('#f3e9d0'), 1.8, 1.29, -.3, .14, .22); s.cube(this.scene, material('#8e6e69'), -2.5, 1.29, 1.6, .5, .1, .38);
     for (const [x, z, color] of [[-3.8, -.2, '#ebbb6d'], [3.4, 2.4, '#93c5c7'], [-.9, 2.7, '#d9a3a2']] as const) s.ball(this.scene, material(color), x, .14, z, .14);
     this.charge = material('#74d7bc', .3, .25); this.charge.emissive.set('#215944');
-    s.cube(this.scene, material('#36575c'), ROOM.dockX, .12, ROOM.dockZ + .25, 1.35, .2, 1.1); s.cube(this.scene, this.charge, ROOM.dockX, .35, ROOM.dockZ + .65, 1.2, .5, .19);
-    const dock = label('CHARGE / FINISH', '#e0ffe1', '#33655b'); dock.sprite.position.set(ROOM.dockX, 1.55, ROOM.dockZ + .3); dock.sprite.scale.set(2.6, .81, 1); this.scene.add(dock.sprite);
-    this.buildRobot();
+    s.cube(this.scene, material('#36575c'), ROOM.dockX, .09, ROOM.dockZ - .25, 1.05, .14, .9); s.cube(this.scene, this.charge, ROOM.dockX, .25, ROOM.dockZ - .65, 1.05, .4, .14);
+    const dock = label('DOCK', '#e0ffe1', '#33655b'); dock.sprite.position.set(ROOM.dockX, .85, ROOM.dockZ - .75); dock.sprite.scale.set(.6, .19, 1); this.scene.add(dock.sprite);
+    this.buildRobot(); unityModel(this.robot, 'vacuum'); this.remix.character(this.robot, 'vacuum');
     this.suction = mesh(new T.RingGeometry(.93, 1, 44), new T.MeshBasicMaterial({ color: '#aff5df', transparent: true, opacity: .3, side: T.DoubleSide, depthWrite: false }), this.scene, 0, .055, 0, false); this.suction.rotation.x = -Math.PI / 2;
     const dirtCanvas = document.createElement('canvas'); dirtCanvas.width = dirtCanvas.height = 128; const ctx = dirtCanvas.getContext('2d')!;
     const dust = ctx.createRadialGradient(64, 64, 10, 64, 64, 64); dust.addColorStop(0, '#856b43a0'); dust.addColorStop(.6, '#8d734a90'); dust.addColorStop(1, '#987b4e00'); ctx.fillStyle = dust; ctx.fillRect(0, 0, 128, 128);
@@ -69,8 +77,8 @@ export class RoombaView extends World<RoombaRun> {
     const pathKey = run.path.join(',');
     if (pathKey !== this.routeKey) { this.routeKey = pathKey; this.route.geometry.dispose(); this.route.geometry = new T.BufferGeometry().setFromPoints([new T.Vector3(run.x, .08, run.z), ...run.path.map(i => { const p = cellPoint(i); return new T.Vector3(p.x, .08, p.z); })]); }
     this.route.visible = run.path.length > 0;
-    if (run.cameraClose) { this.camera.position.set(run.x + 1.4, 2.8, run.z + 4.7); this.camera.lookAt(run.x, .25, run.z - .8); }
-    else { this.camera.position.set(6, 10, 10); this.camera.lookAt(0, .25, 0); }
+    if (run.cameraClose) { this.camera.position.set(run.x + 1.2, 2.5, run.z + 4); this.camera.lookAt(run.x, .22, run.z - .9); }
+    else { this.camera.position.set(3.7, 7.8, 8.3); this.camera.lookAt(0, .15, -.5); }
     this.followLight(0, 0);
   }
   pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number, pointerId: number): void {

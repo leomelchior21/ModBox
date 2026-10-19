@@ -17,6 +17,9 @@ The five new 3D games use native WebGL worlds, animated mesh characters, origina
 transparent item atlases and SVG wordmarks. See the [research and design brief](docs/3d-arcade-research.md)
 and [asset prompts and manifest](docs/3d-arcade-art.json). A browser with WebGL2 is required for these scenes.
 
+Ten arcade games now use a full-pane 3D viewport with in-world HUDs, live world/character/weather mods,
+and models exported from the included Unity studio. See [the 3D upgrade guide](docs/3d-upgrade.md).
+
 ---
 
 ## Run it

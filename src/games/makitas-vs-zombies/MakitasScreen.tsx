@@ -17,7 +17,8 @@ import { PlayModeNav } from '../PlayModeNav';
 import { YARD_MODS, YARD_RUNTIME_LABELS, YARD_TOOLS, yardSchema, type YardConfig } from './mods';
 import { YARD_MISSIONS, YARD_STARTER, getYardMission, yardGuidance, yardMissionPassed } from './missions';
 import { COLS, ROWS, UNIT_INFO, YardRun, type YardTool, type UnitKind } from './run';
-import { drawYard, TOOL_COLORS, VIEW, SPRITE_ROWS } from './render';
+import { TOOL_COLORS, VIEW, SPRITE_ROWS } from './render';
+import { YardView } from './view';
 import { YardEffects } from './effects';
 import { YardSound } from './sound';
 import './makitas.css';
@@ -43,10 +44,12 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
   const [collapsed, setCollapsed] = useState(false), [dismissed, setDismissed] = useState('');
   const [selected, setSelected] = useState<YardTool>('saw'), [activeCell, setActiveCell] = useState({ row: 2, col: 0 });
   const [speed, setSpeed] = useState(1);
+  const [graphicsFailed, setGraphicsFailed] = useState(false), [graphicsAttempt, setGraphicsAttempt] = useState(0);
   const speedRef = useRef(speed); speedRef.current = speed;
   const [hover, setHover] = useState<{ row: number; col: number } | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null), editor = useRef<EditorView | null>(null), stage = useRef<HTMLDivElement>(null);
-  const blocked = useRef(false); blocked.current = focused || libraryOpen || settingsOpen;
+  const world = useRef<YardView | null>(null);
+  const blocked = useRef(false); blocked.current = focused || libraryOpen || settingsOpen || graphicsFailed;
   const visual = useRef({ hover, selected }); visual.current = { hover, selected };
   const touch = useMediaQuery('(any-pointer: coarse)'), reduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const diagnostic = program.diagnostics.find(d => d.severity === 'error');
@@ -79,27 +82,34 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
   useEffect(() => { if (guidance.targetId) setCollapsed(false); }, [guidance.targetId]);
   useEffect(() => { if (snapshot.score > useProgress.getState().bestScore) useProgress.getState().setBestScore(snapshot.score); }, [snapshot.score]);
   useEffect(() => {
-    const element = canvas.current, ctx = element?.getContext('2d'); if (!element || !ctx) return;
-    const art = { yard: new Image(), sprites: new Image() }; art.yard.src = '/art/makitas/yard.webp'; art.sprites.src = '/art/makitas/machines-zombies-v2.png';
-    let alive = true, raf = 0, last = performance.now(), reported = 0, width = 1080, height = 760, revision = run.revision;
-    const resize = () => { const rect = element.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2); width = Math.max(1, rect.width); height = Math.max(1, rect.height); element.width = Math.round(width * dpr); element.height = Math.round(height * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
+    const element = canvas.current; if (!element) return;
+    let view: YardView | undefined; try { view = new YardView(element, run); world.current = view; setGraphicsFailed(false); } catch { setGraphicsFailed(true); }
+    const contextLost = (event: Event) => { event.preventDefault(); run.pause(); setGraphicsFailed(true); update(); };
+    element.addEventListener('webglcontextlost', contextLost);
+    let alive = true, raf = 0, last = performance.now(), reported = 0, revision = run.revision;
+    const resize = () => { const rect = element.getBoundingClientRect(); view?.resize(Math.max(1, rect.width), Math.max(1, rect.height), Math.min(window.devicePixelRatio || 1, 2)); };
     resize(); const observer = new ResizeObserver(resize); observer.observe(element);
     const draw = (now: number) => {
       if (!alive) return;
       const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)), before = run.phase; last = now;
-      const held = blocked.current || interactionOpen() || run.phase === 'paused';
+      const held = blocked.current || interactionOpen() || document.hidden || run.phase === 'paused';
       if (revision !== run.revision) { effects.reset(); revision = run.revision; }
       if (!held) { run.step(dt * speedRef.current); effects.step(dt * speedRef.current); }
-      effects.consume(run.feedback.splice(0), TOOL_COLORS[run.config.toolColor] ?? TOOL_COLORS.teal, reduced);
+      const cues = run.feedback.splice(0); effects.consume(cues, TOOL_COLORS[run.config.toolColor] ?? TOOL_COLORS.teal, reduced);
       // Coalesce sounds from a large fight into one cue per event per frame.
       for (const event of new Set(run.events.splice(0))) sound.play(event);
-      drawYard(ctx, run, art, effects, width, height, reduced, visual.current.hover, visual.current.selected);
+      if (view) {
+        view.highlight(visual.current.hover?.row ?? -1, visual.current.hover?.col ?? 0);
+        view.render(dt * speedRef.current, held, reduced, view.feedback(cues));
+        stage.current?.querySelectorAll<HTMLButtonElement>('[data-cell]').forEach(button => { const [row, col] = button.dataset.cell!.split(':').map(Number); Object.assign(button.style, view!.cell(row, col)); });
+        stage.current?.querySelectorAll<HTMLButtonElement>('[data-battery]').forEach(button => { const drop = run.batteries.find(b => b.id === Number(button.dataset.battery)); if (drop) { const p = view!.point(drop.x, drop.row + .5); button.style.left = `${p.x * 100}%`; button.style.top = `${p.y * 100}%`; } });
+      }
       if (now - reported > 100 || before !== run.phase) { update(); reported = now; }
       raf = requestAnimationFrame(draw);
     };
     draw(last);
-    return () => { alive = false; cancelAnimationFrame(raf); observer.disconnect(); };
-  }, [run, effects, sound, reduced, update]);
+    return () => { alive = false; cancelAnimationFrame(raf); observer.disconnect(); element.removeEventListener('webglcontextlost', contextLost); world.current = null; view?.dispose(); };
+  }, [run, effects, sound, reduced, update, graphicsAttempt]);
   useEffect(() => () => sound.destroy(), [sound]);
   useEffect(() => {
     const typing = () => Boolean((document.activeElement as HTMLElement | null)?.closest('input,textarea,select,[contenteditable="true"],.cm-editor'));
@@ -156,7 +166,7 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
         <div className="yard__tactics"><button onClick={() => setSpeed(v => v === 1 ? 2 : 1)} aria-label={`Game speed ${speed} times. Switch speed.`}>{speed}× SPEED</button><button className="yard__surge" disabled={!playing || !run.invasionReady || snapshot.power < 75 || snapshot.surgeCooldown > 0 || !snapshot.remaining} onClick={() => { engage(); run.surge(); update(); }}>ϟ {snapshot.surgeCooldown ? `SURGE ${snapshot.surgeCooldown}s` : 'POWER SURGE · 75'}</button></div>
       </div>
       <div className="yard__battlefield">
-        <canvas ref={canvas} className="stage__canvas" tabIndex={-1} aria-label="Animated five-lane workshop battlefield" />
+        <canvas key={graphicsAttempt} ref={canvas} className="stage__canvas" tabIndex={-1} aria-label="Animated five-lane workshop battlefield" />
         {playing ? <>
         <div className="yard__grid" role="grid" aria-label="Defense lawn. Arrow keys choose a tile; Enter deploys the selected tool.">
           {Array.from({ length: ROWS }, (_, row) => <div key={row} role="row">{Array.from({ length: COLS }, (_, col) => {
@@ -166,7 +176,7 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
               onClick={() => actOnCell(row, col)} onPointerEnter={() => setHover({ row, col })} onPointerLeave={() => setHover(null)} onFocus={() => { setHover({ row, col }); setFocused(false); }} onBlur={() => setHover(null)} onKeyDown={e => keyCell(e, row, col)} />;
           })}</div>)}
         </div>
-        <div className="yard__drops">{drops.map(b => <button key={b.id} className="yard__battery" aria-label={`Collect ${b.value} battery power`} style={{ left: `${(VIEW.x + b.x * VIEW.cw) / VIEW.width * 100}%`, top: `${(VIEW.y + (b.row + 0.5) * VIEW.ch) / VIEW.height * 100}%` }} onClick={() => { engage(); run.collect(b.id); update(); }}><span>ϟ</span><b>{b.value}</b></button>)}</div>
+        <div className="yard__drops">{drops.map(b => <button key={b.id} data-battery={b.id} className="yard__battery" aria-label={`Collect ${b.value} battery power`} style={{ left: `${(VIEW.x + b.x * VIEW.cw) / VIEW.width * 100}%`, top: `${(VIEW.y + (b.row + 0.5) * VIEW.ch) / VIEW.height * 100}%` }} onClick={() => { engage(); run.collect(b.id); update(); }}><span>ϟ</span><b>{b.value}</b></button>)}</div>
         </> : null}
         {effects.bannerAge < 2.4 && playing ? <div className="yard__battleBanner" key={`${effects.banner}-${run.wave}`}>{effects.banner}</div> : null}
       </div>
@@ -188,6 +198,7 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
           {snapshot.phase === 'launch' ? <button className="play-mode__intro" onClick={() => go(YARD_MISSIONS[mission.kind === 'sandbox' ? 0 : 8])}>{mission.kind === 'sandbox' ? 'TRY OPTIONAL CHALLENGES' : 'SWITCH TO FREE PLAY'}</button> : null}
         </div>
       </div>}
+      {graphicsFailed ? <div className="yard__graphics" role="alert"><strong>Let’s get your 3D workshop running.</strong><p>Reload the scene to restore its graphics.</p><button onClick={() => setGraphicsAttempt(v => v + 1)}>RELOAD SCENE</button></div> : null}
       <PlayModeNav exploring={mission.kind === 'sandbox'} nextClassName="mission__next--ready" onExplore={() => go(YARD_MISSIONS[8])} onGuide={() => go(YARD_MISSIONS[0])} onPrevious={previous ? () => go(previous) : undefined} onNext={next ? () => go(next) : undefined} />
     </div>}
     overlays={<><SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} bestScore={progress.bestScore} completedCount={progress.completed.length}

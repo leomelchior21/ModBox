@@ -3,6 +3,7 @@ import type { ArcadeCue } from './core';
 export interface SpriteRegion { x: number; y: number; w: number; h: number }
 export interface ArcadeArt { cover: HTMLImageElement; background: HTMLImageElement; sprites: HTMLImageElement; regions: SpriteRegion[] }
 export const PALETTES: Record<string, { accent: string; warm: string; dark: string }> = {
+  azure: { accent: '#2585f4', warm: '#ffd061', dark: '#142b52' },
   teal: { accent: '#67e4d0', warm: '#ffbf78', dark: '#102c2c' }, amber: { accent: '#ffcf80', warm: '#a7eee2', dark: '#30251e' }, violet: { accent: '#c0a2ff', warm: '#ffc394', dark: '#261e3c' },
   jade: { accent: '#a0efb3', warm: '#f9d17b', dark: '#0c2925' }, orchid: { accent: '#daa2f7', warm: '#a1edcc', dark: '#281c36' }, gold: { accent: '#ffe091', warm: '#95e6d7', dark: '#30291d' },
   neon: { accent: '#8aebff', warm: '#ff87bc', dark: '#16152f' }, sunset: { accent: '#ffb797', warm: '#d4b7ff', dark: '#2c1c2c' }, ice: { accent: '#c5efff', warm: '#a7bbff', dark: '#132b38' },

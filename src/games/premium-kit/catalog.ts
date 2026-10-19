@@ -18,8 +18,11 @@ export interface CatalogOptions {
   extraTools?: readonly CodeToolDefinition[];
 }
 export function createArcadeCatalog(o: CatalogOptions) {
-  const d = o.defaults;
+  const d: ArcadeConfig = { worldTheme: 'classic', characterStyle: 'original', weather: 'clear', ...o.defaults };
   const mods: readonly ModDefinition<keyof ArcadeConfig>[] = [
+    { id: 'worldTheme', name: 'worldTheme', type: 'string', label: 'WORLD BUILDER', blurb: 'Rebuild the scenery: alpine peaks, a volcanic world or a neon city. Changes terrain materials, props, sky and lighting live.', example: 'string worldTheme = "alpine";', values: ['classic', 'alpine', 'volcanic', 'neon'], defaultValue: d.worldTheme, glyph: '◈', unlockAt: 0 },
+    { id: 'characterStyle', name: 'characterStyle', type: 'string', label: 'CHARACTER LAB', blurb: 'Replace your character or vehicle with a robot, astronaut or armored champion. New geometry, equipment and materials.', example: 'string characterStyle = "robot";', values: ['original', 'robot', 'astronaut', 'armored'], defaultValue: d.characterStyle, glyph: '♟', unlockAt: 0 },
+    { id: 'weather', name: 'weather', type: 'string', label: 'ATMOSPHERE', blurb: 'Fill the world with falling snow, rain or drifting embers. Clear removes the particles.', example: 'string weather = "snow";', values: ['clear', 'snow', 'rain', 'embers'], defaultValue: d.weather, glyph: '☁', unlockAt: 0 },
     { id: 'palette', name: 'palette', type: 'string', label: 'COLOR STUDIO', blurb: 'Change your game’s accent and lighting.', example: `string palette = "${o.palettes[1]}";`, values: o.palettes, defaultValue: d.palette, glyph: '◈', unlockAt: 0 },
     { id: 'playerName', name: 'playerName', type: 'string', label: 'YOUR SIGNATURE', blurb: 'Put your name on the game.', example: 'string playerName = "Pixel Pilot";', maxLength: 22, defaultValue: d.playerName, glyph: 'Aa', unlockAt: 1 },
     { id: 'power', name: o.power.name, type: 'int', label: o.power.label, blurb: o.power.blurb, example: `int ${o.power.name} = ${o.power.goal - 5} + 5;`, limits: { min: o.power.min, max: o.power.max }, defaultValue: d.power, glyph: '+', unlockAt: 2 },

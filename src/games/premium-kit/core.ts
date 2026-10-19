@@ -5,6 +5,7 @@ import { evaluateGameScript } from '../../interpreter/gameScript';
 export interface ArcadeConfig {
   palette: string; playerName: string; power: number; speed: number; gravity: number;
   assist: boolean; overdrive: boolean; lives: number; bonus: number;
+  worldTheme?: string; characterStyle?: string; weather?: string;
 }
 export type ArcadePhase = 'ready' | 'playing' | 'paused' | 'cleared' | 'gameover';
 export type ArcadeAction = 'primary' | 'left' | 'right' | 'up' | 'down' | 'ability' | 'launch' | 'nudge';

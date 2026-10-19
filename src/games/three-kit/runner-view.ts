@@ -7,7 +7,7 @@ export class RunnerView extends World<RunnerRun> {
   private course = new T.Group(); private hero; private tokenModels: T.Group[] = []; private hazards: { model: T.Group; obstacle: RunnerObstacle }[] = [];
   private turnLabels: { model: T.Sprite; at: number }[] = []; private cameraYaw = 0;
   constructor(canvas: HTMLCanvasElement, run: RunnerRun) {
-    super(canvas, run, run.theme === 'temple' ? '#9ac9b9' : '#7eb8d2'); this.hero = runnerModel(this.shapes, this.paint, run.theme === 'subway'); this.scene.add(this.hero.root, this.course);
+    super(canvas, run, run.theme === 'temple' ? '#9ac9b9' : '#7eb8d2'); this.hero = runnerModel(this.shapes, this.paint, run.theme === 'subway'); this.scene.add(this.hero.root, this.course); this.remix.character(this.hero.figure);
   }
   private place(root: T.Object3D, distance: number, lane = 0, height = 0) {
     const p = runnerFrame(distance, this.run.theme, this.run.level); root.position.set(p.x + Math.cos(p.yaw) * lane, height, p.z - Math.sin(p.yaw) * lane); root.rotation.y = p.yaw;
@@ -27,8 +27,8 @@ export class RunnerView extends World<RunnerRun> {
       }
       for (const side of [-1, 1]) edging.push({ x: frame.x + Math.cos(frame.yaw) * side * 3.65, y: -.18, z: frame.z - Math.sin(frame.yaw) * side * 3.65, sx: .37, sy: .65, sz: 2.04, yaw: frame.yaw });
     }
-    instances(shapes.box, floor, tiles, this.course); instances(shapes.box, material(urban ? '#f1cba9' : '#708d71'), edging, this.course);
-    if (urban) { instances(shapes.box, material('#424653'), ties, this.course); instances(shapes.box, material('#b6d4da', .3, .65), rails, this.course); }
+    instances(shapes.block, floor, tiles, this.course); instances(shapes.block, material(urban ? '#f1cba9' : '#708d71'), edging, this.course);
+    if (urban) { instances(shapes.block, material('#424653'), ties, this.course); instances(shapes.block, material('#b6d4da', .3, .65), rails, this.course); }
     const bottom = material(urban ? '#677d96' : '#4d978f'); shapes.cube(this.course, bottom, urban ? 0 : 75, -5.2, -120, 450, .5, 500, false);
     if (urban) this.metroScenery(); else this.templeScenery();
     batchScenery(this.course);
@@ -114,12 +114,13 @@ export class RunnerView extends World<RunnerRun> {
     this.hero.legs.forEach((leg, i) => { leg.rotation.x = run.y > .1 ? (i ? -.65 : .5) : Math.sin(stride + i * Math.PI) * .7; });
     this.hero.arms.forEach((arm, i) => { arm.rotation.x = run.y > .1 ? -1.2 : -Math.sin(stride + i * Math.PI) * .6; });
     this.hero.shield.visible = run.shield > 0; this.hero.board.visible = run.theme === 'subway' && run.shield > 0;
-    this.hero.root.visible = run.invulnerable <= 0 || reduced || Math.floor(run.elapsed * 12) % 2 === 0;
+    this.hero.root.visible = true;
+    this.hero.figure.scale.setScalar(run.invulnerable > 0 && !reduced ? 1 + Math.sin(run.elapsed * 16) * .025 : 1);
     for (let i = 0; i < this.tokenModels.length; i++) { const token = this.tokenModels[i], c = run.tokens[i]; token.visible = !c.taken && Math.abs(c.at - run.distance) < 75; if (token.visible) token.rotation.y += dt * 2.5; }
     for (const h of this.hazards) { h.model.visible = h.obstacle.at > run.distance - 16 && h.obstacle.at < run.distance + 85; if (h.obstacle.moving) this.place(h.model, h.obstacle.at, h.obstacle.lane * 2.15); }
     for (const sign of this.turnLabels) sign.model.visible = sign.at > run.distance && sign.at - run.distance < 43;
     const diff = Math.atan2(Math.sin(frame.yaw - this.cameraYaw), Math.cos(frame.yaw - this.cameraYaw)); this.cameraYaw += diff * (reduced ? 1 : Math.min(1, dt * 5));
-    const forward = new T.Vector3(-Math.sin(this.cameraYaw), 0, -Math.cos(this.cameraYaw)), cameraPos = new T.Vector3(frame.x, 5.4 + Math.min(1, run.y * .2), frame.z).addScaledVector(forward, -9.4);
-    this.camera.position.copy(cameraPos); this.camera.lookAt(new T.Vector3(frame.x, 1.1, frame.z).addScaledVector(forward, 12)); this.followLight(frame.x, frame.z);
+    const forward = new T.Vector3(-Math.sin(this.cameraYaw), 0, -Math.cos(this.cameraYaw)), cameraPos = new T.Vector3(frame.x, 6.2 + Math.min(1, run.y * .2), frame.z).addScaledVector(forward, -10);
+    this.camera.position.copy(cameraPos); this.camera.lookAt(new T.Vector3(frame.x, 1.1, frame.z).addScaledVector(forward, 4.5)); this.followLight(frame.x, frame.z);
   }
 }

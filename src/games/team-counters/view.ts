@@ -3,22 +3,27 @@ import { TeamRun, type TeamGate, type TeamEnemy, type TeamTrap } from './run';
 import { World, material, mesh, instances, label, batchScenery, type Label } from '../three-kit/world';
 
 class Crowd {
-  root = new T.Group(); private bodies: T.InstancedMesh; private heads: T.InstancedMesh; private legs: T.InstancedMesh; private dummy = new T.Object3D();
+  root = new T.Group(); private bodies: T.InstancedMesh; private heads: T.InstancedMesh; private legs: T.InstancedMesh; private arms: T.InstancedMesh; private gear: T.InstancedMesh; private dummy = new T.Object3D(); private style = '';
   constructor(parent: T.Object3D, color: T.Material, readonly capacity = 180) {
     this.bodies = new T.InstancedMesh(new T.CapsuleGeometry(.115, .2, 2, 6), color, capacity);
     this.heads = new T.InstancedMesh(new T.SphereGeometry(.135, 8, 6), color, capacity);
     this.legs = new T.InstancedMesh(new T.CylinderGeometry(.042, .045, .22, 5), color, capacity * 2);
-    for (const m of [this.bodies, this.heads, this.legs]) { m.instanceMatrix.setUsage(T.DynamicDrawUsage); m.frustumCulled = false; m.castShadow = true; this.root.add(m); } parent.add(this.root);
+    this.arms = new T.InstancedMesh(new T.CylinderGeometry(.04, .04, .23, 5), color, capacity * 2);
+    this.gear = new T.InstancedMesh(new T.BoxGeometry(.24, .1, .045), material('#1b3654', .4, .4), capacity);
+    for (const m of [this.bodies, this.heads, this.legs, this.arms, this.gear]) { m.instanceMatrix.setUsage(T.DynamicDrawUsage); m.frustumCulled = false; m.castShadow = true; this.root.add(m); } parent.add(this.root); this.root.userData.character = true;
   }
-  update(count: number, time: number, marching = true) {
-    const n = Math.min(this.capacity, Math.max(0, count)); this.bodies.count = this.heads.count = n; this.legs.count = n * 2;
+  update(count: number, time: number, marching = true, style = 'original') {
+    if (style !== this.style) { this.style = style; this.heads.geometry.dispose(); this.heads.geometry = style === 'robot' ? new T.BoxGeometry(.28, .28, .27) : style === 'astronaut' ? new T.SphereGeometry(.18, 10, 8) : new T.SphereGeometry(.135, 8, 6); this.bodies.geometry.dispose(); this.bodies.geometry = style === 'armored' ? new T.BoxGeometry(.32, .33, .23) : new T.CapsuleGeometry(.115, .2, 2, 6); }
+    const n = Math.min(this.capacity, Math.max(0, count)); this.bodies.count = this.heads.count = n; this.legs.count = this.arms.count = n * 2; this.gear.count = style === 'original' ? 0 : n;
     for (let i = 0; i < n; i++) {
       const angle = i * 2.39996, radius = Math.sqrt(i) * .137, x = Math.sin(angle) * radius, z = Math.cos(angle) * radius * 1.3, step = marching ? Math.sin(time * 14 + i * .7) * .055 : 0;
       this.dummy.rotation.set(0, 0, 0); this.dummy.scale.setScalar(1); this.dummy.position.set(x, .39 + Math.abs(step), z); this.dummy.updateMatrix(); this.bodies.setMatrixAt(i, this.dummy.matrix);
       this.dummy.position.y = .73 + Math.abs(step); this.dummy.updateMatrix(); this.heads.setMatrixAt(i, this.dummy.matrix);
+      this.dummy.position.set(x, .74 + Math.abs(step), z - .14); this.dummy.updateMatrix(); this.gear.setMatrixAt(i, this.dummy.matrix);
       for (let side = 0; side < 2; side++) { this.dummy.position.set(x + (side ? .07 : -.07), .13 + Math.max(0, step * (side ? 1 : -1)), z + step * (side ? 1 : -1)); this.dummy.rotation.x = step * (side ? 4 : -4); this.dummy.updateMatrix(); this.legs.setMatrixAt(i * 2 + side, this.dummy.matrix); }
+      for (let side = 0; side < 2; side++) { this.dummy.position.set(x + (side ? .17 : -.17), .4 + Math.abs(step), z); this.dummy.rotation.x = step * (side ? -7 : 7); this.dummy.rotation.z = side ? -.18 : .18; this.dummy.updateMatrix(); this.arms.setMatrixAt(i * 2 + side, this.dummy.matrix); } this.dummy.rotation.set(0,0,0);
     }
-    this.bodies.instanceMatrix.needsUpdate = this.heads.instanceMatrix.needsUpdate = this.legs.instanceMatrix.needsUpdate = true;
+    this.bodies.instanceMatrix.needsUpdate = this.heads.instanceMatrix.needsUpdate = this.legs.instanceMatrix.needsUpdate = this.arms.instanceMatrix.needsUpdate = this.gear.instanceMatrix.needsUpdate = true;
   }
 }
 export class TeamView extends World<TeamRun> {
@@ -33,11 +38,11 @@ export class TeamView extends World<TeamRun> {
   }
   protected rebuild(): void {
     this.scene.remove(this.world); this.disposeStage(this.world); this.world = new T.Group(); this.scene.add(this.world); this.gates = []; this.enemies = []; this.traps = [];
-    const s = this.shapes, ivory = material('#eff1df'), coral = material('#edb2a5'), stone = material('#e9d4b3');
+    const s = this.shapes, ivory = material('#f5f5fa'), coral = material('#aebfe0'), stone = material('#e9d4b3');
     s.cube(this.world, ivory, 0, -.4, -91, 8.4, .8, 210, false);
-    const stripes = Array.from({ length: 53 }, (_, i) => ({ x: 0, y: .02, z: 8 - i * 4, sx: 7.6, sy: .025, sz: .12 })); instances(s.box, material('#d5dfdd'), stripes, this.world);
+    const stripes = Array.from({ length: 105 }, (_, i) => ({ x: 0, y: .02, z: 10 - i * 2, sx: 7.6, sy: .025, sz: .9 })); instances(s.block, material('#d9e1ee'), stripes, this.world);
     for (const side of [-1, 1]) s.cube(this.world, coral, side * 4.18, -.03, -91, .17, .3, 210, false);
-    for (let i = 0; i < 20; i++) { const cloud = new T.Group(); cloud.position.set((i % 2 ? -1 : 1) * (11 + i % 5 * 3), -4 - i % 3, 15 - i * 13); this.world.add(cloud); for (let j = 0; j < 3; j++) s.ball(cloud, material('#fff2d8'), j * 2, 0, 0, 2.5 + j % 2, false); }
+    for (let i = 0; i < 26; i++) { const island = new T.Group(); island.position.set((i % 2 ? -1 : 1) * (10 + i % 4 * 3), -2.5 - i % 3, 15 - i * 9); this.world.add(island); for (let j = 0; j < 3; j++) { const rock = mesh(new T.DodecahedronGeometry(2.5 + j * .5, 0), material(i % 2 ? '#7a48e8' : '#a27ce8'), island, j * .8, j * 1.2, 0, false); rock.scale.y = 1.5; } }
     batchScenery(this.world);
     for (const gate of this.run.gates) {
       const root = new T.Group(); root.position.z = -gate.at; this.world.add(root); const labels: Label[] = [], previews: Label[] = [], panes: T.MeshStandardMaterial[] = [];
@@ -67,7 +72,7 @@ export class TeamView extends World<TeamRun> {
     const banner = label('COUNT ON YOUR CREW', '#fff1bd', '#655876'); banner.sprite.position.set(0, 7, 0); banner.sprite.scale.set(6, 1.88, 1); castle.add(banner.sprite);
   }
   protected update(_dt: number, reduced: boolean): void {
-    const run = this.run, y = Math.max(0, Math.min(3.3, (run.distance - 184) * .43)); this.crew.root.position.set(run.x, y, -run.distance); this.crew.update(run.team, reduced ? 0 : run.elapsed, run.phase === 'playing');
+    const run = this.run, y = Math.max(0, Math.min(3.3, (run.distance - 184) * .43)); this.crew.root.position.set(run.x, y, -run.distance); this.crew.update(run.team, reduced ? 0 : run.elapsed, run.phase === 'playing', run.config.characterStyle);
     this.count.set(run.team.toLocaleString()); this.count.sprite.position.set(run.x, y + 2.5, -run.distance); this.origin.set(run.x, y + .5, -run.distance);
     this.shield.visible = run.shield > 0; this.shield.position.set(run.x, y + .8, -run.distance);
     for (const entry of this.gates) {
@@ -77,6 +82,6 @@ export class TeamView extends World<TeamRun> {
     }
     for (const entry of this.enemies) { entry.crowd.root.visible = entry.count.sprite.visible = !entry.enemy.defeated && entry.enemy.at - run.distance < 70; if (entry.crowd.root.visible) entry.crowd.update(entry.enemy.count, reduced ? 0 : run.elapsed, !reduced); }
     for (const entry of this.traps) { entry.root.visible = !entry.trap.hit && Math.abs(entry.trap.at - run.distance) < 60; entry.root.position.x = run.trapX(entry.trap); entry.saw.rotation.y = reduced ? 0 : run.elapsed * 6; }
-    this.camera.position.set(run.x * .18, 11.4 + y, 12 - run.distance); this.camera.lookAt(0, .4 + y, -run.distance - 17); this.followLight(0, -run.distance);
+    this.camera.position.set(run.x * .15, 11 + y, 11 - run.distance); this.camera.lookAt(0, .4 + y, -run.distance - 5.7); this.followLight(0, -run.distance);
   }
 }

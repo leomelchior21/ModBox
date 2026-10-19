@@ -1,7 +1,7 @@
 import { createArcadeCatalog } from '../premium-kit/catalog';
 export const teamCatalog = createArcadeCatalog({
-  title: 'TEAM COUNTERS', palettes: ['teal', 'violet', 'gold'],
-  defaults: { palette: 'teal', playerName: 'The Count Crew', power: 0, speed: 7, gravity: 22, assist: false, overdrive: false, lives: 3, bonus: 25 },
+  title: 'TEAM COUNTERS', palettes: ['azure', 'violet', 'gold', 'teal'],
+  defaults: { palette: 'azure', playerName: 'The Count Crew', power: 0, speed: 7, gravity: 22, assist: false, overdrive: false, lives: 3, bonus: 25 },
   power: { name: 'recruitBonus', label: 'MORE THE MERRIER', blurb: 'Extra runners recruited through each positive gate.', min: 0, max: 30, goal: 10 },
   assist: { name: 'gatePreview', label: 'DO THE MATH', blurb: 'Show each gate’s projected crowd and highlight the better result.', instruction: 'Pass a gate with projected results switched on.' },
   bonus: { name: 'battleValue', label: 'VICTORY LAP', blurb: 'Points for winning a crowd clash.', min: 10, max: 150, goal: 60 },
