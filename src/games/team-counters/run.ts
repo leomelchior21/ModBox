@@ -1,5 +1,6 @@
 import { ArcadeRun, clamp, type ArcadeAction } from '../premium-kit/core';
 import { teamCatalog } from './catalog';
+import { TEAM_WEATHER } from './worlds';
 
 export type GateOperation = { op: '+' | '-' | '×' | '÷'; value: number };
 /** A gate pair spans the runway: left half and right half. An empty side is null. */
@@ -94,7 +95,12 @@ export class TeamRun extends ArcadeRun {
   shield = 0; shieldCooldown = 0; invulnerable = 0; victory = 0; climbed = 0; finaleTeam = 0; bursts: Burst[] = [];
   private clashCarry = 0; private dragId: number | null = null; private dragStart = 0; private dragFrom = 0;
   private retry = { distance: 0, team: START_TEAM, score: 0, metrics: structuredClone(this.metrics) };
+  /** What cost runners this stage: blades, lost fights and gates where the other side was better. */
+  losses = { blades: 0, clashes: 0, badGates: 0 };
+  /** Sideways push from the wind this frame (meters per second). */
+  gust = 0;
   constructor(checkpoint?: unknown) { super('team-counters', teamCatalog.defaults, teamCatalog.schema, checkpoint); }
+  get weather() { return TEAM_WEATHER[this.config.weather ?? 'clear'] ?? TEAM_WEATHER.clear; }
   get goal() { return this.course.goal; }
   get levelName() { return this.course.name; }
   get nextGate() { return this.gates.find(g => !g.used); }
@@ -105,6 +111,7 @@ export class TeamRun extends ArcadeRun {
   protected setup(): void {
     this.course = teamCourse(this.level); this.gates = this.course.gates; this.enemies = this.course.enemies; this.hazards = this.course.hazards;
     this.distance = 0; this.x = 0; this.targetX = 0; this.team = START_TEAM; this.peak = START_TEAM; this.state = 'run'; this.clash = null; this.squeeze = 0; this.squeezeCooldown = 0;
+    this.losses = { blades: 0, clashes: 0, badGates: 0 }; this.gust = 0;
     this.shield = 0; this.shieldCooldown = 0; this.invulnerable = 0; this.victory = 0; this.climbed = 0; this.finaleTeam = 0; this.bursts = []; this.clashCarry = 0; this.dragId = null;
     this.retry = { distance: 0, team: START_TEAM, score: this.score, metrics: structuredClone(this.metrics) };
     this.notice = `${this.levelName.toUpperCase()} · Slide through the best gate, dodge the blades and beat the red army.`;
@@ -122,9 +129,10 @@ export class TeamRun extends ArcadeRun {
     this.shield = this.config.overdrive ? Math.max(0, this.shield - dt) : 0; this.shieldCooldown = Math.max(0, this.shieldCooldown - dt);
     if (this.state === 'finale') { this.finale(dt); return; }
     if (this.input.left || this.input.right) this.targetX += (Number(this.input.right) - Number(this.input.left)) * dt * 7;
-    this.targetX = clamp(this.targetX, -this.limit, this.limit); this.x += (this.targetX - this.x) * Math.min(1, dt * 12);
+    this.gust = this.weather.gust * Math.sin(this.elapsed * .55) * (.7 + .3 * Math.sin(this.elapsed * 1.9)); if (this.state === 'run') this.targetX += this.gust * dt;
+    this.targetX = clamp(this.targetX, -this.limit, this.limit); this.x += (this.targetX - this.x) * Math.min(1, dt * this.weather.grip);
     if (this.state === 'clash') { this.fight(dt); return; }
-    const previous = this.distance; this.distance += dt * this.config.speed;
+    const previous = this.distance; this.distance += dt * this.config.speed * this.weather.speed;
     for (const gate of this.gates) if (!gate.used && previous < gate.at && this.distance >= gate.at) {
       const side = this.x < 0 ? 0 : 1, option = gate.options[side], outcomes = this.preview(gate), before = this.team;
       this.retry = { distance: Math.max(0, gate.at - 8), team: before, score: this.score, metrics: structuredClone(this.metrics) };
@@ -132,7 +140,7 @@ export class TeamRun extends ArcadeRun {
       if (!option) { this.notice = 'You went around that gate.'; continue; }
       // A gate can shrink the crowd but never empty it: the leader always walks through.
       this.team = Math.max(1, outcomes[side]); this.peak = Math.max(this.peak, this.team);
-      const smart = outcomes[side] >= outcomes[1 - side]; if (smart) this.metrics.perfects++;
+      const smart = outcomes[side] >= outcomes[1 - side]; if (smart) this.metrics.perfects++; else this.losses.badGates++;
       if (this.team > before) this.addScore(this.team - before, 0, 0, `${option.op}${option.value} → ${this.team}${smart ? '!' : ''}`); else this.cue('lose', 0, 0, `${option.op}${option.value} → ${this.team}`);
       this.notice = `${option.op}${option.value}: ${before} became ${this.team}.`;
     }
@@ -149,7 +157,7 @@ export class TeamRun extends ArcadeRun {
     }
     if (!hits) { this.cue('perfect', 0, 0, 'CLEAN!'); this.metrics.perfects++; return; }
     if (this.shield > 0) { this.shield = 0; this.metrics.assisted++; this.cue('ability', 0, 0, 'SHIELDED'); this.notice = 'Shield save. Every runner counts.'; return; }
-    const lost = Math.min(this.team, Math.ceil(hits * this.team / visible)); this.team -= lost; this.bursts.push({ x: hx / hits, z: h.at, n: Math.min(30, lost), team: 'blue' });
+    const lost = Math.min(this.team, Math.ceil(hits * this.team / visible)); this.team -= lost; this.losses.blades += lost; this.bursts.push({ x: hx / hits, z: h.at, n: Math.min(30, lost), team: 'blue' });
     this.cue('lose', 0, 0, `−${lost}`); this.notice = h.kind === 'gap' ? 'Too wide for the gap. Squeeze with Space before narrow spots.' : `Lost ${lost} runners. Steer clear, or squeeze to make your crowd smaller.`;
   }
   private fight(dt: number): void {
@@ -160,7 +168,7 @@ export class TeamRun extends ArcadeRun {
     if (enemy.left <= 0) {
       enemy.defeated = true; this.state = 'run'; this.clash = null; if (this.shield > 0) { this.shield = 0; this.metrics.assisted++; }
       this.metrics.perfects++; this.addScore(this.config.bonus * (enemy.boss ? 4 : 1), 0, 0, enemy.boss ? 'ARMY BEATEN!' : 'CLASH WON'); this.notice = `Clash won. ${this.team} runners still standing.`;
-    } else if (this.team <= 0) this.recover(`${enemy.count} rivals were too many. Pick bigger gates before a fight.`);
+    } else if (this.team <= 0) { this.losses.clashes++; this.recover(`${enemy.count} rivals were too many. Pick bigger gates before a fight.`); }
   }
   private finale(dt: number): void {
     this.distance += dt * Math.max(3, this.config.speed * .7); const reach = Math.floor((this.distance - this.goal) / STEP_LENGTH) + 1;

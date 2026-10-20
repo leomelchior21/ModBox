@@ -14,6 +14,8 @@ import { monsterCatalog } from '../monster-strider/catalog';
 import { roombaCatalog } from '../roomba-run/catalog';
 import { SUBWAY_WORLDS, TEMPLE_WORLDS, RUNNER_WEATHER } from './runner-worlds';
 import { runnerInvites } from './runner-invites';
+import { TEAM_WORLDS, TEAM_WEATHER } from '../team-counters/worlds';
+import { teamSpec } from '../team-counters/TeamScreen';
 import type { ArcadeConfig, ArcadeRun } from '../premium-kit/core';
 
 const games = [
@@ -184,6 +186,22 @@ describe('Team Counters decisions', () => {
   it('steers by relative drag from wherever the finger lands and ignores other pointers', () => {
     const run = new TeamRun(); run.launch(); run.targetX = .5; run.pointer('down', 800, 300, 1); run.pointer('move', 900, 300, 2); expect(run.targetX).toBe(.5);
     run.pointer('move', 900, 300, 1); expect(run.targetX).toBeCloseTo(1.6); run.pointer('up', 900, 300, 1); run.pointer('move', 100, 300, 1); expect(run.targetX).toBeCloseTo(1.6);
+  });
+});
+
+describe('Team Counters courses, weather and coaching', () => {
+  it('lets the wind push the crowd and snow slow the march', () => {
+    const calm = new TeamRun(), windy = new TeamRun(); calm.launch(); windy.launch(); windy.config.weather = 'wind';
+    for (let i = 0; i < 90; i++) { calm.step(1 / 60); windy.step(1 / 60); }
+    expect(Math.abs(windy.x)).toBeGreaterThan(Math.abs(calm.x) + .2);
+    const snow = new TeamRun(); snow.launch(); snow.config.weather = 'snow'; const clear = new TeamRun(); clear.launch(); for (let i = 0; i < 60; i++) { snow.step(1 / 60); clear.step(1 / 60); } expect(snow.distance).toBeLessThan(clear.distance);
+    expect(Object.keys(TEAM_WORLDS)).toEqual(teamCatalog.mods.find(m => m.id === 'worldTheme')!.values); for (const w of teamCatalog.mods.find(m => m.id === 'weather')!.values!) expect(TEAM_WEATHER[w], w).toBeDefined();
+  });
+  it('coaches the maths after a wrong gate and dares a win', () => {
+    const run = new TeamRun(); run.launch(); run.losses.badGates = 2;
+    expect(teamSpec.invites!(run, 'lose')[0].code).toBe('bool gatePreview = true;'); expect(teamSpec.invites!(run, 'struggle')[0].code).toBe('bool gatePreview = true;');
+    expect(teamSpec.invites!(run, 'win')[0].code).toBe('string worldTheme = "candy";');
+    for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of teamSpec.invites!(run, moment)) expect(parseGameScript<ArcadeConfig>(invite.code, 'csharp', run.schema).ok, invite.code).toBe(true);
   });
 });
 

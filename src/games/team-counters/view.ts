@@ -2,6 +2,9 @@ import * as T from 'three';
 import type { ArcadeCue } from '../premium-kit/core';
 import { TeamRun, formation, hazardSpans, isPositive, HALF_WIDTH, STEPS, STEP_LENGTH, STEP_HEIGHT, VISIBLE, SPREAD, type TeamGate, type TeamEnemy, type TeamHazard } from './run';
 import { World, material, mesh, label, batchScenery, type Label } from '../three-kit/world';
+import { WorldWeather } from '../three-kit/weather';
+import { applyLook, weatherLight } from '../three-kit/looks';
+import { teamWorld } from './worlds';
 
 const BLUE = '#2f6bff', RED = '#ff3a3a', STEP_COLORS = ['#ff4d6d', '#ff8a3d', '#ffc53d', '#9bd447', '#3dd68c', '#3dc9d6', '#3d8bff', '#6f5cff', '#b45cff', '#ff5cb0'];
 
@@ -21,8 +24,9 @@ class Crowd {
   update(count: number, spread: number, time: number, dt: number, running: boolean, style = 'original') {
     if (style !== this.style) {
       this.style = style; this.heads.geometry.dispose(); this.bodies.geometry.dispose();
-      this.heads.geometry = style === 'robot' ? new T.BoxGeometry(.24, .22, .22) : style === 'astronaut' ? new T.SphereGeometry(.16, 10, 8) : new T.SphereGeometry(.12, 10, 8);
-      this.bodies.geometry = style === 'armored' ? new T.BoxGeometry(.28, .34, .2) : new T.CapsuleGeometry(.1, .24, 3, 8);
+      // Crowd looks: robots, penguins, knights and aliens keep their team colours but change shape.
+      this.heads.geometry = style === 'robot' ? new T.BoxGeometry(.24, .22, .22) : style === 'penguin' ? new T.SphereGeometry(.1, 10, 8) : style === 'knight' ? new T.CylinderGeometry(.13, .13, .22, 10) : style === 'alien' ? new T.SphereGeometry(.15, 12, 8).scale(1.35, .9, 1) : new T.SphereGeometry(.12, 10, 8);
+      this.bodies.geometry = style === 'robot' || style === 'knight' ? new T.BoxGeometry(.28, .34, .2) : style === 'penguin' ? new T.SphereGeometry(.16, 12, 10).scale(1, 1.45, .9) : style === 'alien' ? new T.CapsuleGeometry(.07, .26, 3, 8) : new T.CapsuleGeometry(.1, .24, 3, 8);
     }
     const n = Math.min(this.capacity, Math.max(0, Math.round(count))), k = Math.min(1, dt * 7);
     for (let i = this.shown; i < n; i++) { this.px[i] = 0; this.pz[i] = 0; } this.shown = n;
@@ -75,12 +79,12 @@ export class TeamView extends World<TeamRun> {
   private gates: { gate: TeamGate; root: T.Group; panes: T.MeshStandardMaterial[]; labels: Label[]; previews: Label[] }[] = [];
   private enemies: { enemy: TeamEnemy; crowd: Crowd; count: Label }[] = [];
   private hazards: { hazard: TeamHazard; root: T.Group; spinner?: T.Object3D; arm?: T.Object3D }[] = [];
-  private stairCrowd: Crowd | null = null; private stairKey = -1;
+  private stairCrowd: Crowd | null = null; private stairKey = -1; private weather: WorldWeather; private sky: T.Texture | null = null; private worldKey = '';
   constructor(canvas: HTMLCanvasElement, run: TeamRun) {
     super(canvas, run, '#cdeaf8'); this.scene.fog = new T.Fog('#cdeaf8', 40, 130); this.scene.add(this.world);
     this.crew = new Crowd(this.scene, BLUE); this.count = label('1', '#ffffff', '#2f6bffee', 320, 160); this.scene.add(this.count.sprite);
     this.shield = mesh(new T.SphereGeometry(1, 24, 14), new T.MeshBasicMaterial({ color: '#81f5e9', transparent: true, opacity: .18, depthWrite: false }), this.scene, 0, 1, 0, false);
-    this.debris = new Debris(this.scene);
+    this.debris = new Debris(this.scene); this.remix.ownWorld(true); this.weather = new WorldWeather(this.scene);
   }
   private shot: string | null = null; private shotKey = '';
   render(dt: number, held: boolean, reduced: boolean, cues: readonly ArcadeCue[]): void {
@@ -95,18 +99,15 @@ export class TeamView extends World<TeamRun> {
     this.gates = []; this.enemies = []; this.hazards = []; this.stairCrowd = null; this.stairKey = -1;
     const s = this.shapes, run = this.run, goal = run.goal, length = goal + 12;
     // A white runway floating over an icy canyon.
-    s.cube(this.world, material('#f6f9fd', .55), 0, -.5, -length / 2 + 6, HALF_WIDTH * 2 + .2, 1, length, false);
-    for (const side of [-1, 1]) s.cube(this.world, material('#5fb3ee', .4), side * (HALF_WIDTH + .16), -.38, -length / 2 + 6, .14, 1.04, length, false);
-    s.cube(this.world, material('#d4e6f5', .8), 0, -1.6, -length / 2 + 6, HALF_WIDTH * 2 - .6, 1.2, length, false);
+    const w = teamWorld(run.config.worldTheme); this.worldKey = run.config.worldTheme ?? 'classic'; this.sky?.dispose(); this.sky = applyLook(this.scene, this.sun, w.look, this.weather);
+    s.cube(this.world, material(w.runway, .55), 0, -.5, -length / 2 + 6, HALF_WIDTH * 2 + .2, 1, length, false);
+    const edge = new T.MeshStandardMaterial({ color: w.edge, roughness: .4, ...(w.props === 'space' || w.props === 'lava' ? { emissive: w.edge, emissiveIntensity: .8 } : {}) });
+    for (const side of [-1, 1]) s.cube(this.world, edge, side * (HALF_WIDTH + .16), -.38, -length / 2 + 6, .14, 1.04, length, false);
+    s.cube(this.world, material(w.under, .8), 0, -1.6, -length / 2 + 6, HALF_WIDTH * 2 - .6, 1.2, length, false);
     s.cube(this.world, material('#6fd3ff', .4), 0, .005, 4, HALF_WIDTH * 2, .02, 3, false);
-    mesh(new T.PlaneGeometry(400, 600), new T.MeshStandardMaterial({ color: '#4aaee6', roughness: .25, metalness: .1 }), this.world, 0, -9, -length / 2, false).rotation.x = -Math.PI / 2;
-    const ice = ['#8fd0f5', '#5fb4ea', '#b8e4fa', '#4a9fd8'].map(c => new T.MeshStandardMaterial({ color: c, roughness: .35, flatShading: true }));
-    for (let i = 0; i < 90; i++) {
-      // Ice cliffs drop away below the runway and rise further out.
-      const side = i % 2 ? -1 : 1, out = 8 + (i * 13 % 15), r = 2.2 + (i * 7 % 4), z = 10 - i * (length + 40) / 90;
-      const rock = mesh(new T.DodecahedronGeometry(r, 0), ice[i % 4], this.world, side * out, -7.5 - r * .5 + (out - 8) * .3, z, false);
-      rock.scale.set(1, 1.4, 1.2); rock.rotation.set(i, i * 2, 0);
-    }
+    const below = w.belowGlow ? new T.MeshBasicMaterial({ color: w.below, toneMapped: false }) : new T.MeshStandardMaterial({ color: w.below, roughness: w.props === 'candy' ? .35 : .25, metalness: .1 });
+    if (w.props !== 'space') mesh(new T.PlaneGeometry(400, 600), below, this.world, 0, -9, -length / 2, false).rotation.x = -Math.PI / 2;
+    this.scenery(w, length);
     batchScenery(this.world);
     for (const gate of run.gates) {
       const root = new T.Group(); root.position.z = -gate.at; this.world.add(root); const panes: T.MeshStandardMaterial[] = [], labels: Label[] = [], previews: Label[] = [];
@@ -166,7 +167,26 @@ export class TeamView extends World<TeamRun> {
     const top = STEPS * STEP_HEIGHT, chest = new T.Group(); chest.position.set(0, top, -(goal + STEPS * STEP_LENGTH + 1.4)); this.world.add(chest);
     s.cube(chest, material('#f6f9fd', .5), 0, -top / 2, 0, HALF_WIDTH * 2, top, 3, false); s.cube(chest, material('#c98a2c', .5), 0, .45, 0, 1.6, .9, 1); s.cube(chest, material('#ffd34d', .3, .6), 0, .95, 0, 1.7, .25, 1.05);
   }
+  /** What surrounds the runway: ice cliffs, candy, palm islands, planets or lava rocks. */
+  private scenery(w: ReturnType<typeof teamWorld>, length: number) {
+    const s = this.shapes, mats = w.propColors.map(c => new T.MeshStandardMaterial({ color: c, roughness: w.props === 'candy' ? .3 : .45, flatShading: w.props !== 'candy' }));
+    for (let i = 0; i < 90; i++) {
+      const side = i % 2 ? -1 : 1, out = 8 + (i * 13 % 15), r = 2.2 + (i * 7 % 4), z = 10 - i * (length + 40) / 90, m = mats[i % mats.length];
+      if (w.props === 'ice' || w.props === 'lava') { const rock = mesh(new T.DodecahedronGeometry(r, 0), m, this.world, side * out, -7.5 - r * .5 + (out - 8) * .3, z, false); rock.scale.set(1, w.props === 'lava' ? 1 : 1.4, 1.2); rock.rotation.set(i, i * 2, 0); }
+      else if (w.props === 'candy') {
+        if (i % 3 === 0) { const pop = new T.Group(); pop.position.set(side * out, -9, z); this.world.add(pop); s.tube(pop, material('#ffffff', .4), 0, 3, 0, .18, 6, false); const disc = mesh(new T.CylinderGeometry(1.6, 1.6, .35, 24), m, pop, 0, 6.4, 0, false); disc.rotation.x = Math.PI / 2; mesh(new T.TorusGeometry(1.1, .12, 6, 24), material('#ffffff', .4), pop, 0, 6.4, .2, false); }
+        else { const drop = mesh(new T.SphereGeometry(r * .7, 14, 10), m, this.world, side * out, -8.6 + r * .2, z, false); drop.scale.y = .8; }
+      } else if (w.props === 'islands') {
+        if (i % 4 === 0) { const isle = new T.Group(); isle.position.set(side * (out + 4), -9, z); this.world.add(isle); const sand = mesh(new T.SphereGeometry(3, 14, 8), mats[0], isle, 0, -1.6, 0, false); sand.scale.y = .45; s.tube(isle, mats[2], 0, 1.6, 0, .18, 3.6, false); for (let k = 0; k < 6; k++) { const leaf = mesh(s.block, mats[1], isle, Math.cos(k) * .8, 3.4, Math.sin(k) * .8, false); leaf.scale.set(1.6, .08, .45); leaf.rotation.y = -k; } }
+      } else {
+        if (i % 6 === 0) { const planet = mesh(new T.SphereGeometry(3 + i % 4, 18, 14), m, this.world, side * (out + 10), 2 + (i % 5) * 2, z - 20, false); if (i % 12 === 0) { const ring = mesh(new T.TorusGeometry(5 + i % 4, .25, 4, 40), material('#e8d9b8', .5), planet, 0, 0, 0, false); ring.rotation.x = 1.2; } }
+        else { const rock = mesh(new T.DodecahedronGeometry(r * .5, 0), material('#6b6f7c', .9), this.world, side * out, -3 + (i % 4), z, false); rock.rotation.set(i, i * 2, 0); }
+      }
+    }
+  }
   protected update(dt: number, reduced: boolean): void {
+    if ((this.run.config.worldTheme ?? 'classic') !== this.worldKey) this.rebuild();
+    this.weather.update(dt, this.run.config.weather ?? 'clear', this.origin, this.run.config.weather === 'wind' ? this.run.gust * 4 : 0, reduced); weatherLight(this.scene, this.sun, this.weather);
     const run = this.run, time = reduced ? 0 : run.elapsed, running = run.phase === 'playing' && run.state !== 'clash' && !reduced, style = run.config.characterStyle;
     const stepAt = run.state === 'finale' ? Math.min(run.climbed, Math.floor((run.distance - run.goal) / STEP_LENGTH) + 1) : 0;
     this.y += (stepAt * STEP_HEIGHT - this.y) * Math.min(1, dt * 10);

@@ -405,7 +405,7 @@ describe('MODBOX app shell', () => {
     ['speed-stack', 'SPEED STACK', 'alpine', 'focusMode'],
     ['temple-race', 'TEMPLE RACE', 'lava', 'relicShield'],
     ['subway-runnerz', 'SUBWAY RUNNERZ', 'tokyo', 'hoverboard'],
-    ['team-counters', 'TEAM COUNTERS', 'alpine', 'teamShield'],
+    ['team-counters', 'TEAM COUNTERS', 'candy', 'teamShield'],
     ['monster-strider', 'MONSTER STRIDER', 'volcanic', 'nitro'],
     ['roomba-run', 'ROOMBA RUN', 'neon', 'turboBrush'],
   ])('opens %s in basic free play, enables every mod and keeps challenges optional', async (id, title, theme, ability) => {

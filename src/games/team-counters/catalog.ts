@@ -9,6 +9,11 @@ export const teamCatalog = createArcadeCatalog({
   overdrive: { name: 'teamShield', label: 'STRENGTH TOGETHER', blurb: 'Enable SHIELD / E to block one blade or halve your losses in one fight.' },
   lives: { name: 'rallyTokens', label: 'RALLY AGAIN', min: 1, max: 7 },
   final: 'Grow your crowd, beat the red army and climb the multiplier stairs. Smart gate choices beat bigger numbers.',
+  remix: {
+    worldTheme: { label: 'RACE COURSE', blurb: 'Race over a "candy" land and its chocolate river, a "beach" runway above turquoise water, a "space" station among the planets or a "volcano" path over lava.', values: ['classic', 'candy', 'beach', 'space', 'volcano'] },
+    characterStyle: { label: 'CROWD LOOK', blurb: 'Turn both armies into "robot" troops, waddling "penguin" squads, "knight" brigades or "alien" visitors.', values: ['original', 'robot', 'penguin', 'knight', 'alien'] },
+    weather: { label: 'RACE WEATHER', blurb: 'Wind pushes your whole crowd sideways, rain makes steering slide, snow slows the march and an "aurora" lights the sky.', values: ['clear', 'snow', 'rain', 'wind', 'aurora'] },
+  },
   runtime: { distance: 'meters along the course', team: 'current runners in your crew', gates: 'gates passed this stage' },
   extraTools: [{ id: 'team-comeback', name: 'comebackRule', label: 'COMEBACK CREW', type: 'condition', blurb: 'Small crowd? Recruit ten extra runners at the next positive gate.', example: 'if (team < 20)\n{\n    recruitBonus = 10;\n}', glyph: '?', unlockAt: 0 }],
 });
