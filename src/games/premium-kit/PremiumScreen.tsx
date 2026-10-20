@@ -19,6 +19,7 @@ import { ArcadeEffects, ArcadeSound, loadArcadeArt, palette, type ArcadeArt } fr
 import { PlayModeNav } from '../PlayModeNav';
 import { ResultOverlay, type ResultCard, type StageChip } from './ResultCard';
 import { touchPads } from './touchPads';
+import { freshInvites, type InviteMoment, type ModInvite } from './invites';
 import type { WorldView } from '../three-kit/types';
 import './premium.css';
 
@@ -39,6 +40,8 @@ export interface PremiumGameSpec<R extends ArcadeRun = ArcadeRun> {
   touchHints?: readonly { keys: string; label: string }[];
   /** Optional game-specific heads-up display drawn over the playfield. */
   hud?(run: R): JSX.Element | null;
+  /** Code changes this game suggests after a loss, after a win, or while the player is struggling. */
+  invites?(run: R, moment: InviteMoment): readonly ModInvite[];
 }
 const menuOpen = () => Boolean(document.querySelector('.mod-options,.topbar__more[open],.modal'));
 const KEY_DIRECTIONS: Record<string, keyof ArcadeInput> = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down' };
@@ -57,6 +60,7 @@ export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, de
   const effects = useMemo(() => new ArcadeEffects(), []), sound = useMemo(() => new ArcadeSound(), []);
   const [, render] = useState(0), [focused, setFocused] = useState(false), [libraryOpen, setLibraryOpen] = useState(false), [settingsOpen, setSettingsOpen] = useState(false), [collapsed, setCollapsed] = useState(false);
   const [expandedGame, setExpandedGame] = useState(false);
+  const [coach, setCoach] = useState<ModInvite | null>(null); const seenInvites = useRef(new Set<string>()), lastCoach = useRef(0);
   const [graphicsFailed, setGraphicsFailed] = useState(false), [graphicsAttempt, setGraphicsAttempt] = useState(0);
   const world = useRef<WorldView | null>(null);
   const editor = useRef<EditorView | null>(null), stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
@@ -80,6 +84,12 @@ export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, de
   const mods = useMemo(() => unlocked.map(m => localizeMod(m, language)), [unlocked, language]);
   const tools = useMemo(() => catalog.tools.map(t => localizeTool(t, language)), [catalog, language]);
   const insert = useCallback((snippet: string, mode?: ModInsertMode) => applyModToEditor(editor.current, snippet, mode, language), [language]);
+  /** Adds an invite's code to the editor, then hands control straight back to the game. */
+  const acceptInvite = (invite: ModInvite, then?: () => void) => {
+    seenInvites.current.add(invite.id); setCoach(null); insert(formatCodeForLanguage(invite.code, language), 'replace');
+    window.setTimeout(() => { engage(); then?.(); update(); canvas.current?.focus({ preventScroll: true }); }, 450);
+  };
+  const localInvite = (invite: ModInvite): ModInvite => ({ ...invite, code: formatCodeForLanguage(invite.code, language).trim() });
   const previous = catalog.missions[mission.order - 1], next = catalog.missions[mission.order + 1];
   const go = (target: typeof mission) => {
     const store = useProgress.getState(); if (store.codes[codeKey(language, target.id)] === undefined) store.setGameCode(gameId, codeKey(language, target.id), code);
@@ -89,6 +99,17 @@ export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, de
   useEffect(() => { run.setProgram(liveProgram); update(); }, [run, liveProgram, update]);
   useEffect(() => { sound.muted = !progress.settings.sound; }, [sound, progress.settings.sound]);
   useEffect(() => () => sound.destroy(), [sound]);
+  // Mid-game coaching: at most one nudge every 25 seconds, never the same one twice in a session.
+  useEffect(() => {
+    if (!spec.invites) return;
+    const timer = window.setInterval(() => {
+      const now = performance.now(); if (run.phase !== 'playing' || blocked.current || now - lastCoach.current < 25000) return;
+      const [next] = freshInvites(spec.invites?.(run, 'struggle'), seenInvites.current, 1); if (!next) return;
+      seenInvites.current.add(next.id); lastCoach.current = now; setCoach(next);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [spec, run]);
+  useEffect(() => { if (!coach) return; const t = window.setTimeout(() => setCoach(null), 10000); return () => window.clearTimeout(t); }, [coach]);
   useEffect(() => { if (passed && mission.kind !== 'sandbox' && !progress.completed.includes(mission.id)) useProgress.getState().completeMission(mission.id, mission.kind === 'final'); }, [passed, mission, progress.completed]);
   useEffect(() => {
     const element = canvas.current; if (!element) return;
@@ -185,7 +206,7 @@ export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, de
     stage={<div className={`stage premium-stage premium-stage--${gameId} ${spec.createView ? 'world-stage' : ''}`} style={{ '--arcade-accent': colors.accent, '--arcade-warm': colors.warm, '--arcade-dark': colors.dark, '--arcade-cover': `url('/art/${gameId}/cover.webp')`, '--arcade-background': `url('/art/${gameId}/${spec.createView ? 'cover' : 'background'}.webp')`, '--world-sprites': `url('/art/${gameId}/sprites.webp')` } as CSSProperties}>
       <div className="premium__head"><div><span className="premium__eyebrow">{spec.eyebrow}</span><img className="premium__logo" src={`/art/${gameId}/logo.svg`} alt={spec.title} /><span className="premium__player">{run.config.playerName} <i>·</i> STAGE {String(run.level).padStart(2, '0')}</span></div><div className="premium__best"><small>PERSONAL BEST</small><strong>♛ {progress.bestScore.toLocaleString()}</strong></div></div>
       <div className="premium__stats" aria-label="Live game stats"><div><small>SCORE</small><strong>{run.score.toLocaleString()}</strong></div>{run.stats().map(stat => <div key={stat.label}><small>{stat.label}</small><strong>{stat.value}</strong></div>)}</div>
-      <div className="premium__field"><canvas key={graphicsAttempt} ref={canvas} className="premium__canvas" tabIndex={0} aria-label={`${spec.title} playfield. ${spec.instructions}`} onPointerDown={e => pointer('down', e)} onPointerMove={e => pointer('move', e)} onPointerUp={e => pointer('up', e)} onPointerCancel={e => pointer('cancel', e)} />{spec.hud?.(run)}{objective ? <div className="world__objective"><span>{objective.label}</span><progress aria-label={objective.label} value={objective.value} max={objective.max} /></div> : null}<button className="premium__expand" aria-label={expandedGame ? 'Restore code view' : 'Expand game view'} aria-pressed={expandedGame} onClick={() => { engage(); setExpandedGame(value => !value); }}>⛶ <span>{expandedGame ? 'SHOW CODE' : 'EXPAND'}</span></button></div>
+      <div className="premium__field"><canvas key={graphicsAttempt} ref={canvas} className="premium__canvas" tabIndex={0} aria-label={`${spec.title} playfield. ${spec.instructions}`} onPointerDown={e => pointer('down', e)} onPointerMove={e => pointer('move', e)} onPointerUp={e => pointer('up', e)} onPointerCancel={e => pointer('cancel', e)} />{spec.hud?.(run)}{coach && run.phase === 'playing' ? <div className={`coach-toast coach-toast--${coach.tone}`} role="status"><i aria-hidden="true">{coach.icon}</i><span><strong>{coach.title}</strong><small>{coach.reason}</small><code>{localInvite(coach).code}</code></span><button onClick={() => acceptInvite(coach)}>ADD MOD</button><button className="coach-toast__close" aria-label="Dismiss tip" onClick={() => setCoach(null)}>×</button></div> : null}{objective ? <div className="world__objective"><span>{objective.label}</span><progress aria-label={objective.label} value={objective.value} max={objective.max} /></div> : null}<button className="premium__expand" aria-label={expandedGame ? 'Restore code view' : 'Expand game view'} aria-pressed={expandedGame} onClick={() => { engage(); setExpandedGame(value => !value); }}>⛶ <span>{expandedGame ? 'SHOW CODE' : 'EXPAND'}</span></button></div>
       <div className="premium__notice" role="status" aria-live="polite">{focused ? 'EDITING · GAME HELD' : run.notice}</div>
       {touch ? <div className="premium__controls premium__controls--touch">
         <div className={`premium__pad premium__pad--left${pads.dpad ? ' premium__pad--dpad' : ''}`}>{pads.left.map((control, i) => controlButton(control, pads.dpad ? `premium__dir--${control.action}` : i === 0 ? 'premium__control--corner' : ''))}</div>
@@ -194,6 +215,7 @@ export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, de
       <span className="premium__keyHint">{spec.instructions}</span>
       <PlayModeNav className="premium__missionNav" nextClassName="premium__next" exploring={mission.kind === 'sandbox'} onExplore={() => go(catalog.missions[8])} onGuide={() => go(catalog.missions[0])} onPrevious={previous ? () => go(previous) : undefined} onNext={next ? () => go(next) : undefined} />
       {card ? <ResultOverlay key={`${run.revision}-${run.phase}`} card={card} snapshot={world.current?.snapshot?.() ?? null} stages={spec.stages?.(run) ?? []} footnote={footnote}
+        invites={freshInvites(spec.invites?.(run, card.win ? 'win' : 'lose'), seenInvites.current, 2).map(localInvite)} onInvite={invite => acceptInvite(invite, () => { if (card.win) run.advance(); else run.retryStage(); })}
         onHome={() => navigate({ name: 'landing' })} onPrimary={() => resume(() => card.win ? run.advance() : run.retryStage())} onPick={level => resume(() => run.replayStage(level))} /> : null}
       {run.phase !== 'playing' && !card ? <div className={`premium__overlay premium__overlay--${run.phase}`}><div className="premium__intro start">
         <img src={`/art/${gameId}/logo.svg`} alt={spec.title} className="premium__introLogo start__logo" />

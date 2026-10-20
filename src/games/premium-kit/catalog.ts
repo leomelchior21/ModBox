@@ -5,6 +5,7 @@ import type { ArcadeConfig, ArcadeRun } from './core';
 
 export interface ArcadeMission { id: string; order: number; kind: 'mission' | 'final' | 'sandbox'; title: string; message: string; targetId?: string }
 export const ARCADE_RUNTIME_LABELS = { score: 'points this run', level: 'current stage', lives: 'remaining chances', actions: 'launches or placements', collected: 'successful scoring events', perfects: 'perfect placements or skill hits' };
+export interface RemixOption { label: string; blurb: string; values: readonly string[]; glyph?: string }
 export interface CatalogOptions {
   title: string; palettes: readonly string[]; defaults: ArcadeConfig;
   power: { name: string; label: string; blurb: string; min: number; max: number; goal: number };
@@ -16,15 +17,21 @@ export interface CatalogOptions {
   final: string;
   runtime?: Record<string, string>;
   extraTools?: readonly CodeToolDefinition[];
+  /**
+   * The game's own take on the three starter mods (world, characters, weather): its values, label and description.
+   * The first value is the default. Variable names stay the same in every game so saves and the starter keep working.
+   */
+  remix?: { worldTheme?: RemixOption; characterStyle?: RemixOption; weather?: RemixOption };
   /** Extra game-specific mods, listed after the shared ones; their defaults join the basic game. */
   extraMods?: readonly ModDefinition<keyof ArcadeConfig>[];
 }
 export function createArcadeCatalog(o: CatalogOptions) {
-  const d: ArcadeConfig = { worldTheme: 'classic', characterStyle: 'original', weather: 'clear', ...o.defaults, ...Object.fromEntries((o.extraMods ?? []).map(m => [m.id, m.defaultValue])) };
+  const r = { worldTheme: o.remix?.worldTheme?.values ?? ['classic', 'alpine', 'volcanic', 'neon'], characterStyle: o.remix?.characterStyle?.values ?? ['original', 'robot', 'astronaut', 'armored'], weather: o.remix?.weather?.values ?? ['clear', 'snow', 'rain', 'embers'] };
+  const d: ArcadeConfig = { worldTheme: r.worldTheme[0], characterStyle: r.characterStyle[0], weather: r.weather[0], ...o.defaults, ...Object.fromEntries((o.extraMods ?? []).map(m => [m.id, m.defaultValue])) };
   const mods: readonly ModDefinition<keyof ArcadeConfig>[] = [
-    { id: 'worldTheme', name: 'worldTheme', type: 'string', label: 'WORLD BUILDER', blurb: 'Rebuild the scenery: alpine peaks, a volcanic world or a neon city. Changes terrain materials, props, sky and lighting live.', example: 'string worldTheme = "alpine";', values: ['classic', 'alpine', 'volcanic', 'neon'], defaultValue: d.worldTheme, glyph: '◈', unlockAt: 0 },
-    { id: 'characterStyle', name: 'characterStyle', type: 'string', label: 'CHARACTER LAB', blurb: 'Replace your character or vehicle with a robot, astronaut or armored champion. New geometry, equipment and materials.', example: 'string characterStyle = "robot";', values: ['original', 'robot', 'astronaut', 'armored'], defaultValue: d.characterStyle, glyph: '♟', unlockAt: 0 },
-    { id: 'weather', name: 'weather', type: 'string', label: 'ATMOSPHERE', blurb: 'Fill the world with falling snow, rain or drifting embers. Clear removes the particles.', example: 'string weather = "snow";', values: ['clear', 'snow', 'rain', 'embers'], defaultValue: d.weather, glyph: '☁', unlockAt: 0 },
+    { id: 'worldTheme', name: 'worldTheme', type: 'string', label: o.remix?.worldTheme?.label ?? 'WORLD BUILDER', blurb: o.remix?.worldTheme?.blurb ?? 'Rebuild the scenery: alpine peaks, a volcanic world or a neon city. Changes terrain materials, props, sky and lighting live.', example: `string worldTheme = "${r.worldTheme[1]}";`, values: r.worldTheme, defaultValue: d.worldTheme, glyph: o.remix?.worldTheme?.glyph ?? '◈', unlockAt: 0 },
+    { id: 'characterStyle', name: 'characterStyle', type: 'string', label: o.remix?.characterStyle?.label ?? 'CHARACTER LAB', blurb: o.remix?.characterStyle?.blurb ?? 'Replace your character or vehicle with a robot, astronaut or armored champion. New geometry, equipment and materials.', example: `string characterStyle = "${r.characterStyle[1]}";`, values: r.characterStyle, defaultValue: d.characterStyle, glyph: o.remix?.characterStyle?.glyph ?? '♟', unlockAt: 0 },
+    { id: 'weather', name: 'weather', type: 'string', label: o.remix?.weather?.label ?? 'ATMOSPHERE', blurb: o.remix?.weather?.blurb ?? 'Fill the world with falling snow, rain or drifting embers. Clear removes the particles.', example: `string weather = "${r.weather[1]}";`, values: r.weather, defaultValue: d.weather, glyph: o.remix?.weather?.glyph ?? '☁', unlockAt: 0 },
     { id: 'playerName', name: 'playerName', type: 'string', label: 'YOUR SIGNATURE', blurb: 'Put your name on the game.', example: 'string playerName = "Pixel Pilot";', maxLength: 22, defaultValue: d.playerName, glyph: 'Aa', unlockAt: 1 },
     { id: 'power', name: o.power.name, type: 'int', label: o.power.label, blurb: o.power.blurb, example: `int ${o.power.name} = ${o.power.goal - 5} + 5;`, limits: { min: o.power.min, max: o.power.max }, defaultValue: d.power, glyph: '+', unlockAt: 2 },
     { id: 'assist', name: o.assist.name, type: 'bool', label: o.assist.label, blurb: o.assist.blurb, example: `bool ${o.assist.name} = true;`, defaultValue: d.assist, glyph: '✧', unlockAt: 3 },
@@ -45,7 +52,7 @@ export function createArcadeCatalog(o: CatalogOptions) {
   const allTools = [...tools, ...o.extraTools ?? []].map(declare);
   const schema = createModSchema(mods, Object.keys(runtimeLabels));
   const missions: readonly ArcadeMission[] = [
-    { id: 'm00', order: 0, kind: 'mission', title: 'BUILD YOUR WORLD', targetId: 'worldTheme', message: `Welcome to ${o.title}. Start playing, then change worldTheme to "alpine", "volcanic" or "neon" and watch the world rebuild.` },
+    { id: 'm00', order: 0, kind: 'mission', title: 'BUILD YOUR WORLD', targetId: 'worldTheme', message: `Welcome to ${o.title}. Start playing, then change worldTheme to ${r.worldTheme.slice(1, 4).map(v => `"${v}"`).join(', ').replace(/, ([^,]*)$/, ' or $1')} and watch the world rebuild.` },
     { id: 'm01', order: 1, kind: 'mission', title: 'MAKE YOUR MARK', targetId: 'playerName', message: 'Add YOUR SIGNATURE and give your player a name of your own.' },
     { id: 'm02', order: 2, kind: 'mission', title: 'POWER OF ARITHMETIC', targetId: 'power', message: `Use arithmetic to set ${o.power.name} to ${o.power.goal} or more. Try ${o.power.goal - 5} + 5.` },
     { id: 'm03', order: 3, kind: 'mission', title: 'A HELPING HAND', targetId: 'assist', message: `Set ${o.assist.name} to true. ${o.assist.instruction}` },

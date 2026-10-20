@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react';
+import type { ModInvite } from './invites';
 import './result.css';
 
 export interface ResultCard { win: boolean; caption: string; headline?: string; detail?: string }
@@ -6,6 +7,8 @@ export interface StageChip { level: number; name: string; state: 'done' | 'curre
 interface ResultOverlayProps {
   card: ResultCard; snapshot: string | null; stages: readonly StageChip[]; footnote?: string;
   onHome(): void; onPrimary(): void; onPick(level: number): void;
+  /** Suggested code changes (already in the student's language) and what happens when one is chosen. */
+  invites?: readonly ModInvite[]; onInvite?(invite: ModInvite): void;
 }
 
 const Home = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 3.5l9 7.7V21h-6.2v-6h-5.6v6H3z" /></svg>;
@@ -13,7 +16,7 @@ const Play = ({ next }: { next: boolean }) => <svg viewBox="0 0 24 24" aria-hidd
 const Levels = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v3H3zM3 10.5h18v3H3zM3 16h18v3H3z" /></svg>;
 
 /** A tilted instant photo of the moment the run ended, with Home / Retry or Next / Levels. */
-export function ResultOverlay({ card, snapshot, stages, footnote, onHome, onPrimary, onPick }: ResultOverlayProps): JSX.Element {
+export function ResultOverlay({ card, snapshot, stages, footnote, onHome, onPrimary, onPick, invites = [], onInvite }: ResultOverlayProps): JSX.Element {
   const [picking, setPicking] = useState(false);
   return <div className={`result result--${card.win ? 'win' : 'fail'}`} role="dialog" aria-label={card.win ? `Stage clear. ${card.headline ?? ''} ${card.caption}` : card.caption}>
     {card.win ? <div className="result__confetti" aria-hidden="true">{Array.from({ length: 42 }, (_, i) => <i key={i} style={{ left: `${(i * 37 + 11) % 100}%`, animationDelay: `${(i * .173) % 2.4}s`, animationDuration: `${2.4 + (i % 5) * .45}s`, background: i % 3 ? '#1f8cff' : '#ffffff', '--spin': `${(i % 2 ? 1 : -1) * (360 + i * 23)}deg` } as CSSProperties} />)}</div> : null}
@@ -26,10 +29,18 @@ export function ResultOverlay({ card, snapshot, stages, footnote, onHome, onPrim
       <div className="result__frame">{snapshot ? <img src={snapshot} alt="" /> : null}{card.headline ? <strong className="result__time">{card.headline}</strong> : null}</div>
       <figcaption>{card.caption}{card.detail ? <small>{card.detail}</small> : null}</figcaption>
     </figure>}
+    <div className="result__panel">
+    {invites.length && !picking ? <div className="result__invites" aria-label="Try a mod">
+      <b>{card.win ? 'LEVEL UP WITH A MOD' : 'TRY A MOD'}</b>
+      {invites.map(invite => <button key={invite.id} className={`result__invite result__invite--${invite.tone}`} onClick={() => onInvite?.(invite)}>
+        <i aria-hidden="true">{invite.icon}</i><span><strong>{invite.title}</strong><small>{invite.reason}</small><code>{invite.code}</code></span><em>{card.win ? 'ADD + NEXT' : 'ADD + RETRY'}</em>
+      </button>)}
+    </div> : null}
     <div className="result__actions">
       <button className="result__side" onClick={onHome}><Home /><span>Home</span></button>
       <button className="result__main" onClick={onPrimary} autoFocus><Play next={card.win} /><span>{card.win ? 'Next level' : 'Retry'}</span></button>
       <button className="result__side" aria-pressed={picking} onClick={() => setPicking(open => !open)}><Levels /><span>{picking ? 'Photo' : 'Levels'}</span></button>
+    </div>
     </div>
     {footnote ? <small className="result__note">{footnote}</small> : null}
   </div>;

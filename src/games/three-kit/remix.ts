@@ -28,8 +28,8 @@ export class SceneRemix {
   /** Lets a game supply its own sky and fog for the default theme, for example a stage that runs at night. */
   setBase(background: T.Scene['background'], fog: T.Fog | null) { this.originalBackground = background; this.baseFog = fog; this.theme = ''; }
   /** For games that build their own themed worlds: the remix keeps characters and weather but leaves scenery, sky and materials alone. */
-  ownWorld() { this.custom = true; }
-  private custom = false;
+  ownWorld(weather = false) { this.custom = true; this.customWeather = weather; }
+  private custom = false; private customWeather = false;
   character(root: T.Group, kind: ActorKind = 'person') { const variant = new T.Group(); variant.userData.remix = true; const originals = [...root.children]; root.userData.character = true; root.add(variant); this.actors.push({ root, originals, variant, kind, style: '' }); }
   update(config: Pick<ArcadeConfig, 'worldTheme' | 'characterStyle' | 'weather'>, origin: T.Vector3, dt: number, reduced: boolean, revision: number) {
     this.elapsed += dt; const theme = config.worldTheme ?? 'classic', style = config.characterStyle ?? 'original';
@@ -41,7 +41,7 @@ export class SceneRemix {
       actor.variant.traverse(o => { if (o.userData.limb) o.rotation.x = reduced ? 0 : Math.sin(this.elapsed * 12 + o.userData.limb) * .45; });
     }
     if (!this.indoor) this.scenery.position.set(origin.x, 0, origin.z);
-    const weather = config.weather ?? 'clear'; if (weather !== this.weather) { this.weather = weather; this.buildWeather(weather); }
+    const weather = this.customWeather ? 'clear' : config.weather ?? 'clear'; if (weather !== this.weather) { this.weather = weather; this.buildWeather(weather); }
     if (this.particles) {
       this.particles.visible = !reduced;
       const speed = weather === 'rain' ? 18 : weather === 'embers' ? -1.3 : 1.8;

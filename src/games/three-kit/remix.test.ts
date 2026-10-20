@@ -22,15 +22,18 @@ describe('live world remixes', () => {
   it.each(['python', 'swift', 'csharp'] as const)('changes scenery, actors and weather without resetting any game in %s', language => {
     for (const create of games) {
       const run = create(); run.launch(); run.score = 250; run.elapsed = 12; const revision = run.revision, checkpoint = run.checkpointRevision;
-      for (const worldTheme of ['classic', 'alpine', 'volcanic', 'neon']) {
-        const source = `string worldTheme = "${worldTheme}";\nstring characterStyle = "astronaut";\nstring weather = "snow";`;
+      // Every game has its own worlds, characters and weather; read them from its catalog.
+      const values = (id: string) => run.schema.mods.find(m => m.id === id)!.values!, worlds = values('worldTheme'), styles = values('characterStyle'), skies = values('weather');
+      expect(worlds.length).toBeGreaterThanOrEqual(4); expect(styles.length).toBeGreaterThanOrEqual(4); expect(skies.length).toBeGreaterThanOrEqual(4);
+      for (const worldTheme of worlds) {
+        const source = `string worldTheme = "${worldTheme}";\nstring characterStyle = "${styles[2]}";\nstring weather = "${skies[1]}";`;
         const program = parseGameScript<ArcadeConfig>(formatCodeForLanguage(source, language), language, run.schema);
         expect(program.ok).toBe(true); run.setProgram(program);
-        expect(run.config).toMatchObject({ worldTheme, characterStyle: 'astronaut', weather: 'snow' });
+        expect(run.config).toMatchObject({ worldTheme, characterStyle: styles[2], weather: skies[1] });
         expect([run.score, run.elapsed, run.revision, run.checkpointRevision, run.phase]).toEqual([250, 12, revision, checkpoint, 'playing']);
       }
-      const rule = parseGameScript<ArcadeConfig>(formatCodeForLanguage('string worldTheme = "classic";\nstring characterStyle = "original";\nstring weather = "clear";\nif (score >= 100)\n{\n    worldTheme = "volcanic";\n    characterStyle = "robot";\n    weather = "embers";\n}', language), language, run.schema);
-      expect(rule.ok).toBe(true); run.setProgram(rule); expect(run.config).toMatchObject({ worldTheme: 'volcanic', characterStyle: 'robot', weather: 'embers' });
+      const rule = parseGameScript<ArcadeConfig>(formatCodeForLanguage(`string worldTheme = "${worlds[0]}";\nstring characterStyle = "${styles[0]}";\nstring weather = "${skies[0]}";\nif (score >= 100)\n{\n    worldTheme = "${worlds[2]}";\n    characterStyle = "${styles[1]}";\n    weather = "${skies[2]}";\n}`, language), language, run.schema);
+      expect(rule.ok).toBe(true); run.setProgram(rule); expect(run.config).toMatchObject({ worldTheme: worlds[2], characterStyle: styles[1], weather: skies[2] });
       const previous = { ...run.config }; run.setProgram(parseGameScript<ArcadeConfig>(formatCodeForLanguage('string worldTheme = "invalid";', language), language, run.schema)); expect(run.config).toEqual(previous);
     }
   });
