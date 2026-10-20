@@ -2,6 +2,9 @@ import { useId } from 'react';
 
 /** Bowed glass, layered metal bezel and softly warped live phosphor content. */
 export function CrtGlass(): JSX.Element {
+  return <><div className="crt-roll" aria-hidden="true" />{glass()}</>;
+}
+function glass(): JSX.Element {
   const id = useId().replaceAll(':', '');
   const outline = 'M56 16 Q500 0 944 16 Q978 18 985 54 Q1000 380 985 706 Q978 742 944 744 Q500 760 56 744 Q22 742 15 706 Q0 380 15 54 Q22 18 56 16Z';
   return <svg className="crt-glass" viewBox="0 0 1000 760" preserveAspectRatio="none" aria-hidden="true" focusable="false">

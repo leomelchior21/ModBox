@@ -1,0 +1,106 @@
+/* ============================================================================
+   MODBOX · PREMIUM PHOSPHOR
+   The same green CRT, with production polish: a finer aperture grille, a slow
+   rolling scan bar, phosphor bloom on display type, glass cartridge cards and
+   illuminated arcade keys. Loaded last; effects never intercept input.
+   ========================================================================== */
+:root {
+  --phosphor: #b9ffd2; --phosphor-hot: #e9fff0; --phosphor-dim: #7fb894; --phosphor-deep: #0f3a24;
+  --amber: #ffc25a; --amber-hot: #ffe2a3;
+  --glass-top: #16402a; --glass-bottom: #04130b; --bevel-light: #c9ffdc33; --bevel-dark: #00000080;
+  --font-terminal: 'VT323', 'JetBrains Mono', monospace;
+  --bloom: 0 0 2px #e9fff0aa, 0 0 12px #6dffa860, 0 0 28px #3cff8a26;
+  --bloom-amber: 0 0 2px #fff1cfaa, 0 0 12px #ffb03c70, 0 0 28px #ff9b1f30;
+}
+
+/* --- the tube: aperture grille + scanlines, a soft breathing glow and a rolling scan bar --- */
+.crt-cabinet::before {
+  background:
+    repeating-linear-gradient(0deg, #00000026 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, #ff3c3c06 0 1px, #3cff6c07 1px 2px, #3c6cff06 2px 3px);
+  opacity: .7;
+}
+
+.crt-roll { position: absolute; left: 1.2%; right: 1.2%; top: 0; height: 22%; z-index: 49; pointer-events: none; border-radius: 4%; background: linear-gradient(180deg, transparent, #d8ffe40b 45%, #d8ffe414 50%, #d8ffe40b 55%, transparent); animation: crt-roll 9s linear infinite; will-change: transform; }
+@keyframes crt-roll { from { transform: translateY(-30%); } to { transform: translateY(560%); } }
+@keyframes crt-breathe { 0%, 100% { opacity: 1; } 48% { opacity: .93; } 50% { opacity: .99; } 52% { opacity: .95; } }
+
+/* --- display type: terminal phosphor with bloom --- */
+:root :is(.home__hero h1, .home__sectionHead h2, .arcade__title, .languages__intro h1, .home-game h3, .arcade .cabinet__title, .langcard h2, .langcard h3, .languages__game h2) {
+  font-family: var(--font-terminal); font-weight: 400; letter-spacing: .04em; color: var(--phosphor-hot); text-shadow: var(--bloom);
+}
+:root .home__hero h1 { font-size: clamp(22px, 2.6vw, 40px); letter-spacing: .12em; }
+.home__hero h1::after { content: '_'; margin-left: .15em; animation: crt-caret 1.05s steps(1) infinite; }
+@keyframes crt-caret { 50% { opacity: 0; } }
+:root .home .home__sectionHead h2 { font-size: clamp(22px, 2vw, 30px); }
+.home__sectionHead h2 svg { filter: drop-shadow(0 0 6px #6dffa8aa); }
+.home__catalogMeta { color: var(--phosphor-dim); letter-spacing: .08em; }
+:root :is(.arcade__title, .languages .languages__intro h1) { font-size: clamp(40px, 5vw, 72px); line-height: 1; }
+
+/* --- hero: the art sits behind a lit screen-within-the-screen --- */
+.home__hero { border-radius: 16px; box-shadow: inset 0 0 0 1px #9dffc22e, inset 0 0 60px #000a; }
+.home__heroArt { filter: saturate(1.08) contrast(1.04); }
+.home__hero::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: repeating-linear-gradient(0deg, #00000024 0 1px, transparent 1px 3px), radial-gradient(ellipse at 70% 50%, transparent 40%, #04130bcc 100%); z-index: 1; }
+.home__heroCopy { position: relative; z-index: 2; }
+
+/* --- glass cartridge cards --- */
+.home-game--ready, .home-game--soon, .arcade .cabinet {
+  border: 1px solid #5fa57c; border-radius: 14px; background: linear-gradient(170deg, var(--glass-top), var(--glass-bottom) 62%);
+  box-shadow: inset 0 1px 0 var(--bevel-light), inset 0 -2px 0 var(--bevel-dark), 0 10px 30px #0008;
+  transition: transform .22s var(--ease-out), box-shadow .22s var(--ease-out), border-color .22s;
+}
+.home-game__art, .arcade .cabinet__art { position: relative; border-bottom: 1px solid #5fa57c66; }
+.home-game__art::after, .arcade .cabinet__art::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: linear-gradient(160deg, #ffffff22 0%, transparent 28%), repeating-linear-gradient(0deg, #0000001f 0 1px, transparent 1px 3px), linear-gradient(0deg, #04130bb0, transparent 45%);
+}
+.home-game__art img, .home-game__art svg, .arcade .cabinet__art img { transition: transform .5s var(--ease-out), filter .3s; }
+.home-game--ready:hover, .home-game--ready:focus-visible, .arcade .cabinet--live:hover {
+  transform: translateY(-5px); border-color: var(--phosphor);
+  box-shadow: inset 0 1px 0 #e9fff055, inset 0 -2px 0 var(--bevel-dark), 0 18px 40px #000a, 0 0 0 1px #b9ffd255, 0 0 34px #4dff9a2e;
+}
+.home-game--ready:hover .home-game__art img, .home-game--ready:hover .home-game__art svg, .arcade .cabinet--live:hover .cabinet__art img { transform: scale(1.045); filter: saturate(1.15) brightness(1.06); }
+:root .home .home-game h3 { font-size: clamp(22px, 2vw, 30px); line-height: 1; }
+.home-game__body > p { color: var(--phosphor-dim); letter-spacing: .02em; }
+.home .home-game__status {
+  display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid #6fbf8f80; background: linear-gradient(180deg, #1c4d32, #0c2a19); color: var(--phosphor-hot); text-shadow: 0 0 8px #6dffa880;
+  box-shadow: inset 0 1px 0 #c9ffdc40, 0 2px 0 #000a; letter-spacing: .1em;
+}
+.home-game--ready:hover .home-game__status { background: linear-gradient(180deg, #ffd27a, #e8a02c); color: #2a1600; text-shadow: none; border-color: var(--amber-hot); box-shadow: inset 0 1px 0 #fff6, 0 0 18px #ffb03c66; }
+.game-availability { border-radius: 999px !important; backdrop-filter: blur(6px); background: #04130bcc !important; border: 1px solid #9dffc266 !important; letter-spacing: .1em; }
+.game-availability--ready > span { color: #6dffa8; text-shadow: 0 0 8px #6dffa8; animation: crt-led 2.4s ease-in-out infinite; }
+@keyframes crt-led { 50% { opacity: .45; } }
+
+/* --- illuminated arcade keys --- */
+.home__nav nav button, .home__gameArrow, .home__viewAll, .arcade__browse button, .screen__top .btn, .console-button {
+  border-radius: 10px; background: linear-gradient(180deg, #1a4430, #0a2216); border: 1px solid #6fbf8f99;
+  box-shadow: inset 0 1px 0 #c9ffdc3d, inset 0 -2px 0 #0009, 0 3px 0 #000b; transition: transform .12s, box-shadow .12s, background .12s;
+}
+.home__nav nav button:hover, .home__gameArrow:not(:disabled):hover, .home__viewAll:hover, .arcade__browse button:not(:disabled):hover, .console-button:hover {
+  background: linear-gradient(180deg, #24603f, #0f3020); box-shadow: inset 0 1px 0 #e9fff066, inset 0 -2px 0 #0009, 0 3px 0 #000b, 0 0 16px #4dff9a33;
+}
+.home__nav nav button:active, .home__gameArrow:active, .home__viewAll:active, .arcade__browse button:active, .console-button:active { transform: translateY(2px); box-shadow: inset 0 1px 0 #c9ffdc3d, inset 0 -1px 0 #0009, 0 1px 0 #000b; }
+.home__nav nav button { padding: 8px 16px; }
+.screen .btn--primary, .langcard .btn--primary {
+  border-radius: 10px; background: linear-gradient(180deg, #e9ffd8, #b7f19c); color: #0c2414; border: 1px solid #f4ffe8;
+  box-shadow: inset 0 1px 0 #ffffffb0, inset 0 -3px 0 #6fb05a, 0 4px 0 #0a1f10, 0 0 22px #b5ff9233; text-shadow: none; letter-spacing: .08em;
+}
+.screen .btn--primary:hover { background: linear-gradient(180deg, #ffffff, #c9ffae); box-shadow: inset 0 1px 0 #fff, inset 0 -3px 0 #6fb05a, 0 4px 0 #0a1f10, 0 0 30px #c9ff9255; }
+.screen .btn--primary:active { transform: translateY(3px); box-shadow: inset 0 1px 0 #ffffffb0, inset 0 -1px 0 #6fb05a, 0 1px 0 #0a1f10; }
+
+/* --- language cards: little terminals --- */
+.langcard { border-radius: 16px !important; background: linear-gradient(170deg, var(--glass-top), var(--glass-bottom) 70%) !important; box-shadow: inset 0 1px 0 var(--bevel-light), 0 12px 30px #0008; }
+.langcard pre, .langcard .langcard__code, .langcard code { position: relative; }
+.langcard--live:hover { border-color: var(--phosphor) !important; box-shadow: inset 0 1px 0 #e9fff055, 0 0 30px #4dff9a2a, 0 12px 30px #0009; }
+
+/* --- the lab console keeps its calm, with lit edges --- */
+.lab .topbar { border-bottom-color: #6fbf8f55; }
+.lab .topbar__logo .logo { filter: drop-shadow(0 0 6px #ff7a3c55); }
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-roll, .home__hero h1::after, .game-availability--ready > span { animation: none !important; }
+  .home-game--ready:hover, .arcade .cabinet--live:hover { transform: none; }
+}
+@media (max-width: 640px) { .crt-roll { display: none; } :root .home .home-game h3 { font-size: 20px; } }
+@media (forced-colors: active) { .crt-roll, .home__hero::after, .home-game__art::after { display: none; } }
