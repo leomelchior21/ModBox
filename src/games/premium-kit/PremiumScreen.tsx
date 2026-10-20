@@ -18,6 +18,7 @@ import { type ArcadeCatalog } from './catalog';
 import { ArcadeEffects, ArcadeSound, loadArcadeArt, palette, type ArcadeArt } from './visuals';
 import { PlayModeNav } from '../PlayModeNav';
 import { ResultOverlay, type ResultCard, type StageChip } from './ResultCard';
+import { touchPads } from './touchPads';
 import type { WorldView } from '../three-kit/types';
 import './premium.css';
 
@@ -160,6 +161,11 @@ export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, de
     else if (spec.createView) run.pointer(phase, (e.clientX - r.left) / r.width * spec.width, (e.clientY - r.top) / r.height * spec.height, e.pointerId);
     else run.pointer(phase, (e.clientX - r.left - (r.width - spec.width * fit) / 2) / fit, (e.clientY - r.top - (r.height - spec.height * fit) / 2) / fit, e.pointerId); update();
   };
+  const pads = touchPads(spec.controls);
+  const controlButton = (control: ArcadeControl, place = '') => <button key={control.label} className={[control.primary ? 'premium__control--primary' : '', place].filter(Boolean).join(' ')} disabled={run.phase !== 'playing' || control.action === 'ability' && !run.config.overdrive} aria-label={control.label} title={control.action === 'ability' && !run.config.overdrive ? `Enable ${catalog.mods.find(m => m.id === 'overdrive')?.label} in your code` : undefined}
+    onClick={event => { if (!control.hold || event.detail === 0) act(control.action); }}
+    onPointerDown={e => { if (control.hold && !libraryOpen && !settingsOpen && !menuOpen()) { engage(); e.currentTarget.setPointerCapture?.(e.pointerId); run.input[control.hold] = true; if (spec.createView) { run.action(control.action); update(); } } }}
+    onPointerUp={() => { if (control.hold) run.input[control.hold] = false; }} onPointerCancel={() => { if (control.hold) run.input[control.hold] = false; }} onBlur={() => { if (control.hold) run.input[control.hold] = false; }}>{control.label}</button>;
   const colors = palette(run.config.palette);
   const objective = spec.objective?.(run);
   const card = run.phase === 'cleared' || run.phase === 'gameover' ? spec.result?.(run) ?? null : null;
@@ -181,10 +187,10 @@ export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, de
       <div className="premium__stats" aria-label="Live game stats"><div><small>SCORE</small><strong>{run.score.toLocaleString()}</strong></div>{run.stats().map(stat => <div key={stat.label}><small>{stat.label}</small><strong>{stat.value}</strong></div>)}</div>
       <div className="premium__field"><canvas key={graphicsAttempt} ref={canvas} className="premium__canvas" tabIndex={0} aria-label={`${spec.title} playfield. ${spec.instructions}`} onPointerDown={e => pointer('down', e)} onPointerMove={e => pointer('move', e)} onPointerUp={e => pointer('up', e)} onPointerCancel={e => pointer('cancel', e)} />{spec.hud?.(run)}{objective ? <div className="world__objective"><span>{objective.label}</span><progress aria-label={objective.label} value={objective.value} max={objective.max} /></div> : null}<button className="premium__expand" aria-label={expandedGame ? 'Restore code view' : 'Expand game view'} aria-pressed={expandedGame} onClick={() => { engage(); setExpandedGame(value => !value); }}>⛶ <span>{expandedGame ? 'SHOW CODE' : 'EXPAND'}</span></button></div>
       <div className="premium__notice" role="status" aria-live="polite">{focused ? 'EDITING · GAME HELD' : run.notice}</div>
-      <div className={`premium__controls ${touch ? 'premium__controls--touch' : 'premium__controls--desktop'}`}>{spec.controls.map(control => <button key={control.label} className={control.primary ? 'premium__control--primary' : ''} disabled={run.phase !== 'playing' || control.action === 'ability' && !run.config.overdrive} aria-label={control.label} title={control.action === 'ability' && !run.config.overdrive ? `Enable ${catalog.mods.find(m => m.id === 'overdrive')?.label} in your code` : undefined}
-        onClick={event => { if (!control.hold || event.detail === 0) act(control.action); }}
-        onPointerDown={e => { if (control.hold && !libraryOpen && !settingsOpen && !menuOpen()) { engage(); e.currentTarget.setPointerCapture?.(e.pointerId); run.input[control.hold] = true; if (spec.createView) { run.action(control.action); update(); } } }}
-        onPointerUp={() => { if (control.hold) run.input[control.hold] = false; }} onPointerCancel={() => { if (control.hold) run.input[control.hold] = false; }} onBlur={() => { if (control.hold) run.input[control.hold] = false; }}>{control.label}</button>)}</div>
+      {touch ? <div className="premium__controls premium__controls--touch">
+        <div className={`premium__pad premium__pad--left${pads.dpad ? ' premium__pad--dpad' : ''}`}>{pads.left.map((control, i) => controlButton(control, pads.dpad ? `premium__dir--${control.action}` : i === 0 ? 'premium__control--corner' : ''))}</div>
+        <div className="premium__pad premium__pad--right">{pads.right.map((control, i) => controlButton(control, i === 0 ? 'premium__control--corner' : ''))}</div>
+      </div> : <div className="premium__controls premium__controls--desktop">{spec.controls.map(control => controlButton(control))}</div>}
       <span className="premium__keyHint">{spec.instructions}</span>
       <PlayModeNav className="premium__missionNav" nextClassName="premium__next" exploring={mission.kind === 'sandbox'} onExplore={() => go(catalog.missions[8])} onGuide={() => go(catalog.missions[0])} onPrevious={previous ? () => go(previous) : undefined} onNext={next ? () => go(next) : undefined} />
       {card ? <ResultOverlay key={`${run.revision}-${run.phase}`} card={card} snapshot={world.current?.snapshot?.() ?? null} stages={spec.stages?.(run) ?? []} footnote={footnote}

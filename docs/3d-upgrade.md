@@ -2,7 +2,7 @@
 
 All ten games in this pass render real 3D meshes: Makitas vs Zombies, Makita Slingers, Pinballerz, Speed Stack, Temple Race, Subway Runnerz, Team Counters, Monster Strider, Roomba Run and Naja Run.
 
-The right pane is the game viewport. Scores, objectives, notices and optional challenge navigation float over it. Desktop uses keyboard, pointer and drag input; touch devices get overlaid controls. The workshop keeps its tactical tool dock inside the world. Scanlines are removed from these 3D scenes.
+The right pane is the game viewport. Scores, objectives, notices and optional challenge navigation float over it. Desktop uses keyboard, pointer and drag input; touch devices get two thumb clusters: steering at the bottom left (a D-pad when a game uses all four directions) and the main action as a large corner button at the bottom right, with secondary actions beside it (`premium-kit/touchPads.ts`). The workshop keeps its tactical tool dock inside the world. Scanlines are removed from these 3D scenes.
 
 ## World and character mods
 
