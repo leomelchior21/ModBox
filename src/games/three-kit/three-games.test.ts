@@ -190,6 +190,13 @@ describe('Roomba Run cleaning and navigation', () => {
     const toy = run.toys[0], before = { x: toy.x, z: toy.z }; run.x = toy.x; run.z = toy.z + .5; run.heading = Math.PI; run.input.up = true; advance(run, .6); run.releaseInput();
     expect(Math.hypot(toy.x - before.x, toy.z - before.z)).toBeGreaterThan(.1);
   });
+  it('steers right when RIGHT is held, as seen from the chase camera behind the robot', () => {
+    for (const key of ['right', 'left'] as const) {
+      const run = new RoombaRun(); run.launch(); run.x = 0; run.z = 0; const h = run.heading, side = { x: -Math.cos(h), z: Math.sin(h) }; // camera-right at the start
+      run.input.up = true; run.input[key] = true; advance(run, .8);
+      const lateral = (run.x * side.x + run.z * side.z) * (key === 'right' ? 1 : -1); expect(lateral, key).toBeGreaterThan(.1);
+    }
+  });
   it('steers with the touch joystick and releases it on cancel', () => {
     const run = new RoombaRun(); run.launch(); const start = { x: run.x, z: run.z };
     run.pointer('down', 500, 500, 1); run.pointer('move', 500, 380, 1); advance(run, 1); expect(Math.hypot(run.x - start.x, run.z - start.z)).toBeGreaterThan(.8);

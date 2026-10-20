@@ -141,7 +141,7 @@ export class RoombaView extends World<RoombaRun> {
     const run = this.run;
     if (this.builtFor !== run.revision) { this.builtFor = run.revision; this.build(); }
     this.eraseFresh();
-    this.robot.position.set(run.x, 0, run.z); this.robot.rotation.y = run.heading;
+    this.robot.position.set(run.x, 0, run.z); this.robot.rotation.y = run.heading; this.robot.scale.setScalar(.74);
     this.brushes.forEach((b, i) => { b.rotation.y = reduced ? 0 : run.brushAngle * (i ? 1 : -1); });
     this.ring.emissiveIntensity = run.charging ? 1.4 + Math.sin(run.elapsed * 6) * .4 : run.turbo > 0 ? 1.6 : .8; this.ring.color.set(run.battery < 22 ? '#ff4a3a' : '#ff9d2e'); this.ring.emissive.set(run.battery < 22 ? '#ff2a1a' : '#ff8a1f');
     this.suction.position.set(run.x, .03, run.z); this.suction.scale.setScalar(run.radius); (this.suction.material as T.MeshBasicMaterial).opacity = run.turbo > 0 ? .5 : .22;
@@ -152,8 +152,8 @@ export class RoombaView extends World<RoombaRun> {
     if (this.route.visible) { this.route.geometry.dispose(); this.route.geometry = new T.BufferGeometry().setFromPoints([new T.Vector3(run.x, .05, run.z), ...run.path.map(p => new T.Vector3(p.x, .05, p.z))]); this.route.computeLineDistances(); }
     // Third-person chase camera, held inside the room; N switches to an overview.
     const room = run.room, fx = Math.sin(run.heading), fz = Math.cos(run.heading);
-    const desired = run.cameraClose ? new T.Vector3(run.x - fx * 2.3, 2.05, run.z - fz * 2.3) : new T.Vector3(run.x * .4, Math.max(room.width, room.depth) * .9, run.z * .4 + room.depth * .55);
-    const target = run.cameraClose ? new T.Vector3(run.x + fx * 1.6, .15, run.z + fz * 1.6) : new T.Vector3(run.x * .5, 0, run.z * .5);
+    const desired = run.cameraClose ? new T.Vector3(run.x - fx * 3.4, 2.9, run.z - fz * 3.4) : new T.Vector3(run.x * .4, Math.max(room.width, room.depth) * .9, run.z * .4 + room.depth * .55);
+    const target = run.cameraClose ? new T.Vector3(run.x + fx * 1.9, 0, run.z + fz * 1.9) : new T.Vector3(run.x * .5, 0, run.z * .5);
     if (run.cameraClose) { desired.x = T.MathUtils.clamp(desired.x, -room.width / 2 + .25, room.width / 2 - .25); desired.z = T.MathUtils.clamp(desired.z, -room.depth / 2 + .25, room.depth / 2 - .25); }
     if (!this.camReady || reduced) { this.cam.copy(desired); this.look.copy(target); this.camReady = true; }
     else { const k = 1 - Math.exp(-dt * 5); this.cam.lerp(desired, k); this.look.lerp(target, k); }

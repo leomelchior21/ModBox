@@ -2,7 +2,7 @@ import { ArcadeRun, clamp, type ArcadeAction } from '../premium-kit/core';
 import { roombaCatalog } from './catalog';
 import { legs, roomFor, roomName, type DebrisKind, type Room } from './rooms';
 
-export const CELL = .25, RADIUS = .36;
+export const CELL = .25, RADIUS = .27;
 const DEBRIS_VALUE: Record<DebrisKind, number> = { coin: 10, popcorn: 2, crumbs: 1, sock: 4, brick: 3, leaf: 1, bolt: 3 };
 export interface Box { x: number; z: number; w: number; d: number }
 export interface Toy { x: number; z: number; r: number; vx: number; vz: number; kind: 'ball' | 'cube'; spin: number }
@@ -48,12 +48,12 @@ export class RoombaRun extends ArcadeRun {
   path: { x: number; z: number }[] = []; joystick: { ox: number; oy: number; x: number; y: number; id: number } | null = null;
   /** Cells cleaned since the view last painted them, so the floor trail stays in sync. */
   freshlyCleaned: number[] = [];
-  private routeTimer = 0;
+  private routeTimer = 0; private stuck = 0;
   constructor(checkpoint?: unknown) { super('roomba-run', roombaCatalog.defaults, roombaCatalog.schema, checkpoint); this.prepare(); }
   get coverage() { return this.grid.total ? this.cleanedCells / this.grid.total * 100 : 0; }
   get target() { return this.room.target; }
   get dockDistance() { return Math.hypot(this.x - this.room.dock.x, this.z - this.room.dock.z); }
-  get radius() { return .4 + this.config.power / 300 + (this.turbo > 0 ? .3 : 0); }
+  get radius() { return .3 + this.config.power / 400 + (this.turbo > 0 ? .22 : 0); }
   get roomName() { return roomName(this.level); }
   private prepare() {
     this.room = roomFor(this.level); this.boxes = blockers(this.room); this.grid = buildGrid(this.room, this.boxes, this.level);
@@ -85,12 +85,17 @@ export class RoombaRun extends ArcadeRun {
     }
     const steps: { x: number; z: number }[] = [];
     for (let at = goal; at >= 0 && previous[at] !== -2; at = previous[at]) { steps.push({ x: (at % g.cols + .5) * CELL - this.room.width / 2, z: (Math.floor(at / g.cols) + .5) * CELL - this.room.depth / 2 }); if (previous[at] === -1) break; }
-    this.path = steps.reverse().filter((_, i, all) => i % 3 === 0 || i === all.length - 1);
+    // String-pull the grid route: head straight for the farthest waypoint with a clear line.
+    const raw = steps.reverse(), clear = (ax: number, az: number, bx: number, bz: number) => { const n = Math.ceil(Math.hypot(bx - ax, bz - az) / .08); for (let k = 1; k <= n; k++) if (blockedAt(this.room, this.boxes, ax + (bx - ax) * k / n, az + (bz - az) * k / n, RADIUS + .02)) return false; return true; };
+    const smooth: { x: number; z: number }[] = []; let from = { x: this.x, z: this.z }, i = 0;
+    while (i < raw.length) { let j = raw.length - 1; while (j > i && !clear(from.x, from.z, raw[j].x, raw[j].z)) j--; smooth.push(raw[j]); from = raw[j]; i = j + 1; }
+    this.path = smooth; this.stuck = 0;
   }
   protected tick(dt: number): void {
     this.turbo = this.config.overdrive ? Math.max(0, this.turbo - dt) : 0; this.turboCooldown = Math.max(0, this.turboCooldown - dt); this.routeTimer = Math.max(0, this.routeTimer - dt);
     const stick = this.joystick, jx = stick ? clamp((stick.x - stick.ox) / 110, -1, 1) : 0, jy = stick ? clamp((stick.y - stick.oy) / 110, -1, 1) : 0;
-    let throttle = Number(this.input.up) - Number(this.input.down) * .7 - (Math.abs(jy) > .15 ? jy : 0), turn = Number(this.input.right) - Number(this.input.left) + (Math.abs(jx) > .15 ? jx : 0);
+    // Heading grows counter-clockwise seen from above, which is screen-left behind the robot, so right steers negative.
+    let throttle = Number(this.input.up) - Number(this.input.down) * .7 - (Math.abs(jy) > .15 ? jy : 0), turn = -(Number(this.input.right) - Number(this.input.left) + (Math.abs(jx) > .15 ? jx : 0));
     const manual = Math.abs(throttle) > .01 || Math.abs(turn) > .01;
     if (manual) { this.path = []; this.docking = false; }
     // Smart route: chase the nearest dirt, and head home when the battery or the job says so.
@@ -101,8 +106,10 @@ export class RoombaRun extends ArcadeRun {
     }
     if (!manual && this.path.length) {
       const next = this.path[0], dx = next.x - this.x, dz = next.z - this.z, d = Math.hypot(dx, dz);
-      if (d < .2) this.path.shift();
-      else { const desired = Math.atan2(dx, dz), diff = Math.atan2(Math.sin(desired - this.heading), Math.cos(desired - this.heading)); turn = clamp(diff * 3, -1, 1); throttle = Math.abs(diff) > 1.2 ? .15 : 1; }
+      // Turn in place when facing away, then drive; skip a waypoint that cannot be reached.
+      if (d < .3 || this.stuck > 1) { this.path.shift(); this.stuck = 0; }
+      else { const desired = Math.atan2(dx, dz), diff = Math.atan2(Math.sin(desired - this.heading), Math.cos(desired - this.heading)); turn = clamp(diff * 3, -1, 1); throttle = Math.abs(diff) > .6 ? 0 : 1 - Math.abs(diff); }
+      this.stuck = throttle > .3 && Math.abs(this.speedNow) < .2 ? this.stuck + dt : 0;
     }
     const top = this.config.speed * .55 * (this.turbo > 0 ? 1.3 : 1), want = clamp(throttle, -.7, 1) * top;
     this.speedNow += clamp(want - this.speedNow, -9 * dt, 7 * dt);
@@ -116,7 +123,7 @@ export class RoombaRun extends ArcadeRun {
       this.battery = Math.min(100, this.battery + dt * 26);
       if (this.coverage >= this.target) { const bonus = 300 + Math.round(this.battery) + this.money * 5; this.addScore(bonus, 0, 0, 'SPOTLESS!'); this.clear(0, 0); return; }
       if (this.battery >= 99 && this.docking) { this.docking = false; this.path = []; }
-    } else this.battery = Math.max(0, this.battery - dt * (.3 + Math.abs(this.speedNow) * .22 + (this.turbo > 0 ? 1.6 : 0)));
+    } else this.battery = Math.max(0, this.battery - dt * (.2 + Math.abs(this.speedNow) * .15 + (this.turbo > 0 ? 1.2 : 0)));
     this.brushAngle += dt * (this.turbo > 0 ? 45 : 22);
     this.clean(dt);
     if (this.battery <= 0) {
