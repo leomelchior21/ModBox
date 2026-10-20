@@ -7,7 +7,7 @@ import { SLING_LEVELS } from '../makita-slingers/levels';
 import { slingersCatalog } from '../makita-slingers/catalog';
 import { NajaRun, type Tile } from '../naja-run/run';
 import { najaCatalog } from '../naja-run/catalog';
-import { PinballRun, closestSegment } from '../pinballerz/run';
+import { PinballRun, closestSegment, pinStage } from '../pinballerz/run';
 import { pinballCatalog } from '../pinballerz/catalog';
 import { StackRun, overlap1D } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
@@ -147,27 +147,59 @@ describe('Naja Run movement', () => {
 });
 
 describe('Pinballerz table physics', () => {
-  it('launches through the shooter lane and keeps physics finite during a long rally', () => {
-    const run = new PinballRun(); run.launch(); expect(run.launchBall()).toBe(true); expect(run.launchBall()).toBe(false); run.input.left = true; run.input.right = true; advance(run, 15);
-    expect([run.ball.x, run.ball.y, run.ball.vx, run.ball.vy].every(Number.isFinite)).toBe(true); expect(run.hits).toBeGreaterThan(0); expect(run.ball.trail.length).toBeLessThanOrEqual(18);
+  const flipBot = (run: PinballRun) => {
+    for (const f of run.flippers) { const near = run.balls.some(b => !b.ramp && b.vy > 60 && Math.hypot(b.x - (f.x + (f.left ? 45 : -45)), b.y - (f.y + 10)) < 52); if (f.left) run.input.left = near; else run.input.right = near; }
+    if (run.waiting) run.launchBall();
+  };
+  it('plunges over the arch onto the lanes and keeps physics finite during a long rally', () => {
+    const run = new PinballRun(); run.launch(); expect(run.launchBall()).toBe(true); expect(run.launchBall()).toBe(false);
+    let top = 999; for (let i = 0; i < 120 * 2; i++) { run.step(1 / 120); top = Math.min(top, run.ball.y); } expect(top).toBeLessThan(160); expect(run.ball.x).toBeLessThan(556);
+    for (let i = 0; i < 120 * 30; i++) { flipBot(run); run.step(1 / 120); }
+    expect(run.balls.every(b => [b.x, b.y, b.vx, b.vy].every(Number.isFinite))).toBe(true); expect(run.hits).toBeGreaterThan(0); expect(run.ball.trail.length).toBeLessThanOrEqual(14);
   });
-  it('scores actual bumper contact with a cooldown and applies the jackpot multiplier', () => {
-    const run = new PinballRun(); run.launch(); run.waiting = false; const bumper = run.bumpers[0]; run.ball = { x: bumper.x + 49, y: bumper.y, vx: -100, vy: 0, trail: [] }; run.step(.01); expect(run.hits).toBe(1); expect(run.score).toBe(100); run.step(.01); expect(run.score).toBe(100);
-    run.config.overdrive = true; bumper.cooldown = 0; run.ball.x = bumper.x + 49; run.ball.y = bumper.y; run.ball.vx = -100; run.ball.vy = 0; run.step(.01); expect(run.score).toBe(300);
+  it('scores real bumper contact with a cooldown and applies the jackpot circuit', () => {
+    const run = new PinballRun(); run.launch(); run.waiting = false; const bumper = run.bumpers[0], b = run.ball;
+    Object.assign(b, { x: bumper.x + 40, y: bumper.y, vx: -100, vy: 0 }); run.step(.01); expect(run.hits).toBe(1); expect(run.score).toBe(100); expect(b.vx).toBeGreaterThan(600); run.step(.01); expect(run.score).toBe(100);
+    run.config.overdrive = true; bumper.cooldown = 0; Object.assign(b, { x: bumper.x + 40, y: bumper.y, vx: -100, vy: 0 }); run.step(.01); expect(run.score).toBe(300);
   });
-  it('returns one early drain with ball save, then spends a real ball', () => {
-    const run = new PinballRun(); run.launch(); run.config.assist = true; run.launchBall(); run.ball.x = 310; run.ball.y = 950; run.step(.01); expect(run.metrics.assisted).toBe(1); expect(run.lives).toBe(3); expect(run.waiting).toBe(false);
-    run.ball.x = 310; run.ball.y = 950; run.step(.01); expect(run.lives).toBe(2); expect(run.waiting).toBe(true);
+  it('hands a swinging flipper speed to the ball and cradles it on a held flipper', () => {
+    const run = new PinballRun(); run.launch(); run.launchBall(); const f = run.flippers[0], b = run.ball;
+    Object.assign(b, { x: f.x + 55, y: f.y + 10, vx: 0, vy: 0 }); run.input.left = true; for (let i = 0; i < 12; i++) run.step(1 / 120); expect(b.vy).toBeLessThan(-900);
+    const cradle = new PinballRun(); cradle.launch(); cradle.launchBall(); const g = cradle.flippers[1], c = cradle.ball; g.angle = g.up; cradle.input.right = true;
+    Object.assign(c, { x: g.x - 50, y: g.y - 40, vx: 0, vy: 0 }); for (let i = 0; i < 240; i++) cradle.step(1 / 120); expect(Math.hypot(c.vx, c.vy)).toBeLessThan(40); expect(c.y).toBeLessThan(g.y);
+  });
+  it('rides the ramp only with enough speed, then lights multiball and jackpots', () => {
+    const run = new PinballRun(); run.level = 9; run.launch(); run.launchBall();
+    const shoot = (speed: number, frames = 120) => { const b = run.ball; Object.assign(b, { x: 470, y: 505, vx: -speed * .27, vy: -speed * .96, ramp: null }); for (let i = 0; i < frames && !b.ramp; i++) run.step(1 / 120); return b; };
+    expect(shoot(400, 30).ramp).toBeNull(); expect(run.tally.ramps).toBe(0);
+    for (let n = 1; n <= 3; n++) { const b = shoot(1400); expect(b.ramp).not.toBeNull(); for (let i = 0; i < 120 * 3 && b.ramp; i++) run.step(1 / 120); expect(run.tally.ramps).toBe(n); expect(b.x).toBeLessThan(120); }
+    expect(run.tally.multiball).toBe(1); for (let i = 0; i < 120 * 1.5; i++) run.step(1 / 120); expect(run.balls.length).toBeGreaterThan(1);
+    const b = shoot(1400); for (let i = 0; i < 120 * 3 && b.ramp; i++) run.step(1 / 120); expect(run.tally.jackpots).toBe(1);
+  });
+  it('drops targets, completes lane sets and rotates lit lanes with the flippers', () => {
+    const run = new PinballRun(); run.level = 2; run.launch(); run.launchBall(); const b = run.ball;
+    for (const d of run.drops) { d.down = false; Object.assign(b, { x: d.x + 20, y: (d.y0 + d.y1) / 2, vx: -500, vy: 0 }); run.step(1 / 60); }
+    expect(run.drops.every(d => d.down)).toBe(true); expect(run.tally.drops).toBe(1);
+    run.lanes = [true, false, false]; run.input.left = true; run.step(1 / 60); expect(run.lanes).toEqual([false, false, true]); run.input.left = false; run.step(1 / 60);
+    run.lanes = [true, true, false]; Object.assign(b, { x: 358, y: 122, vx: 0, vy: 600 }); run.step(1 / 60); expect(run.tally.lanes).toBe(1); expect(run.bonus).toBe(2);
+  });
+  it('returns one early drain with ball save, then spends a real ball, and keeps multiball drains free', () => {
+    const run = new PinballRun(); run.launch(); run.config.assist = true; run.launchBall(); Object.assign(run.ball, { x: 298, y: 950, vy: 300 }); run.step(.01);
+    expect(run.metrics.assisted).toBe(1); expect(run.lives).toBe(3); advance(run, .6); expect(run.balls).toHaveLength(1); expect(run.waiting).toBe(false);
+    Object.assign(run.ball, { x: 298, y: 950, vy: 300 }); run.step(.01); expect(run.lives).toBe(2); expect(run.waiting).toBe(true);
+  });
+  it('clears a stage when its mission is complete', () => {
+    const run = new PinballRun(); run.level = 2; run.launch(); expect(run.stage.goals).toEqual([['bumpers', 15]]); run.tally.bumpers = 15; run.step(.01); expect(run.phase).toBe('cleared');
+    const restored = new PinballRun(run.checkpoint); restored.launch(); expect(restored.phase).toBe('cleared'); expect(pinStage(13).goals[0][1]).toBeGreaterThan(pinStage(1).goals[0][1]);
   });
   it('moves flippers from held input and limits nudge charges', () => {
-    const run = new PinballRun(); run.launch(); run.input.left = true; run.step(.1); expect(run.flippers[0].angle).toBeCloseTo(-.5); expect(run.flippers[1].angle).toBeCloseTo(Math.PI - .35);
+    const run = new PinballRun(); run.launch(); run.input.left = true; run.step(.1); expect(run.flippers[0].angle).toBeCloseTo(-.45); expect(run.flippers[1].angle).toBeCloseTo(Math.PI - .5);
     run.launchBall(); for (let i = 0; i < 5; i++) { run.nudgeCooldown = 0; run.action('nudge'); } expect(run.nudges).toBe(0); expect(run.metrics.actions).toBe(4);
     expect(closestSegment(5, 5, 0, 0, 10, 0)).toEqual({ x: 5, y: 0, t: .5 });
   });
   it('keeps both touch flippers independent and releases the correct pointer', () => {
     const run = new PinballRun(); run.launch(); run.launchBall();
     run.pointer('move', 100, 700, 1); expect(run.input.left).toBe(false);
-    run.input.left = true; run.pointer('move', 100, 700, 1); expect(run.input.left).toBe(true); run.input.left = false;
     run.pointer('down', 100, 700, 1); run.pointer('down', 500, 700, 2); expect(run.input.left).toBe(true); expect(run.input.right).toBe(true);
     run.pointer('up', 100, 700, 1); expect(run.input.left).toBe(false); expect(run.input.right).toBe(true);
     run.pointer('move', 100, 700, 2); expect(run.input.left).toBe(true); expect(run.input.right).toBe(false);

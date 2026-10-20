@@ -1,55 +1,9 @@
 import * as T from 'three';
-import { World, material, mesh, label, batchScenery } from './world';
+import { World, material, mesh, batchScenery } from './world';
 import { tree } from './models';
-import { PinballRun, PIN_RAILS } from '../pinballerz/run';
 import { StackRun, type StackSlab } from '../speed-stack/run';
 import { NajaRun, NAJA_SIZE } from '../naja-run/run';
 import { unityModel } from './unity-assets';
-
-export class PinballView extends World<PinballRun> {
-  private table = new T.Group(); private ball: T.Mesh; private bumpers: T.Group[] = []; private flippers: T.Group[] = []; private targets: T.Mesh[] = []; private rings: T.Mesh[] = [];
-  private styleProps = new T.Group(); private style = '';
-  constructor(canvas: HTMLCanvasElement, run: PinballRun) {
-    super(canvas, run, '#17172e', 16); this.scene.add(this.table); this.table.add(this.styleProps); const s = this.shapes;
-    this.scene.fog = new T.Fog('#17172e', 26, 70); const black = material('#24213c'), chrome = material('#b6cce3', .18, .85), board = material('#211f44', .34, .2);
-    s.cube(this.table, black, 0, -.5, 0, 8.2, 1, 12.3); s.cube(this.table, board, 0, .01, 0, 7.7, .15, 11.8);
-    for (const x of [-3.95, 3.95]) { s.cube(this.table, chrome, x, .3, 0, .15, .65, 12); s.cube(this.table, this.paint, x, .66, 0, .08, .08, 12); }
-    for (const z of [-5.9, 5.9]) s.cube(this.table, chrome, 0, .3, z, 8, .65, .15);
-    for (const [ax, ay, bx, by] of PIN_RAILS) { const x = ((ax + bx) / 2 - 320) / 80, z = ((ay + by) / 2 - 460) / 80, length = Math.hypot(bx - ax, by - ay) / 80, rail = s.cube(this.table, chrome, x, .24, z, .16, .35, length); rail.rotation.y = Math.atan2(bx - ax, by - ay); }
-    for (const [x, y] of [[220, 270], [390, 270], [305, 410]]) {
-      const root = new T.Group(); root.position.set((x - 320) / 80, .1, (y - 460) / 80); this.table.add(root); this.bumpers.push(root);
-      s.tube(root, chrome, 0, .2, 0, .53, .4); s.tube(root, this.paint, 0, .48, 0, .46, .15); const ring = mesh(new T.TorusGeometry(.5, .055, 8, 32), new T.MeshBasicMaterial({ color: '#7df6ff' }), root, 0, .58); ring.rotation.x = Math.PI / 2; this.rings.push(ring);
-      const cap = s.tube(root, material('#f6e9b9', .3, .4), 0, .6, 0, .23, .08); cap.rotation.y = .4;
-    }
-    for (const [x, y] of [[145, 180], [305, 125], [465, 180]]) { const star = mesh(new T.OctahedronGeometry(.28), material('#ffd75e', .2, .5), this.table, (x - 320) / 80, .4, (y - 460) / 80); this.targets.push(star); }
-    for (const x of [160, 460]) { const root = new T.Group(); root.position.set((x - 320) / 80, .25, (773 - 460) / 80); this.table.add(root); s.cube(root, chrome, .8, 0, 0, 1.6, .25, .27); s.cube(root, this.paint, .8, .15, 0, 1.4, .07, .2); s.tube(root, chrome, 0, 0, 0, .2, .3); this.flippers.push(root); }
-    const title = label('PINBALLERZ', '#aef9ff', '#17172e'); title.sprite.scale.set(4.3, 1.35, 1); title.sprite.position.set(0, .35, .7); this.table.add(title.sprite);
-    for (const z of [-3.5, -.4, 2.7]) for (const x of [-2.7, 2.7]) { const glow = mesh(new T.RingGeometry(.23, .28, 24), new T.MeshBasicMaterial({ color: '#f49aff', side: T.DoubleSide }), this.table, x, .11, z); glow.rotation.x = -Math.PI / 2; }
-    this.ball = s.ball(this.table, material('#e2f4ff', .08, .95), 0, .3, 0, .165);
-    const floor = material('#211e35'); s.cube(this.scene, floor, 0, -3.2, 0, 80, .2, 80, false);
-    for (const side of [-1, 1]) for (let i = 0; i < 5; i++) { const cabinet = new T.Group(); cabinet.position.set(side * 10, -3, -12 + i * 6); cabinet.rotation.y = -side * .4; this.scene.add(cabinet); s.cube(cabinet, black, 0, 2.1, 0, 3, 4.5, 2.8); s.cube(cabinet, material(i % 2 ? '#b16bf2' : '#54cbd4', .3, .1), 0, 3, 1.43, 2.4, 1.7, .06); s.cube(cabinet, chrome, 0, 1.9, 1.7, 3, .2, 1); }
-    batchScenery(this.table); this.table.userData.character = true;
-  }
-  protected rebuild() {}
-  protected update(_dt: number, reduced: boolean) {
-    const r = this.run; this.ball.position.set((r.ball.x - 320) / 80, .31, (r.ball.y - 460) / 80); this.ball.rotation.x = r.ball.y / 20; this.origin.copy(this.ball.position);
-    this.bumpers.forEach((b, i) => { b.scale.y = r.bumpers[i]?.flash > 0 && !reduced ? .75 : 1; this.rings[i].scale.setScalar(r.bumpers[i]?.flash > 0 ? 1.2 : 1); });
-    this.flippers.forEach((f, i) => { f.rotation.y = -(r.flippers[i]?.angle ?? 0); }); this.targets.forEach((t, i) => { (t.material as T.MeshStandardMaterial).emissive.set(r.targets[i] ? '#ffca39' : '#000000'); t.rotation.y = reduced ? 0 : r.elapsed; });
-    const style = r.config.characterStyle ?? 'original'; (this.ball.material as T.MeshStandardMaterial).color.set(style === 'robot' ? '#65efff' : style === 'armored' ? '#ffbd62' : '#e2f4ff');
-    if (this.style !== style) {
-      this.style = style; this.disposeStage(this.styleProps); this.styleProps.clear(); const s = this.shapes;
-      this.bumpers.forEach((bumper, i) => {
-        if (style === 'original') return;
-        const root = new T.Group(); root.position.copy(bumper.position); this.styleProps.add(root);
-        if (style === 'astronaut') { const planet = s.ball(root, material(['#e8a168', '#8ac9e9', '#c79ce2'][i], .45), 0, .85, 0, .38); planet.rotation.z = .3; const orbit = mesh(new T.TorusGeometry(.62, .045, 6, 32), material('#ecd7a8', .3, .5), root, 0, .85); orbit.rotation.x = 1.1; orbit.rotation.y = .3; }
-        else if (style === 'robot') { for (let j = 0; j < 12; j++) { const tooth = s.cube(root, material('#63e4ed', .25, .65), Math.cos(j * Math.PI / 6) * .52, .7, Math.sin(j * Math.PI / 6) * .52, .16, .22, .19); tooth.rotation.y = -j * Math.PI / 6; } s.tube(root, material('#36465e', .3, .6), 0, .76, 0, .32, .3); }
-        else { s.tube(root, material('#aaa9bb'), 0, .8, 0, .4, .7); for (let j = 0; j < 6; j++) s.cube(root, material('#d8c9a6'), Math.cos(j * Math.PI / 3) * .32, 1.2, Math.sin(j * Math.PI / 3) * .32, .19, .25, .19); }
-      });
-    }
-    this.camera.position.set(0, 13.9, 10.8); this.camera.lookAt(0, 0, -.5); this.followLight(0, 0);
-  }
-  pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number, id: number) { this.run.pointer(phase, x * 640, y * 920, id); }
-}
 
 export class StackView extends World<StackRun> {
   private tower = new T.Group(); private moving = new T.Group(); private fragments = new T.Group(); private count = -1; private style = ''; private slabMaterials: T.MeshStandardMaterial[];
