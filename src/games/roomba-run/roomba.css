@@ -1,0 +1,20 @@
+/* Roomba Run HUD: room ring and bar top centre, cash and battery top right, floating joystick. */
+.lab .premium-stage--roomba-run .premium__stats,.lab .premium-stage--roomba-run .premium__head { display:none; }
+.rr__room { position:absolute; z-index:2; top:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; pointer-events:none; filter:drop-shadow(0 4px 10px #0005); }
+.rr__ring { position:relative; z-index:1; display:grid; place-items:center; width:62px; height:62px; border-radius:50%; background:conic-gradient(#3fd2ff var(--p),#1c3f66 0); }
+.rr__ring::before { content:''; position:absolute; inset:6px; border-radius:50%; background:#163a63; }
+.rr__ring b { position:relative; color:#fff; font:900 17px/1 system-ui,-apple-system,'Segoe UI',Arial,sans-serif; }
+.rr__bar { margin-left:-14px; padding:6px 14px 6px 22px; min-width:clamp(150px,30cqw,250px); border-radius:0 12px 12px 0; background:#1f5fa6; color:#fff; }
+.rr__bar span { display:block; font:800 14px/1.1 system-ui,-apple-system,'Segoe UI',Arial,sans-serif; }
+.rr__bar div { height:8px; margin:5px 0 3px; border-radius:5px; background:#123e6e; overflow:hidden; }
+.rr__bar i { display:block; height:100%; background:linear-gradient(90deg,#3fd2ff,#9ff0ff); transition:width .3s ease; }
+.rr__bar small { display:block; font:800 9px/1 system-ui,sans-serif; letter-spacing:.08em; color:#cfe6ff; }
+.rr__cash { position:absolute; z-index:2; top:14px; right:62px; display:flex; align-items:center; gap:6px; padding:6px 12px 6px 6px; border-radius:10px; background:#1f5fa6; color:#fff; font:900 16px/1 system-ui,sans-serif; pointer-events:none; box-shadow:0 4px 10px #0004; }
+.rr__cash b { display:grid; place-items:center; width:24px; height:24px; border-radius:7px; background:#3fd2ff; color:#123e6e; }
+.rr__battery { position:absolute; z-index:2; top:56px; right:62px; width:92px; height:22px; border:2px solid #ffffffcc; border-radius:7px; background:#0f2440aa; overflow:hidden; pointer-events:none; }
+.rr__battery i { position:absolute; inset:0 auto 0 0; background:linear-gradient(#7dff8e,#2fbf5a); transition:width .3s ease; }
+.rr__battery--low i { background:linear-gradient(#ff8a7a,#e0392b); }
+.rr__battery span { position:relative; display:block; text-align:center; color:#fff; font:900 12px/18px system-ui,sans-serif; text-shadow:0 1px 2px #000a; }
+.rr__stick { position:absolute; z-index:3; width:110px; height:110px; margin:-55px 0 0 -55px; border:3px solid #ffffff99; border-radius:50%; background:#0f244055; pointer-events:none; }
+.rr__stick i { position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; border-radius:50%; background:#ffffffdd; box-shadow:0 3px 10px #0006; }
+@container(max-width:520px) { .rr__bar { min-width:120px; }.rr__ring { width:52px; height:52px; }.rr__cash { top:auto; bottom:110px; right:12px; }.rr__battery { top:auto; bottom:80px; right:12px; } }

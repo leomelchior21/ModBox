@@ -5,7 +5,8 @@ import { RunnerRun, runnerCourse, runnerFrame } from './runner';
 import { TeamRun, gateResult } from '../team-counters/run';
 import { MonsterRun } from '../monster-strider/run';
 import { MONSTER_LEVELS } from '../monster-strider/levels';
-import { RoombaRun, ROOM, cellPoint, roomBlocked, roomPath } from '../roomba-run/run';
+import { RoombaRun, blockedAt } from '../roomba-run/run';
+import { ROOMS } from '../roomba-run/rooms';
 import { templeCatalog } from '../temple-race/catalog';
 import { subwayCatalog } from '../subway-runnerz/catalog';
 import { teamCatalog } from '../team-counters/catalog';
@@ -171,27 +172,44 @@ describe('Monster Strider vehicle simulation', () => {
 });
 
 describe('Roomba Run cleaning and navigation', () => {
-  it('excludes unreachable furniture cells and plans legal paths under the tables', () => {
-    const run = new RoombaRun(); run.launch(); expect(run.cells.length).toBeGreaterThan(400);
-    for (const cell of run.cells) expect(roomBlocked(cell.x, cell.z)).toBe(false);
-    const start = [...run.walkable][0], goal = [...run.walkable].at(-1)!, path = roomPath(start, goal, run.walkable); expect(path.length).toBeGreaterThan(0);
-    for (const cell of path) { const point = cellPoint(cell); expect(roomBlocked(point.x, point.z)).toBe(false); }
-    expect(roomBlocked(1.7, -.3)).toBe(false); expect(roomBlocked(-3.4, -2.65)).toBe(true);
+  it('collides with furniture but slips between table legs, and every room target is reachable', () => {
+    for (let level = 1; level <= ROOMS.length; level++) {
+      const run = new RoombaRun(); run.level = level; run.launch(); const room = run.room;
+      expect(run.grid.total, room.name).toBeGreaterThan(800); expect(blockedAt(room, run.boxes, room.dock.x, room.dock.z)).toBe(false);
+      const table = room.furniture.find(f => f.type === 'table' || f.type === 'coffeeTable' || f.type === 'desk');
+      if (table) expect(blockedAt(room, run.boxes, table.x, table.z), `${room.name} under the table`).toBe(false);
+      const solid = room.furniture.find(f => f.type === 'sofa' || f.type === 'bed' || f.type === 'counter' || f.type === 'workbench');
+      if (solid) expect(blockedAt(room, run.boxes, solid.x, solid.z)).toBe(true);
+    }
   });
-  it('cleans visibly, cannot score the same patch twice and preserves dirt progress when recharging', () => {
-    const run = new RoombaRun(); run.launch(); const cell = run.cells.find(c => Math.hypot(c.x, c.z) < .6)!; run.x = cell.x; run.z = cell.z; advance(run, 1);
-    expect(run.cleanedCells).toBeGreaterThan(0); const score = run.score, count = run.cleanedCells; advance(run, 1); expect(run.score).toBe(score); expect(run.cleanedCells).toBe(count);
-    run.x = ROOM.dockX; run.z = ROOM.dockZ; run.battery = 10; run.action('primary'); advance(run, 3); expect(run.battery).toBeGreaterThan(60); expect(run.cleanedCells).toBeGreaterThanOrEqual(count);
+  it('drives with momentum, steers, cleans a trail, collects debris and pushes toys', () => {
+    const run = new RoombaRun(); run.launch(); const start = { x: run.x, z: run.z };
+    run.input.up = true; advance(run, 1.5); expect(Math.hypot(run.x - start.x, run.z - start.z)).toBeGreaterThan(1.5); expect(run.cleanedCells).toBeGreaterThan(10); expect(run.freshlyCleaned.length).toBeGreaterThan(0);
+    const heading = run.heading; run.input.right = true; advance(run, .5); expect(run.heading).not.toBeCloseTo(heading); run.releaseInput();
+    const coin = run.debris.find(d => d.kind === 'coin')!; run.x = coin.x; run.z = coin.z; advance(run, .05); expect(coin.taken).toBe(true); expect(run.money).toBeGreaterThanOrEqual(10);
+    const toy = run.toys[0], before = { x: toy.x, z: toy.z }; run.x = toy.x; run.z = toy.z + .5; run.heading = Math.PI; run.input.up = true; advance(run, .6); run.releaseInput();
+    expect(Math.hypot(toy.x - before.x, toy.z - before.z)).toBeGreaterThan(.1);
   });
-  it('lets a real smart route finish the room and dock within the available battery packs', () => {
-    const run = new RoombaRun(); run.setProgram(parseGameScript<ArcadeConfig>('bool smartRoute = true;', 'csharp', roombaCatalog.schema)); run.launch();
-    for (let i = 0; i < 60 * 360 && run.phase === 'playing'; i++) run.step(1 / 60);
-    expect(run.phase, `${run.coverage}% at ${run.x},${run.z}, battery ${run.battery}`).toBe('cleared'); expect(run.coverage).toBeGreaterThanOrEqual(90); expect(run.dockDistance).toBeLessThan(.72); expect(run.lives).toBeGreaterThan(0); expect(run.metrics.assisted).toBeGreaterThan(0);
-    const restored = new RoombaRun(run.checkpoint); restored.launch(); expect(restored.coverage).toBe(run.coverage); expect(restored.battery).toBe(run.battery); expect(restored.phase).toBe('cleared');
+  it('steers with the touch joystick and releases it on cancel', () => {
+    const run = new RoombaRun(); run.launch(); const start = { x: run.x, z: run.z };
+    run.pointer('down', 500, 500, 1); run.pointer('move', 500, 380, 1); advance(run, 1); expect(Math.hypot(run.x - start.x, run.z - start.z)).toBeGreaterThan(.8);
+    run.pointer('down', 100, 100, 2); expect(run.joystick?.id).toBe(1); run.pointer('cancel', 0, 0); expect(run.joystick).toBeNull();
   });
-  it('reacts to low battery through the interpreter and returns to charge without resetting the room', () => {
-    const run = new RoombaRun(); run.setProgram(parseGameScript<ArcadeConfig>('bool smartRoute = false;\nif (battery <= 25) { smartRoute = true; }', 'csharp', roombaCatalog.schema)); run.launch(); run.x = 3; run.z = 2; run.battery = 24;
-    advance(run, .1); expect(run.config.assist).toBe(true); expect(run.docking).toBe(false); run.battery = 20; advance(run, 12); expect(run.dockDistance).toBeLessThan(.72); expect(run.battery).toBeGreaterThan(25);
+  it('drains the battery, spends a spare pack when empty, and recharges at the dock', () => {
+    const run = new RoombaRun(); run.launch(); run.x = 0; run.z = -1; run.battery = .05; run.input.up = true; advance(run, .3); run.releaseInput();
+    expect(run.lives).toBe(2); expect(run.dockDistance).toBeLessThan(.3); const low = run.battery; advance(run, 1.5); expect(run.battery).toBeGreaterThan(low);
+  });
+  it('lets the coded smart route clean every room to its target and dock within the battery packs', () => {
+    for (let level = 1; level <= ROOMS.length; level++) {
+      const run = new RoombaRun(); run.setProgram(parseGameScript<ArcadeConfig>('bool smartRoute = true;', 'csharp', roombaCatalog.schema)); run.level = level; run.launch();
+      for (let i = 0; i < 60 * 600 && run.phase === 'playing'; i++) run.step(1 / 60);
+      expect(run.phase, `${run.room.name} at ${run.coverage.toFixed(1)}%`).toBe('cleared'); expect(run.coverage).toBeGreaterThanOrEqual(run.target); expect(run.lives).toBeGreaterThan(0); expect(run.metrics.assisted).toBeGreaterThan(0);
+      if (level === 1) { const restored = new RoombaRun(run.checkpoint); restored.launch(); expect(restored.phase).toBe('cleared'); expect(restored.cleanedCells).toBe(run.cleanedCells); expect(restored.money).toBe(run.money); }
+    }
+  });
+  it('reacts to low battery through the interpreter and heads home without losing the cleaned floor', () => {
+    const run = new RoombaRun(); run.setProgram(parseGameScript<ArcadeConfig>('bool smartRoute = false;\nif (battery <= 25) { smartRoute = true; }', 'csharp', roombaCatalog.schema)); run.launch(); run.x = 3; run.z = 0; run.battery = 21;
+    advance(run, .1); expect(run.config.assist).toBe(true); const cleaned = run.cleanedCells; advance(run, 14); expect(run.dockDistance).toBeLessThan(.7); expect(run.battery).toBeGreaterThan(25); expect(run.cleanedCells).toBeGreaterThanOrEqual(cleaned);
     expect(run.metrics.ruleTraces.some(t => t.includes('smartRoute'))).toBe(true);
   });
 });
