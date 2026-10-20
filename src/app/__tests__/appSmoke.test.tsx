@@ -401,7 +401,7 @@ describe('MODBOX app shell', () => {
   it.each([
     ['makita-slingers', 'MAKITA SLINGERS', 'alpine', 'blastBlade'],
     ['naja-run', 'NAJA RUN', 'volcanic', 'venomRush'],
-    ['pinballerz', 'PINBALLERZ', 'neon', 'jackpotMode'],
+    ['pinballerz', 'PINBALLERZ', 'neon', 'powerShot'],
     ['speed-stack', 'SPEED STACK', 'alpine', 'focusMode'],
     ['temple-race', 'TEMPLE RACE', 'volcanic', 'relicShield'],
     ['subway-runnerz', 'SUBWAY RUNNERZ', 'neon', 'hoverboard'],
@@ -417,7 +417,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.premium__introLogo')?.getAttribute('alt')).toBe(title);
     expect(window.location.hash).toContain('mission=free');
     expect(host.querySelector('.cm-content')?.textContent).toContain('worldTheme'); expect(host.querySelector('.cm-content')?.textContent).not.toContain('playerName');
-    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'roomba-run' ? 13 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 12 : 11);
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'pinballerz' ? 18 : id === 'roomba-run' ? 13 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 12 : 11);
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
     const enhanced = `${view!.state.doc.toString().replace(/worldTheme = "[^"]+"/, `worldTheme = "${theme}"`)}
 ${ability} = True`;

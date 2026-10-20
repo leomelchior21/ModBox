@@ -7,7 +7,8 @@ import { SLING_LEVELS } from '../makita-slingers/levels';
 import { slingersCatalog } from '../makita-slingers/catalog';
 import { NajaRun, type Tile } from '../naja-run/run';
 import { najaCatalog } from '../naja-run/catalog';
-import { PinballRun, closestSegment, pinStage } from '../pinballerz/run';
+import { PinballRun, PIN_STAGES, GOAL, HOME, KEEPER_Y, closestSegment, pinStage } from '../pinballerz/run';
+import { flipBot, aimBot, playStage } from '../pinballerz/testBots';
 import { pinballCatalog } from '../pinballerz/catalog';
 import { StackRun, overlap1D, STACK_LEVELS } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
@@ -146,65 +147,109 @@ describe('Naja Run movement', () => {
   });
 });
 
-describe('Pinballerz table physics', () => {
-  const flipBot = (run: PinballRun) => {
-    for (const f of run.flippers) { const near = run.balls.some(b => !b.ramp && b.vy > 60 && Math.hypot(b.x - (f.x + (f.left ? 45 : -45)), b.y - (f.y + 10)) < 52); if (f.left) run.input.left = near; else run.input.right = near; }
-    if (run.waiting) run.launchBall();
+describe('Pinballerz soccer pinball', () => {
+  /** A resting ball on the striking face of a flipper, `along` units from the pivot. */
+  const onFlipper = (run: PinballRun, left: boolean, along = 60) => {
+    const f = run.flippers.find(f => f.left === left)!, a = f.angle, px = f.x + Math.cos(a) * along, py = f.y + Math.sin(a) * along, n = left ? [Math.sin(a), -Math.cos(a)] : [-Math.sin(a), Math.cos(a)];
+    Object.assign(run.ball, { x: px + n[0] * 21, y: py + n[1] * 21, vx: 0, vy: 0 }); return run.ball;
   };
-  it('plunges over the arch onto the lanes and keeps physics finite during a long rally', () => {
-    const run = new PinballRun(); run.launch(); expect(run.launchBall()).toBe(true); expect(run.launchBall()).toBe(false);
-    let top = 999; for (let i = 0; i < 120 * 2; i++) { run.step(1 / 120); top = Math.min(top, run.ball.y); } expect(top).toBeLessThan(160); expect(run.ball.x).toBeLessThan(556);
-    for (let i = 0; i < 120 * 30; i++) { flipBot(run); run.step(1 / 120); }
-    expect(run.balls.every(b => [b.x, b.y, b.vx, b.vy].every(Number.isFinite))).toBe(true); expect(run.hits).toBeGreaterThan(0); expect(run.ball.trail.length).toBeLessThanOrEqual(14);
+  const shoot = (run: PinballRun, x: number, y: number, vx: number, vy: number) => { const b = run.ball; Object.assign(b, { x, y, vx, vy, state: 'play', kickAt: -9, touch: { defender: false, rail: false, keeper: false, mate: false, power: false } }); return b; };
+  it('waits on the centre spot, kicks off once and keeps physics finite through a long rally', () => {
+    const run = new PinballRun(); run.launch(); expect(run.waiting).toBe(true); expect(run.ball).toMatchObject({ x: 320, y: 520 });
+    expect(run.kickOff()).toBe(true); expect(run.kickOff()).toBe(false); expect(Math.abs(run.ball.vx)).toBeGreaterThan(300);
+    for (let i = 0; i < 60 * 40; i++) { flipBot(run); run.step(1 / 60); }
+    expect(run.balls.every(b => [b.x, b.y, b.vx, b.vy].every(Number.isFinite))).toBe(true); expect(run.ball.trail.length).toBeLessThanOrEqual(14);
   });
-  it('scores real bumper contact with a cooldown and applies the jackpot circuit', () => {
-    const run = new PinballRun(); run.launch(); run.waiting = false; const bumper = run.bumpers[0], b = run.ball;
-    Object.assign(b, { x: bumper.x + 40, y: bumper.y, vx: -100, vy: 0 }); run.step(.01); expect(run.hits).toBe(1); expect(run.score).toBe(100); expect(b.vx).toBeGreaterThan(600); run.step(.01); expect(run.score).toBe(100);
-    run.config.overdrive = true; bumper.cooldown = 0; Object.assign(b, { x: bumper.x + 40, y: bumper.y, vx: -100, vy: 0 }); run.step(.01); expect(run.score).toBe(300);
+  it('steps the same at 30, 60 and 144 frames per second', () => {
+    const at = (fps: number) => { const run = new PinballRun(); run.launch(); run.kickOff(); for (let i = 0; i < Math.round(1.5 * fps); i++) run.step(1 / fps); return run.ball; };
+    const a = at(30), b = at(60), c = at(144); expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeLessThan(6); expect(Math.hypot(c.x - b.x, c.y - b.y)).toBeLessThan(6);
   });
   it('hands a swinging flipper speed to the ball and cradles it on a held flipper', () => {
-    const run = new PinballRun(); run.launch(); run.launchBall(); const f = run.flippers[0], b = run.ball;
-    Object.assign(b, { x: f.x + 55, y: f.y + 10, vx: 0, vy: 0 }); run.input.left = true; for (let i = 0; i < 12; i++) run.step(1 / 120); expect(b.vy).toBeLessThan(-900);
-    const cradle = new PinballRun(); cradle.launch(); cradle.launchBall(); const g = cradle.flippers[1], c = cradle.ball; g.angle = g.up; cradle.input.right = true;
-    Object.assign(c, { x: g.x - 50, y: g.y - 40, vx: 0, vy: 0 }); for (let i = 0; i < 240; i++) cradle.step(1 / 120); expect(Math.hypot(c.vx, c.vy)).toBeLessThan(40); expect(c.y).toBeLessThan(g.y);
+    const run = new PinballRun(); run.launch(); run.kickOff(); const b = onFlipper(run, true); run.input.left = true;
+    for (let i = 0; i < 12; i++) run.step(1 / 120); expect(b.vy).toBeLessThan(-900); expect(run.elapsed - b.kickAt).toBeLessThan(.2);
+    const cradle = new PinballRun(); cradle.launch(); cradle.kickOff(); const g = cradle.flippers[1]; g.angle = g.up; cradle.input.right = true; const c = onFlipper(cradle, false, 50);
+    for (let i = 0; i < 240; i++) cradle.step(1 / 120); expect(Math.hypot(c.vx, c.vy)).toBeLessThan(40); expect(c.y).toBeLessThan(g.y); expect(c.state).toBe('play');
   });
-  it('rides the ramp only with enough speed, then lights multiball and jackpots', () => {
-    const run = new PinballRun(); run.level = 9; run.launch(); run.launchBall();
-    const shoot = (speed: number, frames = 120) => { const b = run.ball; Object.assign(b, { x: 470, y: 505, vx: -speed * .27, vy: -speed * .96, ramp: null }); for (let i = 0; i < frames && !b.ramp; i++) run.step(1 / 120); return b; };
-    expect(shoot(400, 30).ramp).toBeNull(); expect(run.tally.ramps).toBe(0);
-    for (let n = 1; n <= 3; n++) { const b = shoot(1400); expect(b.ramp).not.toBeNull(); for (let i = 0; i < 120 * 3 && b.ramp; i++) run.step(1 / 120); expect(run.tally.ramps).toBe(n); expect(b.x).toBeLessThan(120); }
-    expect(run.tally.multiball).toBe(1); for (let i = 0; i < 120 * 1.5; i++) run.step(1 / 120); expect(run.balls.length).toBeGreaterThan(1);
-    const b = shoot(1400); for (let i = 0; i < 120 * 3 && b.ramp; i++) run.step(1 / 120); expect(run.tally.jackpots).toBe(1);
+  it('scores through the goal mouth, pays goalPoints and multiplies the combo streak', () => {
+    const run = new PinballRun(); run.launch(); run.kickOff(); run.keeper.x = 250;
+    shoot(run, 330, 220, 0, -1600); for (let i = 0; i < 30; i++) run.step(1 / 60);
+    expect(run.tally.goals).toBe(1); expect(run.score).toBe(500); expect(run.goal).toMatchObject({ conceded: false, points: 500 }); expect(run.ball.state).toBe('net');
+    for (let i = 0; i < 60 * 2.5; i++) run.step(1 / 60); expect(run.balls).toHaveLength(1); expect(run.ball.state).toBe('play');
+    run.keeper.x = 250; shoot(run, 330, 220, 0, -1600); for (let i = 0; i < 30; i++) run.step(1 / 60); expect(run.streak).toBe(2); expect(run.score).toBe(1500);
+    for (let i = 0; i < 60 * 2.5; i++) run.step(1 / 60); shoot(run, 150, 160, 0, -900); for (let i = 0; i < 20; i++) run.step(1 / 60); expect(run.tally.goals).toBe(2);
   });
-  it('drops targets, completes lane sets and rotates lit lanes with the flippers', () => {
-    const run = new PinballRun(); run.level = 2; run.launch(); run.launchBall(); const b = run.ball;
-    for (const d of run.drops) { d.down = false; Object.assign(b, { x: d.x + 20, y: (d.y0 + d.y1) / 2, vx: -500, vy: 0 }); run.step(1 / 60); }
-    expect(run.drops.every(d => d.down)).toBe(true); expect(run.tally.drops).toBe(1);
-    run.lanes = [true, false, false]; run.input.left = true; run.step(1 / 60); expect(run.lanes).toEqual([false, false, true]); run.input.left = false; run.step(1 / 60);
-    run.lanes = [true, true, false]; Object.assign(b, { x: 358, y: 122, vx: 0, vy: 600 }); run.step(1 / 60); expect(run.tally.lanes).toBe(1); expect(run.bonus).toBe(2);
+  it('lets the rival keeper save a shot at its body, but not a fireball', () => {
+    const run = new PinballRun(); run.launch(); run.kickOff(); run.keeper.x = 320; shoot(run, 320, 260, 0, -1500);
+    for (let i = 0; i < 12; i++) run.step(1 / 60); expect(run.keeper.saves).toBe(1); expect(run.ball.vy).toBeGreaterThan(0); expect(run.tally.goals).toBe(0);
+    const fire = new PinballRun(); fire.launch(); fire.kickOff(); fire.keeper.x = 320; const b = shoot(fire, 320, 260, 0, -1500); b.fire = 3;
+    for (let i = 0; i < 20; i++) fire.step(1 / 60); expect(fire.tally.goals).toBe(1); expect(fire.keeper.knocked).toBeGreaterThan(0);
+    expect(KEEPER_Y).toBeGreaterThan(GOAL.y);
   });
-  it('returns one early drain with ball save, then spends a real ball, and keeps multiball drains free', () => {
-    const run = new PinballRun(); run.launch(); run.config.assist = true; run.launchBall(); Object.assign(run.ball, { x: 298, y: 950, vy: 300 }); run.step(.01);
-    expect(run.metrics.assisted).toBe(1); expect(run.lives).toBe(3); advance(run, .6); expect(run.balls).toHaveLength(1); expect(run.waiting).toBe(false);
-    Object.assign(run.ball, { x: 298, y: 950, vy: 300 }); run.step(.01); expect(run.lives).toBe(2); expect(run.waiting).toBe(true);
+  it('costs a ball only when the last ball is lost, and serves a fresh kick-off', () => {
+    const run = new PinballRun(); run.launch(); run.kickOff(); run.home.x = 280; shoot(run, 360, HOME.y + 2, 0, 300);
+    run.step(1 / 60); expect(run.ball.state).toBe('lost'); for (let i = 0; i < 60; i++) run.step(1 / 60);
+    expect(run.lives).toBe(2); expect(run.waiting).toBe(true); expect(run.goal?.conceded).toBe(true); expect(run.streak).toBe(0);
+    run.kickOff(); const b = run.ball; run.tokens.push({ id: 99, kind: 'multi', x: b.x, y: b.y, life: 5 }); run.step(1 / 60); expect(run.balls).toHaveLength(3); expect(run.tally.powerups).toBe(1);
+    shoot(run, 360, HOME.y + 2, 0, 300); for (let i = 0; i < 60; i++) run.step(1 / 60); expect(run.lives).toBe(2); expect(run.balls.length).toBe(2);
   });
-  it('clears a stage when its mission is complete', () => {
-    const run = new PinballRun(); run.level = 2; run.launch(); expect(run.stage.goals).toEqual([['bumpers', 15]]); run.tally.bumpers = 15; run.step(.01); expect(run.phase).toBe('cleared');
-    const restored = new PinballRun(run.checkpoint); restored.launch(); expect(restored.phase).toBe('cleared'); expect(pinStage(13).goals[0][1]).toBeGreaterThan(pinStage(1).goals[0][1]);
+  it('lets SUPER KEEPER save and count assistance, and THE WALL head the ball clear', () => {
+    const run = new PinballRun(); run.launch(); run.kickOff(); run.config.assist = true; run.home.x = 320; shoot(run, 322, 880, 0, 420);
+    for (let i = 0; i < 20; i++) run.step(1 / 60); expect(run.metrics.assisted).toBe(1); expect(run.tally.saves).toBe(1); expect(run.ball.vy).toBeLessThan(0);
+    const wall = new PinballRun(); wall.launch(); wall.kickOff(); wall.power.wall = 5; shoot(wall, 300, 860, 0, 400); for (let i = 0; i < 10; i++) wall.step(1 / 60); expect(wall.ball.vy).toBeLessThan(0);
   });
-  it('moves flippers from held input and limits nudge charges', () => {
-    const run = new PinballRun(); run.launch(); run.input.left = true; run.step(.1); expect(run.flippers[0].angle).toBeCloseTo(-.45); expect(run.flippers[1].angle).toBeCloseTo(Math.PI - .5);
-    run.launchBall(); for (let i = 0; i < 5; i++) { run.nudgeCooldown = 0; run.action('nudge'); } expect(run.nudges).toBe(0); expect(run.metrics.actions).toBe(4);
-    expect(closestSegment(5, 5, 0, 0, 10, 0)).toEqual({ x: 5, y: 0, t: .5 });
+  it('arms a POWER SHOT that blazes past the keeper off the next flipper strike', () => {
+    const run = new PinballRun(); run.launch(); run.kickOff(); run.action('ability'); expect(run.powerArmed).toBe(0);
+    run.config.overdrive = true; run.action('ability'); expect(run.powerArmed).toBeGreaterThan(0); run.keeper.x = 320;
+    const b = onFlipper(run, true); run.input.left = true; for (let i = 0; i < 6; i++) run.step(1 / 120); run.input.left = false;
+    expect(b.touch.power).toBe(true); expect(b.fire).toBeGreaterThan(0); for (let i = 0; i < 60; i++) run.step(1 / 60); expect(run.tally.goals).toBe(1); expect(run.goal?.detail).toContain('POWER SHOT');
   });
-  it('keeps both touch flippers independent and releases the correct pointer', () => {
-    const run = new PinballRun(); run.launch(); run.launchBall();
+  it('fields teammates and extra defenders from live squad mods, and teammates pass toward goal', () => {
+    const run = new PinballRun(); run.launch(); const parse = (src: string) => parseGameScript<ArcadeConfig>(src, 'csharp', pinballCatalog.schema);
+    run.setProgram(parse('int teammates = 2;\nint extraDefenders = 3;\nint ballsInPlay = 3;\nstring difficulty = "hard";')); run.step(1 / 60);
+    expect(run.players.filter(p => p.mate)).toHaveLength(2); expect(run.players.filter(p => !p.mate)).toHaveLength(PIN_STAGES[0].defenders.length + 3);
+    expect(run.skill).toBeGreaterThan(1); run.launch(); expect(run.balls).toHaveLength(3);
+    run.kickOff(); const mate = run.players.find(p => p.mate)!; shoot(run, mate.x + 40, mate.y, -300, 0); run.step(1 / 60); run.step(1 / 60);
+    expect(run.ball.touch.mate).toBe(true); expect(run.ball.vy).toBeLessThan(-1000);
+  });
+  it('collects power-up tokens and runs their timers', () => {
+    const run = new PinballRun(); run.level = 4; run.launch(); run.kickOff(); const b = run.ball;
+    for (const kind of ['fire', 'freeze', 'double', 'wall'] as const) { run.tokens.push({ id: 1, kind, x: b.x, y: b.y, life: 5 }); run.step(1 / 60); expect(run.power[kind]).toBeGreaterThan(0); }
+    expect(b.fire).toBeGreaterThan(0); expect(run.tally.powerups).toBe(4); const k = run.keeper.x; run.step(.5); expect(run.keeper.x).toBe(k);
+    let spawned = 0; const fresh = new PinballRun(); fresh.level = 4; fresh.launch(); fresh.kickOff(); for (let i = 0; i < 60 * 20; i++) { flipBot(fresh); fresh.step(1 / 60); spawned = Math.max(spawned, fresh.tokens.length); } expect(spawned).toBeGreaterThan(0);
+    const early = new PinballRun(); early.launch(); early.kickOff(); for (let i = 0; i < 60 * 20; i++) { early.step(1 / 60); expect(early.tokens).toHaveLength(0); }
+  });
+  it('clears a stage when its match goals are met and restores the cleared result', () => {
+    const run = new PinballRun(); run.level = 2; run.launch(); expect(run.stage.goals).toEqual([['goals', 3]]); run.tally.goals = 3; run.step(.01); expect(run.phase).toBe('cleared');
+    const restored = new PinballRun(run.checkpoint); restored.launch(); expect(restored.phase).toBe('cleared'); expect(restored.tally.goals).toBe(3);
+    expect(pinStage(13).goals[0][1]).toBeGreaterThan(pinStage(1).goals[0][1]); expect(pinStage(13).keeper).toBeGreaterThan(pinStage(1).keeper);
+    const hat = new PinballRun(); hat.level = 9; hat.launch(); hat.kickOff();
+    for (let n = 0; n < 3; n++) { hat.keeper.x = 250; shoot(hat, 330, 220, 0, -1600); for (let i = 0; i < 30; i++) hat.step(1 / 60); for (let i = 0; i < 150 && hat.phase === 'playing'; i++) hat.step(1 / 60); }
+    expect(hat.tally.hattricks).toBe(1); expect(hat.phase).toBe('cleared');
+  });
+  it('ramps twelve named matches step by step', () => {
+    expect(PIN_STAGES).toHaveLength(12); expect(new Set(PIN_STAGES.map(s => s.name)).size).toBe(12);
+    PIN_STAGES.forEach((s, i) => { if (i) { expect(s.keeper).toBeGreaterThan(PIN_STAGES[i - 1].keeper); expect(s.defenders.length).toBeGreaterThanOrEqual(PIN_STAGES[i - 1].defenders.length); expect(s.smart).toBeGreaterThanOrEqual(PIN_STAGES[i - 1].smart); } });
+    expect(PIN_STAGES[0].powerups).toBe(0); expect(PIN_STAGES[0].defenders).toHaveLength(1); expect(PIN_STAGES[11].defenders.length).toBeGreaterThanOrEqual(7);
+  });
+  it('keeps both touch flippers independent and kicks off with a tap', () => {
+    const run = new PinballRun(); run.launch(); run.pointer('down', 100, 700, 1); expect(run.waiting).toBe(false); run.pointer('up', 100, 700, 1);
     run.pointer('move', 100, 700, 1); expect(run.input.left).toBe(false);
     run.pointer('down', 100, 700, 1); run.pointer('down', 500, 700, 2); expect(run.input.left).toBe(true); expect(run.input.right).toBe(true);
     run.pointer('up', 100, 700, 1); expect(run.input.left).toBe(false); expect(run.input.right).toBe(true);
     run.pointer('move', 100, 700, 2); expect(run.input.left).toBe(true); expect(run.input.right).toBe(false);
     run.pointer('cancel', 0, 0); expect(run.input.left).toBe(false); expect(run.input.right).toBe(false);
+    expect(closestSegment(5, 5, 0, 0, 10, 0)).toEqual({ x: 5, y: 0, t: .5 });
   });
+  it('lets a simple flipper bot win the first two matches, so early stages stay easy', () => {
+    for (const seed of [0, 101, 202]) { const r = playStage(1, flipBot, 240, seed); expect(r.won, `stage 1 seed ${seed}`).toBe(true); }
+    expect(playStage(2, flipBot, 300).won).toBe(true);
+  }, 60000);
+  it('lets an aiming bot win a mid-campaign match with real flipper play', () => {
+    const r = playStage(6, aimBot, 300); expect(r.won).toBe(true); expect(r.ballsLost).toBeLessThan(3);
+  }, 120000);
+  it.runIf(process.env.PINBALL_CAMPAIGN)('lets an aiming bot win all twelve matches', () => {
+    for (let level = 1; level <= PIN_STAGES.length; level++) { const r = playStage(level, aimBot, 400); console.log(`stage ${level}: ${r.won ? 'won' : 'lost'} in ${r.time.toFixed(0)}s, ${r.ballsLost} balls lost`); expect(r.won, `stage ${level}`).toBe(true); }
+  }, 3600000);
 });
 
 describe('Speed Stack overlap and timing', () => {

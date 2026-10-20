@@ -16,9 +16,11 @@ export interface CatalogOptions {
   final: string;
   runtime?: Record<string, string>;
   extraTools?: readonly CodeToolDefinition[];
+  /** Extra game-specific mods, listed after the shared ones; their defaults join the basic game. */
+  extraMods?: readonly ModDefinition<keyof ArcadeConfig>[];
 }
 export function createArcadeCatalog(o: CatalogOptions) {
-  const d: ArcadeConfig = { worldTheme: 'classic', characterStyle: 'original', weather: 'clear', ...o.defaults };
+  const d: ArcadeConfig = { worldTheme: 'classic', characterStyle: 'original', weather: 'clear', ...o.defaults, ...Object.fromEntries((o.extraMods ?? []).map(m => [m.id, m.defaultValue])) };
   const mods: readonly ModDefinition<keyof ArcadeConfig>[] = [
     { id: 'worldTheme', name: 'worldTheme', type: 'string', label: 'WORLD BUILDER', blurb: 'Rebuild the scenery: alpine peaks, a volcanic world or a neon city. Changes terrain materials, props, sky and lighting live.', example: 'string worldTheme = "alpine";', values: ['classic', 'alpine', 'volcanic', 'neon'], defaultValue: d.worldTheme, glyph: '◈', unlockAt: 0 },
     { id: 'characterStyle', name: 'characterStyle', type: 'string', label: 'CHARACTER LAB', blurb: 'Replace your character or vehicle with a robot, astronaut or armored champion. New geometry, equipment and materials.', example: 'string characterStyle = "robot";', values: ['original', 'robot', 'astronaut', 'armored'], defaultValue: d.characterStyle, glyph: '♟', unlockAt: 0 },
@@ -30,6 +32,7 @@ export function createArcadeCatalog(o: CatalogOptions) {
     { id: o.physics.key, name: o.physics.name, type: 'int', label: o.physics.label, blurb: o.physics.blurb, example: `int ${o.physics.name} = ${o.physics.goal};`, limits: { min: o.physics.min, max: o.physics.max }, defaultValue: d[o.physics.key], glyph: '↗', unlockAt: 5 },
     { id: 'overdrive', name: o.overdrive.name, type: 'bool', label: o.overdrive.label, blurb: o.overdrive.blurb, example: `bool ${o.overdrive.name} = false;`, defaultValue: d.overdrive, glyph: 'ϟ', unlockAt: 6 },
     { id: 'lives', name: o.lives.name, type: 'int', label: o.lives.label, blurb: 'Starting chances when retrying a stage.', example: `int ${o.lives.name} = ${Math.min(o.lives.max, d.lives + 1)};`, limits: { min: o.lives.min, max: o.lives.max }, defaultValue: d.lives, glyph: '♥', unlockAt: 7 },
+    ...o.extraMods ?? [],
   ];
   const tools: readonly CodeToolDefinition[] = [{ id: 'arcade-rule', name: 'scoreRule', label: 'THE GAME CAN THINK', type: 'condition', blurb: `Switch on ${o.overdrive.label.toLowerCase()} after your first score.`, example: `if (score >= 1)\n{\n    ${o.overdrive.name} = true;\n}`, glyph: '?', unlockAt: 6 }];
   const runtimeLabels = { ...ARCADE_RUNTIME_LABELS, ...o.runtime };

@@ -42,10 +42,25 @@ describe('live world remixes', () => {
 });
 
 describe('Unity model exports', () => {
-  it.each(['vacuum', 'truck', 'tire', 'cobra', 'robot', 'turret'])('loads %s as a complete glTF mesh with finite bounds', async name => {
+  it.each(['vacuum', 'truck', 'tire', 'cobra', 'robot', 'turret', 'footballer'])('loads %s as a complete glTF mesh with finite bounds', async name => {
     const file = readFileSync(`public/models/unity/${name}.glb`), buffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
     const result = await new GLTFLoader().parseAsync(buffer, ''); let vertices = 0;
     result.scene.traverse(o => { if (o instanceof T.Mesh) { vertices += o.geometry.attributes.position.count; o.geometry.computeBoundingBox(); expect(o.geometry.boundingBox?.isEmpty()).toBe(false); expect(o.geometry.getAttribute('color').count).toBe(o.geometry.attributes.position.count); o.geometry.dispose(); for (const mat of Array.isArray(o.material) ? o.material : [o.material]) mat.dispose(); } });
     expect(vertices).toBeGreaterThan(100); const bounds = new T.Box3().setFromObject(result.scene); expect([...bounds.min.toArray(), ...bounds.max.toArray()].every(Number.isFinite)).toBe(true);
+  });
+});
+
+describe('Unity footballer rig', () => {
+  it('exports six pivoted limbs with outward-facing triangles and kit marker colors', async () => {
+    const file = readFileSync('public/models/unity/footballer.glb'), result = await new GLTFLoader().parseAsync(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength), '');
+    const parts: Record<string, T.Vector3> = {}, markers = new Set<string>(); let inward = 0;
+    result.scene.traverse(o => {
+      if (!(o instanceof T.Mesh)) return; parts[o.name] = o.position.clone();
+      const p = o.geometry.attributes.position, n = o.geometry.attributes.normal, c = o.geometry.attributes.color, index = o.geometry.index!, a = new T.Vector3(), b = new T.Vector3(), d = new T.Vector3(), normal = new T.Vector3();
+      for (let i = 0; i < index.count; i += 3) { a.fromBufferAttribute(p, index.getX(i)); b.fromBufferAttribute(p, index.getX(i + 1)); d.fromBufferAttribute(p, index.getX(i + 2)); normal.fromBufferAttribute(n, index.getX(i)); const face = b.sub(a).cross(d.sub(a)); if (face.lengthSq() > 1e-12 && face.dot(normal) < 0) inward++; }
+      for (let i = 0; i < c.count; i++) markers.add(new T.Color(c.getX(i), c.getY(i), c.getZ(i)).getHexString());
+    });
+    expect(Object.keys(parts).sort()).toEqual(['armL', 'armR', 'body', 'head', 'legL', 'legR']); expect(parts.head.y).toBeGreaterThan(parts.body.y); expect(parts.armL.x).toBeLessThan(0);
+    expect(inward).toBe(0); for (const hex of ['ff00ff', '00ffff', 'ffff00', '00ff00', 'ff0000', '0000ff']) expect(markers.has(hex), hex).toBe(true);
   });
 });

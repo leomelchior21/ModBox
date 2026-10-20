@@ -24,6 +24,65 @@ public static class ModboxArt
     static void Begin(string name) { root = new GameObject(name).transform; }
     static void End(string path, bool linear = false) { Export(root.gameObject,path,linear); }
 
+    // Smooth low-poly primitives for characters: far fewer vertices than Unity's built-in sphere, so a whole squad stays light on tablets.
+    static readonly Dictionary<string,Mesh> smooth = new Dictionary<string,Mesh>();
+    static Mesh Round() {
+        if (smooth.TryGetValue("round", out var cached)) return cached;
+        const int lon = 14, lat = 9; var v = new List<Vector3>(); var t = new List<int>();
+        for (int i = 0; i <= lat; i++) { float a = Mathf.PI * i / lat; for (int j = 0; j <= lon; j++) { float b = 2 * Mathf.PI * j / lon; v.Add(new Vector3(Mathf.Sin(a) * Mathf.Cos(b), Mathf.Cos(a), Mathf.Sin(a) * Mathf.Sin(b)) * .5f); } }
+        for (int i = 0; i < lat; i++) for (int j = 0; j < lon; j++) { int p = i * (lon + 1) + j, q = p + lon + 1; t.AddRange(new[] { p, p + 1, q, q, p + 1, q + 1 }); }
+        var mesh = new Mesh { name = "round" }; mesh.SetVertices(v); mesh.SetTriangles(t, 0); mesh.SetNormals(v.ConvertAll(p => p.normalized)); smooth["round"] = mesh; return mesh;
+    }
+    static Mesh Tube() {
+        if (smooth.TryGetValue("tube", out var cached)) return cached;
+        const int seg = 12; var v = new List<Vector3>(); var n = new List<Vector3>(); var t = new List<int>();
+        for (int j = 0; j <= seg; j++) { float b = 2 * Mathf.PI * j / seg; var r = new Vector3(Mathf.Cos(b), 0, Mathf.Sin(b)); v.Add(r * .5f + Vector3.down * .5f); v.Add(r * .5f + Vector3.up * .5f); n.Add(r); n.Add(r); }
+        for (int j = 0; j < seg; j++) { int b0 = j * 2, t0 = b0 + 1, b1 = b0 + 2, t1 = b0 + 3; t.AddRange(new[] { b0, t0, b1, t0, t1, b1 }); }
+        for (int cap = 0; cap < 2; cap++) {
+            float y = cap == 0 ? .5f : -.5f; int c = v.Count; v.Add(new Vector3(0, y, 0)); n.Add(cap == 0 ? Vector3.up : Vector3.down);
+            for (int j = 0; j <= seg; j++) { float b = 2 * Mathf.PI * j / seg; v.Add(new Vector3(Mathf.Cos(b) * .5f, y, Mathf.Sin(b) * .5f)); n.Add(cap == 0 ? Vector3.up : Vector3.down); }
+            for (int j = 0; j < seg; j++) t.AddRange(cap == 0 ? new[] { c, c + j + 2, c + j + 1 } : new[] { c, c + j + 1, c + j + 2 });
+        }
+        var mesh = new Mesh { name = "tube" }; mesh.SetVertices(v); mesh.SetNormals(n); mesh.SetTriangles(t, 0); smooth["tube"] = mesh; return mesh;
+    }
+    static Transform limb;
+    /** A rig node: every child of the root is exported as its own glTF node, pivoted where it was created. */
+    static void Limb(string name, float x, float y, float z) { limb = new GameObject(name).transform; limb.SetParent(root, false); limb.position = new Vector3(x, y, z); }
+    /** Places a piece in world coordinates under the current limb: shape "box", "round" or "tube" (unit size). */
+    static void Piece(string name, string shape, Material m, float x, float y, float z, float sx, float sy, float sz) {
+        GameObject o;
+        if (shape == "box") { o = GameObject.CreatePrimitive(PrimitiveType.Cube); UnityEngine.Object.DestroyImmediate(o.GetComponent<Collider>()); }
+        else { o = new GameObject(); o.AddComponent<MeshFilter>().sharedMesh = shape == "round" ? Round() : Tube(); o.AddComponent<MeshRenderer>(); }
+        o.name = name; o.transform.SetParent(limb, false); o.transform.position = new Vector3(x, y, z); o.transform.localScale = new Vector3(sx, sy, sz); o.GetComponent<Renderer>().sharedMaterial = m;
+    }
+    /**
+     * A chunky footballer about one unit tall, facing -z (it faces +z once exported). Kit colors are pure marker
+     * colors that the web repaints per team: shirt stripes A/B, shorts, socks, boots, gloves, skin and hair.
+     */
+    static void Footballer(string output) {
+        Begin("Footballer / rigged squad player");
+        var shirtA=Paint("#ff00ff"); var shirtB=Paint("#8000ff"); var shorts=Paint("#00ffff"); var skin=Paint("#ffff00"); var hair=Paint("#00ff00"); var socks=Paint("#ff0000"); var boots=Paint("#0000ff"); var gloves=Paint("#ff8000"); var eye=Paint("#1b1b24"); var patch=Paint("#ffffff");
+        Limb("body",0,.40f,0);
+        Piece("shorts","box",shorts,0,.41f,0,.33f,.15f,.21f);
+        for (int i=0;i<5;i++) Piece("shirt stripe","box",i%2==0?shirtA:shirtB,-.16f+i*.08f,.59f,0,.081f,.27f,.22f);
+        Piece("collar","box",shirtB,0,.73f,0,.18f,.03f,.15f); Piece("number patch","box",patch,0,.6f,.112f,.11f,.12f,.006f);
+        Limb("head",0,.73f,0);
+        Piece("neck","tube",skin,0,.75f,0,.09f,.07f,.09f); Piece("head","round",skin,0,.87f,0,.29f,.29f,.29f); Piece("hair","round",hair,0,.92f,.03f,.31f,.22f,.30f);
+        for (int s=-1;s<=1;s+=2) { Piece("ear","round",skin,s*.142f,.865f,0,.06f,.07f,.05f); Piece("eye","round",eye,s*.05f,.885f,-.13f,.04f,.05f,.03f); }
+        Piece("nose","round",skin,0,.855f,-.142f,.045f,.045f,.04f);
+        foreach (var (name,s) in new[]{("armL",-1),("armR",1)}) {
+            Limb(name,s*.2f,.69f,0);
+            Piece("shoulder","round",shirtA,s*.2f,.685f,0,.12f,.12f,.12f); Piece("sleeve","box",shirtA,s*.215f,.635f,0,.085f,.1f,.1f);
+            Piece("arm","round",skin,s*.22f,.53f,0,.07f,.19f,.07f); Piece("hand","round",gloves,s*.22f,.43f,0,.09f,.09f,.09f);
+        }
+        foreach (var (name,s) in new[]{("legL",-1),("legR",1)}) {
+            Limb(name,s*.085f,.36f,0);
+            Piece("thigh","round",skin,s*.085f,.29f,0,.085f,.16f,.085f); Piece("sock","tube",socks,s*.085f,.14f,0,.086f,.15f,.086f);
+            Piece("boot","box",boots,s*.085f,.035f,-.025f,.085f,.07f,.15f); Piece("toe","round",boots,s*.085f,.035f,-.1f,.085f,.07f,.07f);
+        }
+        ExportParts(root.gameObject,Path.Combine(output,"footballer.glb"));
+    }
+
     [MenuItem("MODBOX/Build web model pack")]
     public static void Build() {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
@@ -74,12 +133,38 @@ public static class ModboxArt
         var disc=Part("saw disc",PrimitiveType.Cylinder,chrome,.55f,.74f,0,.92f,.06f,.92f); disc.transform.localRotation=Quaternion.Euler(0,0,90);
         for(int i=0;i<16;i++) { float a=i*Mathf.PI/8; var tooth=Part("tooth",PrimitiveType.Cube,chrome,.55f,.74f+Mathf.Sin(a)*.46f,Mathf.Cos(a)*.46f,.12f,.16f,.14f); tooth.transform.localRotation=Quaternion.Euler(i*22.5f,0,0); }
         End(Path.Combine(output,"turret.glb")); root.position=new Vector3(3,0,4);
+        Footballer(output); root.position=new Vector3(0,0,-6); root.localScale=Vector3.one*2;
         var sun=new GameObject("Sun").AddComponent<Light>(); sun.type=LightType.Directional; sun.intensity=1.3f; sun.transform.rotation=Quaternion.Euler(40,-30,0);
         var camera=new GameObject("Camera").AddComponent<Camera>(); camera.transform.position=new Vector3(10,11,-15); camera.transform.LookAt(new Vector3(0,0,1)); camera.clearFlags=CameraClearFlags.SolidColor; camera.backgroundColor=new Color(.16f,.2f,.28f); RenderSettings.ambientLight=new Color(.6f,.65f,.75f);
         Directory.CreateDirectory(Path.Combine(Application.dataPath,"Scenes")); EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene(),"Assets/Scenes/ModelGallery.unity"); AssetDatabase.SaveAssets(); Debug.Log("MODBOX_MODEL_EXPORT_OK " + output);
     }
 
     static string F(float v) { return v.ToString("R",CI); }
+    static string V(Vector3 v) { return $"[{F(v.x)},{F(v.y)},{F(v.z)}]"; }
+    // Each child of the root becomes its own glTF node, pivoted at that child, so the web can swing limbs. Colors are linear.
+    static void ExportParts(GameObject obj,string path) {
+        var data=new MemoryStream(); var w=new BinaryWriter(data); var views=new List<string>(); var accessors=new List<string>(); var meshes=new List<string>(); var nodes=new List<string>(); var children=new List<string>();
+        int View(long start) { views.Add("{\"buffer\":0,\"byteOffset\":"+start+",\"byteLength\":"+(data.Position-start)+"}"); return views.Count-1; }
+        foreach(Transform part in obj.transform) {
+            var positions=new List<Vector3>(); var normals=new List<Vector3>(); var colors=new List<Color>(); var indices=new List<uint>(); var min=new Vector3(float.MaxValue,float.MaxValue,float.MaxValue); var max=new Vector3(float.MinValue,float.MinValue,float.MinValue);
+            foreach(var filter in part.GetComponentsInChildren<MeshFilter>()) {
+                var mesh=filter.sharedMesh; int offset=positions.Count; var vertices=mesh.vertices; var ns=mesh.normals; var color=filter.GetComponent<Renderer>().sharedMaterial.color.linear;
+                for(int i=0;i<vertices.Length;i++) { var p=filter.transform.TransformPoint(vertices[i])-part.position; p.z=-p.z; positions.Add(p); min=Vector3.Min(min,p); max=Vector3.Max(max,p); var n=filter.transform.TransformDirection(ns[i]); n.z=-n.z; normals.Add(n.normalized); colors.Add(color); }
+                var triangles=mesh.triangles; for(int i=0;i<triangles.Length;i+=3) { indices.Add((uint)(offset+triangles[i])); indices.Add((uint)(offset+triangles[i+2])); indices.Add((uint)(offset+triangles[i+1])); }
+            }
+            int a=accessors.Count; long start=data.Position;
+            foreach(var p in positions) { w.Write(p.x);w.Write(p.y);w.Write(p.z); } accessors.Add("{\"bufferView\":"+View(start)+",\"componentType\":5126,\"count\":"+positions.Count+",\"type\":\"VEC3\",\"min\":"+V(min)+",\"max\":"+V(max)+"}");
+            start=data.Position; foreach(var n in normals) { w.Write(n.x);w.Write(n.y);w.Write(n.z); } accessors.Add("{\"bufferView\":"+View(start)+",\"componentType\":5126,\"count\":"+normals.Count+",\"type\":\"VEC3\"}");
+            start=data.Position; foreach(var c in colors) { w.Write(c.r);w.Write(c.g);w.Write(c.b);w.Write(c.a); } accessors.Add("{\"bufferView\":"+View(start)+",\"componentType\":5126,\"count\":"+colors.Count+",\"type\":\"VEC4\"}");
+            start=data.Position; foreach(var i in indices) w.Write(i); accessors.Add("{\"bufferView\":"+View(start)+",\"componentType\":5125,\"count\":"+indices.Count+",\"type\":\"SCALAR\"}");
+            meshes.Add("{\"name\":\""+part.name+"\",\"primitives\":[{\"attributes\":{\"POSITION\":"+a+",\"NORMAL\":"+(a+1)+",\"COLOR_0\":"+(a+2)+"},\"indices\":"+(a+3)+",\"material\":0}]}");
+            var pivot=part.position; pivot.z=-pivot.z; nodes.Add("{\"name\":\""+part.name+"\",\"mesh\":"+(meshes.Count-1)+",\"translation\":"+V(pivot)+"}"); children.Add(nodes.Count.ToString());
+        }
+        w.Flush(); var bin=data.ToArray();
+        string json="{\"asset\":{\"version\":\"2.0\",\"generator\":\"MODBOX Unity 6 model studio\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"name\":\""+obj.name.Split('/')[0].Trim()+"\",\"children\":["+string.Join(",",children)+"]},"+string.Join(",",nodes)+"],\"meshes\":["+string.Join(",",meshes)+"],\"materials\":[{\"pbrMetallicRoughness\":{\"baseColorFactor\":[1,1,1,1],\"metallicFactor\":0.05,\"roughnessFactor\":0.6}}],\"buffers\":[{\"byteLength\":"+bin.Length+"}],\"bufferViews\":["+string.Join(",",views)+"],\"accessors\":["+string.Join(",",accessors)+"]}";
+        while(Encoding.UTF8.GetByteCount(json)%4!=0) json+=" "; var bytes=Encoding.UTF8.GetBytes(json);
+        using(var stream=File.Create(path)) using(var o=new BinaryWriter(stream)) { o.Write(0x46546C67u); o.Write(2u); o.Write((uint)(12+8+bytes.Length+8+bin.Length)); o.Write((uint)bytes.Length); o.Write(0x4E4F534Au); o.Write(bytes); o.Write((uint)bin.Length); o.Write(0x004E4942u); o.Write(bin); }
+    }
     // Linear exports store vertex colors in glTF linear space, so the web renders the exact authored hex.
     static void Export(GameObject obj,string path,bool linear=false) {
         var positions=new List<Vector3>(); var normals=new List<Vector3>(); var colors=new List<Color>(); var indices=new List<uint>(); var min=new Vector3(float.MaxValue,float.MaxValue,float.MaxValue); var max=new Vector3(float.MinValue,float.MinValue,float.MinValue);

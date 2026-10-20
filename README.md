@@ -91,7 +91,7 @@ Every concept unlocks a new form of control over the game:
 The nine-game mission progression and world-building mods are documented in [Current campaigns](docs/current-campaigns.md).
 
 MAKITA SLINGERS launches sawblades through destructible robot towers. NAJA RUN gathers fruit in
-temple gardens. PINBALLERZ has moving flippers, jet bumpers and three-star jackpots. SPEED STACK
+temple gardens. PINBALLERZ is soccer pinball: flip the ball past defenders and a diving keeper. SPEED STACK
 cuts slab overhangs and rewards perfect timing. All four have original covers, gameplay scenery,
 transparent sprite atlases and SVG wordmarks; the [asset manifest](docs/premium-arcade-art.json)
 records the image-generation prompts and saved paths. Their game views expand on demand while

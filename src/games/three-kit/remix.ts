@@ -27,11 +27,14 @@ export class SceneRemix {
   constructor(private scene: T.Scene, private sun: T.DirectionalLight, private indoor = false) { this.originalBackground = scene.background; scene.add(this.scenery); this.scenery.userData.remix = true; }
   /** Lets a game supply its own sky and fog for the default theme, for example a stage that runs at night. */
   setBase(background: T.Scene['background'], fog: T.Fog | null) { this.originalBackground = background; this.baseFog = fog; this.theme = ''; }
+  /** For games that build their own themed worlds: the remix keeps characters and weather but leaves scenery, sky and materials alone. */
+  ownWorld() { this.custom = true; }
+  private custom = false;
   character(root: T.Group, kind: ActorKind = 'person') { const variant = new T.Group(); variant.userData.remix = true; const originals = [...root.children]; root.userData.character = true; root.add(variant); this.actors.push({ root, originals, variant, kind, style: '' }); }
   update(config: Pick<ArcadeConfig, 'worldTheme' | 'characterStyle' | 'weather'>, origin: T.Vector3, dt: number, reduced: boolean, revision: number) {
     this.elapsed += dt; const theme = config.worldTheme ?? 'classic', style = config.characterStyle ?? 'original';
     this.actors = this.actors.filter(a => a.root.parent !== null);
-    if (theme !== this.theme || revision !== this.stageRevision) { this.theme = theme; this.stageRevision = revision; this.buildWorld(theme); this.recolor(theme); }
+    if (!this.custom && (theme !== this.theme || revision !== this.stageRevision)) { this.theme = theme; this.stageRevision = revision; this.buildWorld(theme); this.recolor(theme); }
     for (const actor of this.actors) {
       if (actor.style !== style) { actor.style = style; free(actor.variant); actor.originals.forEach(o => { o.visible = style === 'original' && !o.userData.unityFallback; }); if (style !== 'original') this.buildActor(actor, style); }
       actor.variant.position.y = reduced || actor.kind !== 'person' ? 0 : Math.sin(this.elapsed * 12) * .035;

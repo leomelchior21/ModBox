@@ -6,6 +6,8 @@ export interface ArcadeConfig {
   palette: string; playerName: string; power: number; speed: number; gravity: number;
   assist: boolean; overdrive: boolean; lives: number; bonus: number;
   worldTheme?: string; characterStyle?: string; weather?: string;
+  /** Optional game-specific mods (see CatalogOptions.extraMods). */
+  teammates?: number; rivals?: number; balls?: number; crowd?: number; difficulty?: string; celebration?: string;
 }
 export type ArcadePhase = 'ready' | 'playing' | 'paused' | 'cleared' | 'gameover';
 export type ArcadeAction = 'primary' | 'left' | 'right' | 'up' | 'down' | 'ability' | 'launch' | 'nudge';

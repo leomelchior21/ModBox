@@ -1,123 +1,128 @@
 import { ArcadeRun, clamp, type ArcadeAction } from '../premium-kit/core';
 import { pinballCatalog } from './catalog';
+import { pinStage, pinStageName, type Defender, type PinGoal } from './levels';
+export { PIN_STAGES, pinStage, pinStageName, GOAL_TEXT, type PinGoal, type PinStage } from './levels';
 
-/** Table space: 640 × 920 units, y grows toward the player and the drain. */
-export const TABLE = { width: 640, height: 920, centre: 298 }, BALL_R = 11, STEP = 1 / 600;
-export interface Pinball { id: number; x: number; y: number; vx: number; vy: number; ramp: { s: number; speed: number } | null; trail: { x: number; y: number }[] }
-export interface Bumper { x: number; y: number; radius: number; flash: number; cooldown: number }
-export interface Flipper { x: number; y: number; angle: number; omega: number; left: boolean; rest: number; up: number; length: number; pressed: number }
-export interface Sling { a: [number, number]; b: [number, number]; d: [number, number]; flash: number }
-export interface DropTarget { x: number; y0: number; y1: number; down: boolean; flash: number }
-export type PinGoal = 'score' | 'bumpers' | 'drops' | 'ramps' | 'spins' | 'lanes' | 'multiball' | 'jackpots';
-export interface PinStage { name: string; tip: string; goals: readonly [PinGoal, number][] }
+/**
+ * Soccer pinball. Table space is 640 × 1000 units with y growing toward your own goal; the rival goal is at the top.
+ * Physics runs in 600 Hz sub-steps, so the feel is the same at any frame rate.
+ */
+export const TABLE = { width: 640, height: 1000, centre: 320 }, BALL_R = 13, STEP = 1 / 600;
+/** Rival goal mouth (between the posts) and your own goal at the bottom. */
+export const GOAL = { y: 104, left: 210, right: 430, back: 50 }, HOME = { y: 972, left: 250, right: 390, back: 1004 };
+/** Half-width of the rival keeper's body (the arms reach a little further). */
+export const KEEPER_REACH = 10;
+export const KEEPER_Y = 132, HOME_KEEPER_Y = 944, CENTRE_SPOT = { x: 320, y: 520 }, PLAYER_R = 18, TOKEN_R = 20;
 type Seg = readonly [number, number, number, number];
 
 export function closestSegment(x: number, y: number, ax: number, ay: number, bx: number, by: number) {
   const dx = bx - ax, dy = by - ay, t = clamp(((x - ax) * dx + (y - ay) * dy) / Math.max(1e-6, dx * dx + dy * dy), 0, 1);
   return { x: ax + dx * t, y: ay + dy * t, t };
 }
-const mirror = ([ax, ay, bx, by]: Seg): Seg => [TABLE.centre * 2 - ax, ay, TABLE.centre * 2 - bx, by];
-/** The top of the cabinet is an elliptical arch over the playfield and the shooter lane. */
-export const arcY = (x: number) => 310 - 260 * Math.sqrt(Math.max(0, 1 - ((x - 320) / 280) ** 2));
-const ARC: Seg[] = Array.from({ length: 32 }, (_, i) => { const a0 = Math.PI - i * Math.PI / 32, a1 = Math.PI - (i + 1) * Math.PI / 32; return [320 + 280 * Math.cos(a0), 310 - 260 * Math.sin(a0), 320 + 280 * Math.cos(a1), 310 - 260 * Math.sin(a1)]; });
-export const LANES = [238, 298, 358], LANE_DIVIDERS = [208, 268, 328, 388];
-const LEFT_SIDE: Seg[] = [[70, 596, 70, 760], [70, 760, 198, 805], [40, 556, 58, 584]];
-export const SLINGS_GEOMETRY: [number, number][][] = [[[118, 640], [118, 725], [186, 762]], [[478, 640], [478, 725], [410, 762]]];
-/** Static rails: cabinet walls, the arch, lane dividers, outlanes, inlane guides, the ramp throat and the spinner lane. */
-export const PIN_RAILS: readonly Seg[] = [
-  ...ARC, [40, 310, 40, 940], [600, 310, 600, 905], [556, 332, 556, 905], [556, 892, 600, 892],
-  ...LANE_DIVIDERS.map((x): Seg => [x, arcY(x), x, 165]),
-  ...LEFT_SIDE, ...LEFT_SIDE.map(mirror),
-  [432, 548, 446, 478], [516, 528, 504, 462],
-  [190, 500, 190, 560], [256, 500, 256, 560],
-];
-/** Rubber posts that split balls between the outlanes and inlanes. */
-export const POSTS: readonly [number, number, number][] = [[70, 590, 7], [TABLE.centre * 2 - 70, 590, 7]];
-export const GATE: Seg = [600, 292, 556, 332];
-export const RAMP_MOUTH: Seg = [446, 478, 504, 462];
-/** Ramp centre line in table space with height above the playfield; it carries the ball up and over to the left inlane. */
-export const RAMP_PATH: readonly [number, number, number][] = [[475, 470, 0], [482, 380, 30], [474, 270, 60], [430, 180, 80], [345, 140, 90], [250, 160, 90], [165, 225, 80], [118, 330, 62], [100, 450, 42], [98, 560, 22], [98, 640, 4]];
-const RAMP_LENGTHS = RAMP_PATH.slice(1).map((p, i) => Math.hypot(p[0] - RAMP_PATH[i][0], p[1] - RAMP_PATH[i][1]));
-export const RAMP_LENGTH = RAMP_LENGTHS.reduce((a, b) => a + b, 0);
-export function rampPoint(s: number) {
-  let left = clamp(s, 0, RAMP_LENGTH);
-  for (let i = 0; i < RAMP_LENGTHS.length; i++) {
-    if (left <= RAMP_LENGTHS[i] || i === RAMP_LENGTHS.length - 1) { const t = clamp(left / RAMP_LENGTHS[i], 0, 1), a = RAMP_PATH[i], b = RAMP_PATH[i + 1]; return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, z: a[2] + (b[2] - a[2]) * t }; }
-    left -= RAMP_LENGTHS[i];
-  }
-  return { x: RAMP_PATH[0][0], y: RAMP_PATH[0][1], z: 0 };
-}
-export const SPINNER = { x0: 196, x1: 250, y: 530 };
-const PLUNGER = { x: 578, y: 892 - BALL_R - 4 };
+const mirror = ([ax, ay, bx, by]: Seg): Seg => [TABLE.width - ax, ay, TABLE.width - bx, by];
+/** The rounded corner where the top rail meets the side rail. */
+const CORNER: Seg[] = Array.from({ length: 8 }, (_, i) => { const a0 = -Math.PI / 2 - i * Math.PI / 16, a1 = a0 - Math.PI / 16; return [130 + 50 * Math.cos(a0), 154 + 50 * Math.sin(a0), 130 + 50 * Math.cos(a1), 154 + 50 * Math.sin(a1)]; });
+const LEFT: Seg[] = [[GOAL.left - 7, GOAL.y, 130, GOAL.y], ...CORNER, [80, 154, 80, 655], [80, 655, 92, 698], [92, 698, 188, 838]];
+/** The white boundary: top rail either side of the goal, rounded corners, touchline rails and the funnel to the flippers. */
+export const PIN_RAILS: readonly Seg[] = [...LEFT, ...LEFT.map(mirror)];
+/** Hidden guides that seal the pocket under each flipper and steer a drained ball into your net. */
+const GUIDE: Seg[] = [[200, 862, 266, 912], [266, 912, HOME.left, HOME.y + 6]];
+const HOME_GUIDES: readonly Seg[] = [...GUIDE, ...GUIDE.map(mirror)];
+/** Goal posts and the flipper pivots. */
+export const POSTS: readonly [number, number, number][] = [[GOAL.left, GOAL.y, 7], [GOAL.right, GOAL.y, 7], [196, 846, 5], [444, 846, 5]];
+/** Open spots where power-up tokens can appear. */
+const TOKEN_SPOTS = [[160, 290], [480, 290], [320, 470], [175, 590], [465, 590], [320, 690], [250, 210], [390, 210], [140, 420], [500, 420]] as const;
+const EXTRA_DEFENDERS = [[320, 330], [150, 420], [490, 420], [250, 650], [390, 650], [150, 255], [490, 255], [320, 185], [320, 250]] as const;
+const MATE_SPOTS = [[150, 610], [490, 610], [255, 690], [385, 690], [125, 480], [515, 480]] as const;
 
-export const PIN_STAGES: readonly PinStage[] = [
-  { name: 'Warm Up', tip: 'Tap LAUNCH, then flip. Hold a flipper up to catch the ball.', goals: [['score', 2500]] },
-  { name: 'Pop Party', tip: 'The three pop bumpers kick back hard. Feed them.', goals: [['bumpers', 15]] },
-  { name: 'Knock Down', tip: 'Shoot the orange targets on the left wall. Drop all three.', goals: [['drops', 1]] },
-  { name: 'Ramp Rider', tip: 'Fire the LEFT flipper up the glowing ramp on the right.', goals: [['ramps', 2]] },
-  { name: 'Spin Doctor', tip: 'Shoot the RIGHT flipper through the spinner lane.', goals: [['spins', 30]] },
-  { name: 'Light the Lanes', tip: 'Roll through N, E and O at the top. Flippers move the lit lanes.', goals: [['lanes', 1]] },
-  { name: 'Combo Crew', tip: 'Ramps and targets: mix your shots.', goals: [['ramps', 3], ['drops', 1]] },
-  { name: 'Multiball', tip: 'Three ramp shots start MULTIBALL. Keep every ball alive!', goals: [['multiball', 1]] },
-  { name: 'Jackpot Hunter', tip: 'During multiball, every ramp is a JACKPOT.', goals: [['jackpots', 1]] },
-  { name: 'Full House', tip: 'Lanes and targets, twice each.', goals: [['lanes', 2], ['drops', 2]] },
-  { name: 'Spin Cycle', tip: 'Spinner and ramp: a real pinball workout.', goals: [['spins', 60], ['ramps', 4]] },
-  { name: 'Grand Champion', tip: 'Two jackpots and a monster score. Go!', goals: [['jackpots', 2], ['score', 60000]] },
-];
-export const pinStage = (level: number): PinStage => {
-  const base = PIN_STAGES[(Math.max(1, level) - 1) % PIN_STAGES.length], loop = Math.floor((Math.max(1, level) - 1) / PIN_STAGES.length);
-  return loop ? { ...base, goals: base.goals.map(([k, n]) => [k, k === 'multiball' || k === 'jackpots' ? n + loop : Math.round(n * (1 + loop * .5))]) } : base;
-};
-export const pinStageName = (level: number) => pinStage(level).name + (level > PIN_STAGES.length ? ` ${Math.ceil(level / PIN_STAGES.length)}` : '');
-export const GOAL_TEXT: Record<PinGoal, string> = { score: 'POINTS', bumpers: 'BUMPER HITS', drops: 'TARGET BANKS', ramps: 'RAMP SHOTS', spins: 'SPINS', lanes: 'LANE SETS', multiball: 'MULTIBALL', jackpots: 'JACKPOTS' };
+export type PowerKind = 'fire' | 'multi' | 'wall' | 'freeze' | 'double';
+export const POWER_TEXT: Record<PowerKind, string> = { fire: 'FIREBALL', multi: 'MULTIBALL', wall: 'THE WALL', freeze: 'ICE KEEPER', double: 'DOUBLE POINTS' };
+export interface Touch { defender: boolean; rail: boolean; keeper: boolean; mate: boolean; power: boolean }
+export interface Pinball { id: number; x: number; y: number; vx: number; vy: number; state: 'play' | 'net' | 'lost'; timer: number; fire: number; kickAt: number; touch: Touch; trail: { x: number; y: number }[] }
+export interface Player { id: number; x: number; y: number; hx: number; hy: number; vx: number; vy: number; flash: number; cooldown: number; phase: number; plan: Defender; mate: boolean }
+export interface Flipper { x: number; y: number; angle: number; omega: number; left: boolean; rest: number; up: number; length: number; pressed: number }
+export interface Keeper { x: number; vx: number; target: number; error: number; shot: number; dive: number; knocked: number; saves: number }
+export interface Token { id: number; kind: PowerKind; x: number; y: number; life: number }
+export interface GoalEvent { id: number; text: string; detail: string; points: number; combo: number; x: number; conceded: boolean }
+const DIFFICULTY: Record<string, number> = { easy: .7, normal: 1, hard: 1.25, pro: 1.5 };
 
 export class PinballRun extends ArcadeRun {
-  balls: Pinball[] = []; waiting = true; bumpers: Bumper[] = []; flippers: Flipper[] = []; slings: Sling[] = []; drops: DropTarget[] = [];
-  lanes = [false, false, false]; laneFlash = [0, 0, 0]; spinner = { angle: 0, omega: 0 }; rampFlash = 0;
-  tally: Record<PinGoal, number> = { score: 0, bumpers: 0, drops: 0, ramps: 0, spins: 0, lanes: 0, multiball: 0, jackpots: 0 };
-  hits = 0; nudges = 3; nudgeCooldown = 0; saveTimer = 0; saveUsed = false; stageScore = 0; pulse = 0; bonus = 1; locks = 0;
-  /** Short message for the dot-matrix display. */
+  balls: Pinball[] = []; waiting = true; flippers: Flipper[] = []; players: Player[] = []; tokens: Token[] = [];
+  keeper: Keeper = this.freshKeeper(); home: Keeper = this.freshKeeper();
+  tally: Record<PinGoal | 'saves', number> = { goals: 0, volleys: 0, powerups: 0, hattricks: 0, score: 0, saves: 0 };
+  /** Active power-up timers in seconds. */
+  power: Record<PowerKind, number> = { fire: 0, multi: 0, wall: 0, freeze: 0, double: 0 };
+  streak = 0; best = 0; stageScore = 0; conceded = 0; kickoffTimer = 0; powerArmed = 0; powerCooldown = 0; pulse = 0;
+  /** The latest goal (or goal against) for the scoreboard banner and the stadium celebration. */
+  goal: GoalEvent | null = null; goalTimer = 0; goals = 0;
+  /** Short message for the in-game banner. */
   display = { text: '', timer: 0 };
-  private nextId = 1; private autoLaunch: number[] = []; private dropReset = 0; private stuck = new Map<number, number>(); private trailTimer = 0;
-  private pointerSides = new Map<number, 'left' | 'right'>(); private wasHeld = [false, false];
+  private nextId = 1; private seed = 1; private tokenTimer = 0; private layout = ''; private stuck = new Map<number, number>(); private trailTimer = 0;
+  private pointerSides = new Map<number, 'left' | 'right'>();
   constructor(checkpoint?: unknown) { super('pinballerz', pinballCatalog.defaults, pinballCatalog.schema, checkpoint); }
   get stage() { return pinStage(this.level); }
   get levelName() { return pinStageName(this.level); }
   /** The first ball, for older callers and the camera. */
   get ball(): Pinball { return this.balls[0] ?? this.newBall(); }
-  get multiball() { return this.balls.length > 1; }
-  /** Just enough to top the arch and drop onto the lanes, whatever the table gravity. */
-  get plungeSpeed() { return Math.sqrt(2 * this.gravity * (PLUNGER.y - 150) + 430 ** 2); }
-  get gravity() { return this.config.gravity * (1 + Math.min(.3, (this.level - 1) * .025)); }
+  get live() { return this.balls.filter(b => b.state === 'play'); }
+  get multiball() { return this.live.length > 1; }
+  get gravity() { return this.config.gravity * (1 + Math.min(.2, (this.level - 1) * .018)); }
+  get skill() { return DIFFICULTY[this.config.difficulty ?? 'normal'] ?? 1; }
+  /** How fast your keeper moves across the goal. */
+  get homeSpeed() { return this.config.assist ? 340 : Math.max(60, 160 - (this.level - 1) * 9) / this.skill; }
+  /** Half-width of your keeper's body; an easy match gives you a bigger keeper. */
+  get homeReach() { return this.config.difficulty === 'easy' ? 12 : this.config.difficulty === 'pro' ? 3 : 7; }
   goalProgress() { return this.stage.goals.map(([kind, count]) => ({ kind, count, value: Math.min(count, kind === 'score' ? this.score - this.stageScore : this.tally[kind]) })); }
+  /** Seeded so a stage plays the same way in tests and in replays. */
+  rand() { this.seed = (this.seed * 1664525 + 1013904223) >>> 0; return this.seed / 4294967296; }
+  private freshKeeper(): Keeper { return { x: TABLE.centre, vx: 0, target: TABLE.centre, error: 0, shot: -1, dive: 0, knocked: 0, saves: 0 }; }
   protected setup(): void {
-    this.pointerSides.clear(); this.wasHeld = [false, false];
-    this.bumpers = [[230, 268], [366, 268], [298, 352]].map(([x, y]) => ({ x, y, radius: 30, flash: 0, cooldown: 0 }));
-    this.flippers = [{ x: 202, y: 818, angle: .5, omega: 0, left: true, rest: .5, up: -.45, length: 80, pressed: 0 }, { x: 394, y: 818, angle: Math.PI - .5, omega: 0, left: false, rest: Math.PI - .5, up: Math.PI + .45, length: 80, pressed: 0 }];
-    this.slings = SLINGS_GEOMETRY.map(([a, b, d]) => ({ a, b, d, flash: 0 }));
-    this.drops = [392, 432, 472].map(y0 => ({ x: 52, y0, y1: y0 + 36, down: false, flash: 0 }));
-    this.lanes = [false, false, false]; this.laneFlash = [0, 0, 0]; this.spinner = { angle: 0, omega: 0 }; this.rampFlash = 0;
-    this.tally = { score: 0, bumpers: 0, drops: 0, ramps: 0, spins: 0, lanes: 0, multiball: 0, jackpots: 0 };
-    this.hits = 0; this.stageScore = this.score; this.pulse = 0; this.bonus = 1; this.locks = 0; this.autoLaunch = []; this.dropReset = 0; this.stuck.clear();
-    this.serve(); this.show(this.levelName.toUpperCase(), 3);
+    this.pointerSides.clear(); this.seed = this.level * 7919 + 17;
+    this.flippers = [{ x: 196, y: 846, angle: .62, omega: 0, left: true, rest: .62, up: -.42, length: 92, pressed: 0 }, { x: 444, y: 846, angle: Math.PI - .62, omega: 0, left: false, rest: Math.PI - .62, up: Math.PI + .42, length: 92, pressed: 0 }];
+    this.keeper = this.freshKeeper(); this.home = this.freshKeeper(); this.tokens = []; this.layout = ''; this.arrange();
+    this.tally = { goals: 0, volleys: 0, powerups: 0, hattricks: 0, score: 0, saves: 0 }; this.power = { fire: 0, multi: 0, wall: 0, freeze: 0, double: 0 };
+    this.streak = 0; this.best = 0; this.conceded = 0; this.stageScore = this.score; this.kickoffTimer = 0; this.powerArmed = 0; this.powerCooldown = 0; this.pulse = 0;
+    this.goal = null; this.goalTimer = 0; this.tokenTimer = this.stage.powerups ? Math.min(5, this.stage.powerups) : 0; this.stuck.clear();
+    this.serve(true); this.show(this.levelName.toUpperCase(), 2.5);
     this.notice = `${this.levelName.toUpperCase()} · ${this.stage.tip}`;
   }
-  private newBall(): Pinball { return { id: this.nextId++, x: PLUNGER.x, y: PLUNGER.y, vx: 0, vy: 0, ramp: null, trail: [] }; }
-  private show(text: string, seconds = 1.8) { this.display = { text, timer: seconds }; }
-  private serve(): void { this.balls = [this.newBall()]; this.waiting = true; this.saveUsed = false; this.saveTimer = 0; this.nudges = 3; this.stuck.clear(); }
-  launchBall(): boolean {
-    if (this.phase !== 'playing' || !this.waiting) return false;
-    this.waiting = false; const b = this.balls[0]; b.x = PLUNGER.x; b.y = PLUNGER.y; b.vx = 0; b.vy = -this.plungeSpeed; this.metrics.actions++; this.saveTimer = this.config.assist ? 8 : 0;
-    this.cue('launch', b.x, b.y); this.notice = 'BALL IN PLAY. Left and right flippers: arrows, A/D, or tap each half of the table.'; return true;
+  /** Places rival defenders and your teammates for the stage and the current squad mods. */
+  private arrange(): void {
+    const key = `${this.level}|${this.config.rivals ?? 0}|${this.config.teammates ?? 0}`; if (key === this.layout) return; this.layout = key;
+    const plans: { plan: Defender; mate: boolean }[] = this.stage.defenders.map(plan => ({ plan, mate: false })), clear = (x: number, y: number, gap: number) => plans.every(p => Math.hypot(p.plan.x - x, p.plan.y - y) >= gap) && Math.hypot(x - CENTRE_SPOT.x, y - CENTRE_SPOT.y) > 50;
+    let extra = clamp(this.config.rivals ?? 0, 0, 4);
+    for (const [x, y] of EXTRA_DEFENDERS) if (extra > 0 && clear(x, y, 70)) { plans.push({ plan: { x, y }, mate: false }); extra--; }
+    let mates = clamp(this.config.teammates ?? 0, 0, 4);
+    for (const [x, y] of MATE_SPOTS) if (mates > 0 && clear(x, y, 60)) { plans.push({ plan: { x, y }, mate: true }); mates--; }
+    // Keep existing players where they are so a live mod change does not teleport the squad.
+    const previous = this.players;
+    this.players = plans.map(({ plan, mate }, i) => previous.find(p => p.plan === plan && p.mate === mate) ?? { id: this.nextId++, x: plan.x, y: plan.y, hx: plan.x, hy: plan.y, vx: 0, vy: 0, flash: 0, cooldown: 0, phase: i * 1.7, plan, mate });
   }
+  private newBall(x: number = CENTRE_SPOT.x, y: number = CENTRE_SPOT.y): Pinball { return { id: this.nextId++, x, y, vx: 0, vy: 0, state: 'play', timer: 0, fire: 0, kickAt: -9, touch: { defender: false, rail: false, keeper: false, mate: false, power: false }, trail: [] }; }
+  private show(text: string, seconds = 1.8) { this.display = { text, timer: seconds }; }
+  /** Puts the kick-off balls on the centre spot. They wait for a tap unless the stage just restarted after a goal. */
+  private serve(wait: boolean): void {
+    const count = Math.max(this.stage.balls, clamp(this.config.balls ?? 1, 1, 3));
+    this.balls = Array.from({ length: count }, (_, i) => this.newBall(CENTRE_SPOT.x + (i - (count - 1) / 2) * 34, CENTRE_SPOT.y));
+    this.waiting = wait; this.stuck.clear(); if (!wait) this.kickOff(true);
+  }
+  /** Kick-off: the ball is passed out wide so it rolls down a side lane onto a flipper. Returns false when there is nothing to kick off. */
+  kickOff(auto = false): boolean {
+    if (this.phase !== 'playing' || (!this.waiting && !auto)) return false;
+    this.waiting = false; const first = this.rand() < .5 ? -1 : 1;
+    this.balls.forEach((b, i) => { const side = i % 2 ? -first : first; b.vx = side * (360 + this.rand() * 80); b.vy = -40 + this.rand() * 60; });
+    if (!auto) this.metrics.actions++;
+    this.cue('launch', CENTRE_SPOT.x, CENTRE_SPOT.y); this.notice = 'KICK-OFF! Tap the left or right side (or use the arrow keys) to swing a flipper.'; return true;
+  }
+  /** Older name kept for the shared controls. */
+  launchBall(): boolean { return this.kickOff(); }
   action(action: ArcadeAction): void {
     if (this.phase !== 'playing') return;
-    if (action === 'primary' || action === 'launch') { if (!this.launchBall()) { this.pulse = .17; this.metrics.actions++; } }
-    if (action === 'nudge' || action === 'ability') {
-      if (this.waiting || this.nudges <= 0 || this.nudgeCooldown > 0) return;
-      this.nudges--; this.nudgeCooldown = 1.5; this.metrics.actions++;
-      for (const b of this.balls) if (!b.ramp) { b.vy -= 260; b.vx += clamp((TABLE.centre - b.x) * .8, -200, 200); }
-      this.cue('ability', this.ball.x, this.ball.y, 'NUDGE'); this.notice = `${this.nudges} nudge${this.nudges === 1 ? '' : 's'} left on this ball.`;
+    if (action === 'primary' || action === 'launch') { if (!this.kickOff()) { this.pulse = .17; this.metrics.actions++; } }
+    if (action === 'ability' || action === 'nudge') {
+      if (!this.config.overdrive || this.powerCooldown > 0 || this.waiting) return;
+      this.powerArmed = 3; this.powerCooldown = 8; this.metrics.actions++; this.cue('ability', TABLE.centre, 820, 'POWER SHOT READY!');
+      this.show('POWER SHOT READY', 1.5); this.notice = 'POWER SHOT armed: strike the ball with a flipper in the next three seconds.';
     }
     if (action === 'left' || action === 'right') { this.metrics.actions++; const f = this.flippers.find(f => f.left === (action === 'left')); if (f) f.pressed = .18; }
   }
@@ -127,140 +132,197 @@ export class PinballRun extends ArcadeRun {
     else if (phase === 'up') this.pointerSides.delete(pointerId);
     else this.pointerSides.set(pointerId, x < TABLE.width / 2 ? 'left' : 'right');
     this.input.left = [...this.pointerSides.values()].includes('left'); this.input.right = [...this.pointerSides.values()].includes('right');
-    if (phase === 'down' && this.waiting) this.launchBall();
+    if (phase === 'down') { if (this.waiting) this.kickOff(); else this.metrics.actions++; }
   }
   held(f: Flipper) { return this.pulse > 0 || (f.left ? this.input.left : this.input.right) || f.pressed > 0; }
   protected tick(dt: number): void {
-    this.pulse = Math.max(0, this.pulse - dt); this.nudgeCooldown = Math.max(0, this.nudgeCooldown - dt); this.saveTimer = Math.max(0, this.saveTimer - dt);
-    this.display.timer = Math.max(0, this.display.timer - dt); this.rampFlash = Math.max(0, this.rampFlash - dt); this.laneFlash = this.laneFlash.map(t => Math.max(0, t - dt));
-    for (const b of this.bumpers) { b.flash = Math.max(0, b.flash - dt); b.cooldown = Math.max(0, b.cooldown - dt); }
-    for (const s of this.slings) s.flash = Math.max(0, s.flash - dt);
-    for (const d of this.drops) d.flash = Math.max(0, d.flash - dt);
-    if (this.dropReset > 0) { this.dropReset -= dt; if (this.dropReset <= 0) for (const d of this.drops) d.down = false; }
-    // Pressing a flipper rotates the lit top lanes, so a skilled player can line up the gap.
-    this.flippers.forEach((f, i) => {
-      f.pressed = Math.max(0, f.pressed - dt); const held = this.held(f);
-      if (held && !this.wasHeld[i] && !this.lanes.every(l => l === this.lanes[0])) this.lanes = f.left ? [...this.lanes.slice(1), this.lanes[0]] : [this.lanes[2], ...this.lanes.slice(0, 2)];
-      this.wasHeld[i] = held;
-    });
-    this.autoLaunch = this.autoLaunch.map(t => t - dt);
-    while (this.autoLaunch.length && this.autoLaunch[0] <= 0) { this.autoLaunch.shift(); const b = this.newBall(); b.vy = -this.plungeSpeed; this.balls.push(b); this.cue('launch', b.x, b.y); }
+    this.arrange();
+    this.pulse = Math.max(0, this.pulse - dt); this.display.timer = Math.max(0, this.display.timer - dt); this.goalTimer = Math.max(0, this.goalTimer - dt);
+    this.powerArmed = Math.max(0, this.powerArmed - dt); this.powerCooldown = Math.max(0, this.powerCooldown - dt);
+    for (const k of Object.keys(this.power) as PowerKind[]) this.power[k] = Math.max(0, this.power[k] - dt);
+    for (const f of this.flippers) f.pressed = Math.max(0, f.pressed - dt);
+    if (this.kickoffTimer > 0) { this.kickoffTimer -= dt; if (this.kickoffTimer <= 0 && this.phase === 'playing') { this.kickoffTimer = 0; this.serve(false); this.show('KICK-OFF', 1.2); } }
+    this.movePlayers(dt); this.moveKeepers(dt); this.spawnTokens(dt);
     const steps = Math.max(1, Math.round(dt / STEP)), h = dt / steps;
     for (let s = 0; s < steps && this.phase === 'playing'; s++) this.substep(h);
     if (this.phase !== 'playing') return;
-    this.spinner.angle += this.spinner.omega * dt; this.spinner.omega *= Math.exp(-dt * 1.1);
-    while (this.spinner.angle > Math.PI * 2) { this.spinner.angle -= Math.PI * 2; this.tally.spins++; this.addScore(100, SPINNER.x0 + 27, SPINNER.y); }
     this.trailTimer -= dt;
     if (this.trailTimer <= 0) { this.trailTimer = .016; for (const b of this.balls) { b.trail.push({ x: b.x, y: b.y }); if (b.trail.length > 14) b.trail.shift(); } }
     for (const b of this.balls) {
-      // A ball that rolls back down the shooter lane waits for another launch; one wedged elsewhere gets a shake.
-      const speed = Math.hypot(b.vx, b.vy), wait = (this.stuck.get(b.id) ?? 0) + dt, resting = speed < 25 && !b.ramp;
-      this.stuck.set(b.id, resting ? wait : 0);
-      if (resting && b.x > 556 && b.y > 850 && this.balls.length === 1) { this.waiting = true; b.x = PLUNGER.x; b.y = PLUNGER.y; b.vx = b.vy = 0; }
-      else if (resting && wait > 2.5 && b.y < 760) { b.vy = -320; b.vx += b.x < TABLE.centre ? 120 : -120; this.stuck.set(b.id, 0); }
+      b.fire = Math.max(0, b.fire - dt);
+      if (b.state !== 'play') { b.timer -= dt; continue; }
+      // A ball that stops dead out on the pitch gets a referee's drop ball toward your flippers.
+      const resting = Math.hypot(b.vx, b.vy) < 22 && b.y < 780, wait = resting && !this.waiting ? (this.stuck.get(b.id) ?? 0) + dt : 0; this.stuck.set(b.id, wait);
+      if (wait > 2.5) { b.vy = 240; b.vx = (TABLE.centre - b.x) * .6; this.stuck.set(b.id, 0); this.show('DROP BALL', 1); }
     }
-    if (this.goalProgress().every(g => g.value >= g.count)) { this.show('STAGE CLEAR', 4); this.clear(TABLE.centre, 460); }
+    for (const b of this.balls.filter(b => b.state !== 'play' && b.timer <= 0)) this.retire(b);
+    if (this.phase === 'playing' && this.goalProgress().every(g => g.value >= g.count)) { this.show('FULL TIME!', 4); this.clear(TABLE.centre, 300); }
+  }
+  /** Rival defenders patrol or shadow the ball; teammates hold their spots. */
+  private movePlayers(dt: number): void {
+    const lead = this.live.reduce<Pinball | null>((best, b) => !best || b.y < best.y ? b : best, null), pace = this.skill;
+    for (const p of this.players) {
+      p.flash = Math.max(0, p.flash - dt); p.cooldown = Math.max(0, p.cooldown - dt);
+      const { plan } = p, px = p.x, py = p.y;
+      if (plan.patrol) { const offset = plan.patrol * Math.sin(this.elapsed * Math.PI * 2 * (plan.speed ?? .5) * pace + p.phase); if (plan.vertical) p.y = plan.y + offset; else p.x = plan.x + offset; }
+      else if (plan.mark) { const target = clamp(lead ? lead.x : plan.x, plan.x - plan.mark, plan.x + plan.mark), step = (plan.speed ?? 90) * pace * dt; p.x += clamp(target - p.x, -step, step); }
+      p.vx = (p.x - px) / dt; p.vy = (p.y - py) / dt;
+    }
+  }
+  private moveKeepers(dt: number): void {
+    const k = this.keeper, s = this.stage, limit = (x: number) => clamp(x, GOAL.left + 30, GOAL.right - 30);
+    k.dive = Math.max(0, Math.abs(k.dive) - dt * 2.5) * Math.sign(k.dive); k.knocked = Math.max(0, k.knocked - dt);
+    // Read the most urgent shot: where it will cross the keeper's line, blurred by how sharp this keeper is.
+    let urgent: Pinball | null = null, soonest = 9;
+    for (const b of this.live) if (b.vy < -120 && b.y < 760) { const t = (b.y - KEEPER_Y) / -b.vy; if (t < soonest) { soonest = t; urgent = b; } }
+    if (urgent) {
+      if (k.shot !== urgent.kickAt) { k.shot = urgent.kickAt; k.error = (this.rand() * 2 - 1) * (1 - Math.min(.95, s.smart + (this.skill - 1) * .25)) * 80; }
+      k.target = limit(urgent.x + urgent.vx * soonest + k.error);
+      if (soonest < .3 && Math.abs(k.target - k.x) > 10 && !k.dive) k.dive = Math.sign(k.target - k.x) * .6;
+    } else k.target = limit(TABLE.centre + Math.sin(this.elapsed * .9) * 55 * (1 - s.smart) + ((this.live[0]?.x ?? TABLE.centre) - TABLE.centre) * .3 * s.smart);
+    const speed = this.power.freeze > 0 || k.knocked > 0 ? 0 : s.keeper * this.skill, before = k.x;
+    k.x = limit(k.x + clamp(k.target - k.x, -speed * dt, speed * dt)); k.vx = (k.x - before) / dt;
+    // Your keeper follows the ball across the goal: quick on early stages, slower later. SUPER KEEPER is quicker still.
+    const h = this.home, hb = h.x; h.dive = Math.max(0, Math.abs(h.dive) - dt * 2.5) * Math.sign(h.dive);
+    const danger = this.live.filter(b => b.vy > -50).sort((a, b) => b.y - a.y)[0];
+    h.target = danger ? danger.x : TABLE.centre + Math.sin(this.elapsed * 1.3) * 30;
+    const hs = this.homeSpeed; h.x = clamp(h.x + clamp(h.target - h.x, -hs * dt, hs * dt), HOME.left + 30, HOME.right - 30); h.vx = (h.x - hb) / dt;
+  }
+  private spawnTokens(dt: number): void {
+    const every = this.stage.powerups; if (!every || this.waiting) return;
+    for (const t of this.tokens) t.life -= dt; this.tokens = this.tokens.filter(t => t.life > 0);
+    this.tokenTimer -= dt; if (this.tokenTimer > 0 || this.tokens.length >= 2) return;
+    this.tokenTimer = every * (.8 + this.rand() * .4);
+    const spots = TOKEN_SPOTS.filter(([x, y]) => this.players.every(p => Math.hypot(p.x - x, p.y - y) > 55) && this.tokens.every(t => Math.hypot(t.x - x, t.y - y) > 80) && this.live.every(b => Math.hypot(b.x - x, b.y - y) > 60));
+    if (!spots.length) return;
+    const [x, y] = spots[Math.floor(this.rand() * spots.length)], kinds: PowerKind[] = ['fire', 'multi', 'wall', 'freeze', 'double'];
+    this.tokens.push({ id: this.nextId++, kind: kinds[Math.floor(this.rand() * kinds.length)], x, y, life: 10 });
   }
   private substep(h: number): void {
-    // Coil strength sets how fast the bats swing, and so how hard they hit.
+    // Boot power sets how fast the flippers swing, and so how hard they strike.
     const swing = 21 * this.config.power / 900;
-    for (const f of this.flippers) {
-      const target = this.held(f) ? f.up : f.rest, previous = f.angle; f.angle += clamp(target - f.angle, -h * swing, h * swing); f.omega = (f.angle - previous) / h;
-    }
+    for (const f of this.flippers) { const target = this.held(f) ? f.up : f.rest, previous = f.angle; f.angle += clamp(target - f.angle, -h * swing, h * swing); f.omega = (f.angle - previous) / h; }
     if (this.waiting) return;
     const g = this.gravity;
-    for (const b of [...this.balls]) {
-      if (b.ramp) { this.rideRamp(b, h); continue; }
-      const px = b.x, py = b.y; b.vy += g * h; b.vx *= 1 - h * .08; b.vy *= 1 - h * .08; b.x += b.vx * h; b.y += b.vy * h;
-      for (const r of PIN_RAILS) this.collide(b, r[0], r[1], r[2], r[3], 3, .45);
-      for (const [x, y, r] of POSTS) this.collide(b, x, y, x, y, r, .7);
-      if (b.vy > 0) this.collide(b, GATE[0], GATE[1], GATE[2], GATE[3], 3, .3);
-      this.rampMouth(b, px, py); if (b.ramp) continue;
-      for (const s of this.slings) this.sling(b, s);
-      for (const bumper of this.bumpers) this.bumper(b, bumper);
-      for (const d of this.drops) if (!d.down) { const n = this.collide(b, d.x, d.y0, d.x, d.y1, 4, .3); if (n > 140) this.dropHit(d); }
+    for (const b of this.balls) {
+      if (b.state !== 'play') { this.inNet(b, h); continue; }
+      b.vy += g * h; const drag = 1 - h * .3; b.vx *= drag; b.vy *= drag; b.x += b.vx * h; b.y += b.vy * h;
+      // Rails are lively up the pitch and dead low down, so a ball rolls down the side lanes onto a flipper.
+      for (const r of PIN_RAILS) if (this.collide(b, r[0], r[1], r[2], r[3], 4, r[1] > 640 ? .08 : .45) > 60) b.touch.rail = true;
+      for (const r of HOME_GUIDES) this.collide(b, r[0], r[1], r[2], r[3], 3, .3);
+      for (const [x, y, r] of POSTS) this.collide(b, x, y, x, y, r, .6);
+      for (const p of this.players) this.player(b, p);
+      this.rivalKeeper(b); this.homeKeeper(b); this.wall(b);
       for (const f of this.flippers) this.flipper(b, f);
-      if (py >= 130 !== b.y >= 130) LANES.forEach((x, i) => { if (Math.abs(b.x - x) < 26) this.laneHit(i); });
-      if (py >= SPINNER.y !== b.y >= SPINNER.y && b.x > SPINNER.x0 && b.x < SPINNER.x1) { this.spinner.omega = Math.min(70, Math.max(this.spinner.omega, Math.abs(b.vy) / 22)); this.cue('hit', b.x, b.y); }
-      const speed = Math.hypot(b.vx, b.vy); if (speed > 2600) { b.vx *= 2600 / speed; b.vy *= 2600 / speed; }
-      if (b.y > 945) { this.drain(b); if (this.phase !== 'playing') return; }
+      for (const t of this.tokens) if (Math.hypot(b.x - t.x, b.y - t.y) < BALL_R + TOKEN_R) this.collect(t, b);
+      const speed = Math.hypot(b.vx, b.vy); if (speed > 2800) { b.vx *= 2800 / speed; b.vy *= 2800 / speed; }
+      if (b.y < GOAL.y - 6 && b.x > GOAL.left && b.x < GOAL.right) this.scored(b);
+      else if (b.y > HOME.y) this.lostBall(b);
     }
     // Balls knock into each other during multiball.
-    for (let i = 0; i < this.balls.length; i++) for (let j = i + 1; j < this.balls.length; j++) {
-      const a = this.balls[i], c = this.balls[j]; if (a.ramp || c.ramp) continue;
-      const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy); if (d >= BALL_R * 2 || d < 1e-6) continue;
+    const live = this.live;
+    for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+      const a = live[i], c = live[j], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy); if (d >= BALL_R * 2 || d < 1e-6) continue;
       const nx = dx / d, ny = dy / d, push = (BALL_R * 2 - d) / 2; a.x -= nx * push; a.y -= ny * push; c.x += nx * push; c.y += ny * push;
       const rel = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny; if (rel < 0) { a.vx += rel * nx; a.vy += rel * ny; c.vx -= rel * nx; c.vy -= rel * ny; }
     }
   }
-  /** Pushes the ball out of a capsule rail and bounces it. Returns the approach speed, or 0 without contact. */
-  private collide(b: Pinball, ax: number, ay: number, bx: number, by: number, radius: number, restitution: number, surface = { x: 0, y: 0 }): number {
+  /** A ball in either net slows down inside it. */
+  private inNet(b: Pinball, h: number): void {
+    const top = b.state === 'net', drag = 1 - h * 6; b.vx *= drag; b.vy *= drag; b.x += b.vx * h; b.y += b.vy * h;
+    const net = top ? GOAL : HOME; b.x = clamp(b.x, net.left + BALL_R, net.right - BALL_R);
+    if (top) b.y = clamp(b.y, GOAL.back + BALL_R, GOAL.y); else b.y = clamp(b.y, HOME.y, HOME.back - BALL_R);
+  }
+  /** Pushes the ball out of a capsule and bounces it. Returns the approach speed, or 0 without contact. */
+  private collide(b: Pinball, ax: number, ay: number, bx: number, by: number, radius: number, restitution: number, sx = 0, sy = 0): number {
     const p = closestSegment(b.x, b.y, ax, ay, bx, by), dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy), min = BALL_R + radius;
     if (d >= min) return 0;
     const nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : -1; b.x = p.x + nx * min; b.y = p.y + ny * min;
-    const vn = (b.vx - surface.x) * nx + (b.vy - surface.y) * ny; if (vn >= 0) return 0;
+    const vn = (b.vx - sx) * nx + (b.vy - sy) * ny; if (vn >= 0) return 0;
     b.vx -= (1 + restitution) * vn * nx; b.vy -= (1 + restitution) * vn * ny; return -vn;
   }
   private flipper(b: Pinball, f: Flipper): void {
-    const ex = f.x + Math.cos(f.angle) * f.length, ey = f.y + Math.sin(f.angle) * f.length, p = closestSegment(b.x, b.y, f.x, f.y, ex, ey), radius = 12 - 5 * p.t;
-    // The rubber moves with the bat: a swinging flipper hands its surface speed to the ball.
-    const surface = { x: -f.omega * (p.y - f.y), y: f.omega * (p.x - f.x) }, speed = this.collide(b, f.x, f.y, ex, ey, radius, .3, surface);
-    if (speed > 300 && Math.abs(f.omega) > 1) this.cue('launch', b.x, b.y);
+    const ex = f.x + Math.cos(f.angle) * f.length, ey = f.y + Math.sin(f.angle) * f.length, p = closestSegment(b.x, b.y, f.x, f.y, ex, ey), radius = 9 - 3 * p.t;
+    // The rubber moves with the boot: a swinging flipper hands its surface speed to the ball.
+    const speed = this.collide(b, f.x, f.y, ex, ey, radius, .3, -f.omega * (p.y - f.y), f.omega * (p.x - f.x));
+    if (!speed || Math.abs(f.omega) < 2 || speed < 150) return;
+    b.kickAt = this.elapsed; b.touch = { defender: false, rail: false, keeper: false, mate: false, power: false };
+    if (this.powerArmed > 0 && b.vy < 0) {
+      // POWER SHOT: a blazing drive at the corner the keeper is not covering.
+      const aim = this.keeper.x > TABLE.centre ? GOAL.left + 34 : GOAL.right - 34, dx = aim - b.x, dy = GOAL.y - 30 - b.y, len = Math.hypot(dx, dy);
+      b.vx = dx / len * 2300; b.vy = dy / len * 2300; b.fire = 1.2; b.touch.power = true; this.powerArmed = 0; this.cue('perfect', b.x, b.y, 'POWER SHOT!');
+    } else this.cue('launch', b.x, b.y);
   }
-  private sling(b: Pinball, s: Sling): void {
-    this.collide(b, s.a[0], s.a[1], s.b[0], s.b[1], 4, .4); this.collide(b, s.b[0], s.b[1], s.d[0], s.d[1], 4, .4);
-    const face = closestSegment(b.x, b.y, s.a[0], s.a[1], s.d[0], s.d[1]).t, n = this.collide(b, s.a[0], s.a[1], s.d[0], s.d[1], 5, .5);
-    // Only the rubber face kicks, never the corners; it fires toward the middle of the table.
-    if (n > 90 && s.flash <= 0 && face > .08 && face < .92) {
-      const ex = s.d[0] - s.a[0], ey = s.d[1] - s.a[1], len = Math.hypot(ex, ey), left = s.a[0] < TABLE.centre, nx = (left ? ey : -ey) / len, ny = (left ? -ex : ex) / len;
-      b.vx += nx * 520; b.vy += ny * 520; s.flash = .12; this.addScore(10, b.x, b.y); this.cue('hit', b.x, b.y);
+  private player(b: Pinball, p: Player): void {
+    if (b.fire > 0 && !p.mate) return;
+    const speed = this.collide(b, p.x, p.y, p.x, p.y, PLAYER_R, .7, p.vx, p.vy); if (!speed) return;
+    const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy) || 1;
+    if (p.mate) {
+      if (p.cooldown > 0) return;
+      // A teammate passes it on toward the far post from the keeper.
+      const aim = this.keeper.x > TABLE.centre ? GOAL.left + 40 : GOAL.right - 40, ax = aim - b.x, ay = GOAL.y - 20 - b.y, len = Math.hypot(ax, ay);
+      b.vx = ax / len * 1550; b.vy = ay / len * 1550; b.touch.mate = true; p.cooldown = .4; p.flash = .4; this.addScore(50, p.x, p.y, 'PASS!'); this.cue('hit', p.x, p.y); return;
     }
+    // Defenders clear the ball out wide: it leaves with at least clearance speed, angled toward the nearer touchline.
+    const out = b.vx * dx / d + b.vy * dy / d; if (out < 420) { b.vx += (420 - out) * dx / d; b.vy += (420 - out) * dy / d; }
+    if (b.vy > 0) b.vx += (b.x < TABLE.centre ? -1 : 1) * 220;
+    b.touch.defender = true;
+    if (p.cooldown <= 0) { p.cooldown = .15; p.flash = .3; this.addScore(25, p.x, p.y); this.cue('hit', p.x, p.y); }
   }
-  private bumper(b: Pinball, bumper: Bumper): void {
-    const dx = b.x - bumper.x, dy = b.y - bumper.y, d = Math.hypot(dx, dy), min = bumper.radius + BALL_R; if (d >= min) return;
-    const nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : -1; b.x = bumper.x + nx * min; b.y = bumper.y + ny * min;
-    const vn = b.vx * nx + b.vy * ny; if (vn < 0) { b.vx -= 2 * vn * nx; b.vy -= 2 * vn * ny; }
-    const out = b.vx * nx + b.vy * ny; if (out < 720) { b.vx += (720 - out) * nx; b.vy += (720 - out) * ny; }
-    if (bumper.cooldown <= 0) { bumper.flash = .22; bumper.cooldown = .08; this.hits++; this.tally.bumpers++; this.addScore(this.config.bonus * (this.config.overdrive ? 2 : 1), bumper.x, bumper.y); this.cue('hit', bumper.x, bumper.y); }
+  private rivalKeeper(b: Pinball): void {
+    const k = this.keeper, reach = KEEPER_REACH;
+    if (b.fire > 0) { if (Math.abs(b.x - k.x) < reach + 20 && Math.abs(b.y - KEEPER_Y) < 24 && !k.knocked) { k.knocked = 1; this.show('UNSTOPPABLE!', 1.2); } return; }
+    if (!this.collide(b, k.x - reach, KEEPER_Y, k.x + reach, KEEPER_Y, 11, .45, k.vx, 0)) return;
+    if (b.vy < 280) { b.vy = 280 + this.rand() * 200; b.vx += (b.x - k.x) * 6 + (this.rand() - .5) * 200; }
+    if (!b.touch.keeper) { k.saves++; k.dive = Math.sign(b.x - k.x || 1) * .5; this.show('SAVED!', 1); this.cue('hit', b.x, b.y, 'SAVED!'); }
+    b.touch.keeper = true;
   }
-  private dropHit(d: DropTarget): void {
-    d.down = true; d.flash = .3; this.addScore(500, d.x, (d.y0 + d.y1) / 2); this.cue('hit', d.x, d.y0);
-    if (this.drops.every(t => t.down)) { this.tally.drops++; this.dropReset = 1.4; this.addScore(2500 * this.bonus, 80, 430, 'TARGETS DOWN'); this.show('TARGETS DOWN'); this.metrics.perfects++; }
+  private homeKeeper(b: Pinball): void {
+    const h = this.home, reach = this.homeReach;
+    if (!this.collide(b, h.x - reach, HOME_KEEPER_Y, h.x + reach, HOME_KEEPER_Y, 9, .4, h.vx, 0) || b.vy < -300) return;
+    // A save boots the ball back up the pitch.
+    b.vy = -(780 + this.rand() * 220); b.vx = (b.x - h.x) * 9 + (this.rand() - .5) * 240; h.dive = Math.sign(b.x - h.x || 1) * .5; h.saves++; this.tally.saves++;
+    if (this.config.assist) this.metrics.assisted++;
+    this.addScore(100, h.x, HOME_KEEPER_Y, 'GREAT SAVE!'); this.show('GREAT SAVE!', 1.2);
   }
-  private laneHit(i: number): void {
-    if (this.lanes[i]) return; this.lanes[i] = true; this.laneFlash[i] = .4; this.addScore(300, LANES[i], 130);
-    if (this.lanes.every(Boolean)) { this.tally.lanes++; this.bonus = Math.min(5, this.bonus + 1); this.lanes = [false, false, false]; this.addScore(2000, TABLE.centre, 140, `BONUS ×${this.bonus}`); this.show(`BONUS X${this.bonus}`); this.metrics.perfects++; }
+  private wall(b: Pinball): void {
+    if (this.power.wall <= 0 || !this.collide(b, 262, 912, 378, 912, 12, .3)) return;
+    b.vy = -760; b.vx += (b.x - TABLE.centre) * 4; this.cue('hit', b.x, b.y, 'HEADER!');
   }
-  private rampMouth(b: Pinball, px: number, py: number): void {
-    const [ax, ay, bx, by] = RAMP_MOUTH, ex = bx - ax, ey = by - ay, len = Math.hypot(ex, ey), nx = ey / len, ny = -ex / len;
-    const before = (px - ax) * nx + (py - ay) * ny, after = (b.x - ax) * nx + (b.y - ay) * ny, along = ((b.x - ax) * ex + (b.y - ay) * ey) / (len * len);
-    // n points up the ramp: only a ball crossing upward from the playfield can enter. Balls dropping from behind pass under.
-    if (!(before < 0 && after >= 0) || along < -.05 || along > 1.05) return;
-    const into = b.vx * nx + b.vy * ny;
-    if (into > 680) { b.ramp = { s: 0, speed: Math.min(1500, into * .85 + 250) }; this.cue('launch', b.x, b.y); return; }
-    // Too slow: the ball rolls back out of the ramp throat.
-    b.x = px; b.y = py; b.vx -= 1.4 * into * nx; b.vy -= 1.4 * into * ny; this.show('TOO SLOW', 1);
+  private collect(t: Token, b: Pinball): void {
+    this.tokens = this.tokens.filter(x => x !== t); this.tally.powerups++; this.metrics.perfects++;
+    const k = t.kind; this.power[k] = k === 'fire' ? 8 : k === 'wall' ? 10 : k === 'freeze' ? 6 : k === 'double' ? 12 : 1;
+    if (k === 'fire') for (const ball of this.live) ball.fire = 8;
+    if (k === 'multi') for (let i = 0; i < 2; i++) { const nb = this.newBall(CENTRE_SPOT.x + (i ? 30 : -30), CENTRE_SPOT.y); nb.vx = (i ? 1 : -1) * (120 + this.rand() * 80); nb.vy = 220; this.balls.push(nb); }
+    this.show(POWER_TEXT[k], 2); this.cue('ability', t.x, t.y, `${POWER_TEXT[k]}!`); this.addScore(250, b.x, b.y);
+    this.notice = { fire: 'FIREBALL! Your shots burn through defenders and the keeper for eight seconds.', multi: 'MULTIBALL! Two more balls from the centre spot.', wall: 'THE WALL! Your teammates guard the goal for ten seconds.', freeze: 'ICE KEEPER! The rival keeper is frozen for six seconds.', double: 'DOUBLE POINTS for twelve seconds!' }[k];
   }
-  private rideRamp(b: Pinball, h: number): void {
-    const r = b.ramp!; r.speed = Math.max(520, r.speed - 260 * h); r.s += r.speed * h; const p = rampPoint(r.s); b.x = p.x; b.y = p.y;
-    if (r.s < RAMP_LENGTH) return;
-    b.ramp = null; b.vx = 0; b.vy = 380; this.rampFlash = .6; this.tally.ramps++;
-    if (this.multiball) { this.tally.jackpots++; this.addScore(10000 * (this.config.overdrive ? 2 : 1), 300, 150, 'JACKPOT!'); this.show('JACKPOT!', 2.5); this.metrics.perfects++; return; }
-    this.locks++; this.addScore(1500 * this.bonus, 300, 150, 'RAMP!');
-    if (this.locks >= 3) { this.locks = 0; this.tally.multiball++; this.autoLaunch.push(.3, 1.1); this.show('MULTIBALL!', 3); this.notice = 'MULTIBALL! Every ramp is a JACKPOT while two balls are in play.'; this.cue('perfect', 300, 300, 'MULTIBALL!'); }
-    else this.show(`RAMP ${this.locks}/3`);
+  private scored(b: Pinball): void {
+    b.state = 'net'; b.timer = .7; this.goals++; this.tally.goals++; this.streak++; this.best = Math.max(this.best, this.streak);
+    const t = b.touch, volley = !t.defender && !t.keeper && !t.rail && !t.mate && !t.power && this.elapsed - b.kickAt < 1.6;
+    const [text, mult] = t.power ? ['POWER SHOT', 2] : t.mate ? ['TEAM GOAL', 1.5] : volley ? ['VOLLEY', 1.5] : t.keeper ? ['REBOUND', 1.25] : t.rail && !t.defender ? ['BANK SHOT', 1.25] : ['GOAL', 1];
+    if (volley) this.tally.volleys++;
+    const combo = Math.min(5, this.streak), points = this.config.bonus * combo * mult * (this.power.double > 0 ? 2 : 1);
+    const details = [text === 'GOAL' ? '' : text, combo > 1 ? `COMBO ×${combo}` : ''];
+    if (this.streak % 3 === 0) { this.tally.hattricks++; details.push('HAT-TRICK!'); this.addScore(2000, TABLE.centre, 300, 'HAT-TRICK!'); }
+    this.goal = { id: this.goals, text: 'GOAL!', detail: details.filter(Boolean).join(' · '), points: Math.round(points), combo, x: b.x, conceded: false }; this.goalTimer = 2.2;
+    this.addScore(points, b.x, GOAL.y, `GOAL! +${Math.round(points)}`); this.cue('perfect', b.x, GOAL.y); this.metrics.perfects++;
+    this.show(text === 'GOAL' ? 'GOAL!' : `${text}!`, 2); this.notice = `GOAL! ${details.filter(Boolean).join(' · ') || 'Keep the streak going for a combo.'}`;
   }
-  private drain(b: Pinball): void {
+  private lostBall(b: Pinball): void { b.state = 'lost'; b.timer = .5; this.cue('lose', b.x, HOME.y); }
+  /** Removes a ball that finished in a net, then kicks off again or costs a ball from the rack. */
+  private retire(b: Pinball): void {
     this.balls = this.balls.filter(x => x !== b); this.stuck.delete(b.id);
-    if (this.balls.length || this.autoLaunch.length) { if (this.balls.length === 1 && !this.autoLaunch.length) this.show('MULTIBALL OVER'); return; }
-    if (this.config.assist && this.saveTimer > 0 && !this.saveUsed) {
-      this.saveUsed = true; this.metrics.assisted++; this.autoLaunch.push(.4); this.cue('ability', TABLE.centre, 780, 'BALL SAVED'); this.show('BALL SAVED'); this.notice = 'BALL SAVED. You are still in the game!'; return;
-    }
-    this.lose(TABLE.centre, 810, 'BALL DRAINED'); this.show(this.lives ? `${this.lives} BALL${this.lives === 1 ? '' : 'S'} LEFT` : 'GAME OVER', 2);
-    if (this.phase === 'playing') { this.locks = 0; this.bonus = 1; this.serve(); }
+    if (this.balls.some(x => x.state === 'play') || this.kickoffTimer > 0) return;
+    if (b.state === 'net' || this.balls.some(x => x.state === 'net')) { if (!this.balls.length) this.kickoffTimer = 1.3; return; }
+    if (this.balls.length) return;
+    this.streak = 0; this.conceded++; this.goal = { id: this.goals + 1000 * this.conceded, text: 'CONCEDED', detail: this.lives > 1 ? `${this.lives - 1} BALL${this.lives === 2 ? '' : 'S'} LEFT` : 'FULL TIME', points: 0, combo: 0, x: b.x, conceded: true }; this.goalTimer = 1.8;
+    this.lose(TABLE.centre, HOME.y, 'GOAL AGAINST');
+    this.show(this.lives ? `${this.lives} BALL${this.lives === 1 ? '' : 'S'} LEFT` : 'GAME OVER', 2);
+    if (this.phase === 'playing') { this.power = { fire: 0, multi: 0, wall: 0, freeze: 0, double: 0 }; this.serve(true); this.notice = 'Goal against! Tap or press Space to kick off again.'; }
   }
-  protected runtime() { return { ramps: this.tally.ramps, drops: this.tally.drops }; }
-  protected stageSummary() { return { stageScore: this.score - this.stageScore, lives: this.lives, ramps: this.tally.ramps }; }
-  protected restoreSummary(summary: Readonly<Record<string, number>>) { this.stageScore = Math.max(0, this.score - Math.floor(summary.stageScore ?? 0)); this.lives = Math.floor(summary.lives ?? this.config.lives); this.tally.ramps = Math.floor(summary.ramps ?? 0); this.show('STAGE CLEAR', 99); }
-  stats() { return [{ label: 'BALLS', value: this.lives }, { label: 'BONUS', value: `×${this.bonus}` }, { label: 'RAMPS', value: this.tally.ramps }]; }
+  protected runtime() { return { goals: this.tally.goals, streak: this.streak, saves: this.tally.saves }; }
+  protected stageSummary() { return { stageScore: this.score - this.stageScore, lives: this.lives, goals: this.tally.goals }; }
+  protected restoreSummary(summary: Readonly<Record<string, number>>) { this.stageScore = Math.max(0, this.score - Math.floor(summary.stageScore ?? 0)); this.lives = Math.floor(summary.lives ?? this.config.lives); this.tally.goals = Math.floor(summary.goals ?? 0); this.show('FULL TIME!', 99); }
+  stats() { const main = this.goalProgress()[0]; return [{ label: 'BALLS', value: this.lives }, { label: main.kind === 'goals' ? 'GOALS' : main.kind.toUpperCase(), value: `${main.value}/${main.count}` }, { label: 'COMBO', value: `×${Math.max(1, Math.min(5, this.streak))}` }]; }
 }
