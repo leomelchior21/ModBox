@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseGameScript } from '../../interpreter/gameScript';
 import { formatCodeForLanguage } from '../../interpreter/languageSyntax';
-import { SlingersRun } from '../makita-slingers/run';
+import { SlingersRun, pieceOf } from '../makita-slingers/run';
+import { World2D } from '../makita-slingers/physics2d';
+import { SLING_LEVELS } from '../makita-slingers/levels';
 import { slingersCatalog } from '../makita-slingers/catalog';
 import { NajaRun, type Tile } from '../naja-run/run';
 import { najaCatalog } from '../naja-run/catalog';
@@ -73,25 +75,49 @@ describe.each(games)('$id campaign and interpreter', ({ id, catalog, create }) =
 });
 
 describe('Makita Slingers physics', () => {
-  it('keeps an unhit tower stable and does not award passive destruction points', () => {
-    const run = new SlingersRun(); run.launch(); const robots = run.stats()[1].value; advance(run, 8);
-    expect(run.score).toBe(0); expect(run.stats()[1].value).toBe(robots); expect(run.bodies.every(b => Number.isFinite(b.x) && Number.isFinite(b.y))).toBe(true);
+  const play = (level: number, shots: [number, number][]) => {
+    const run = new SlingersRun(); run.level = level; run.launch(); const near = Math.min(...run.stage.blocks.map(b => b.x - b.w / 2), ...run.stage.robots.map(r => r.x)) - 3.5;
+    for (const [angle, power] of shots) {
+      if (run.phase !== 'playing') break; run.aimAngle = angle; run.aimPower = power; run.fire(); let special = false;
+      for (let i = 0; i < 60 * 12 && run.phase === 'playing' && run.state !== 'aim'; i++) { if (!special && run.flying[0] && pieceOf(run.flying[0]).blade !== 'bomb' && run.flying[0].x > near) { run.action('primary'); special = true; } run.step(1 / 60); }
+    }
+    return run;
+  };
+  it('stacks rigid bodies stably at rest and puts the scene to sleep', () => {
+    const w = new World2D(); w.add('box', 0, -.5, { w: 60, h: 1 }, 0); for (let i = 0; i < 10; i++) w.add('box', 0, .5 + i, { w: 1, h: 1 }, 1);
+    const top = w.bodies[w.bodies.length - 1]; for (let i = 0; i < 240 * 4; i++) w.step(1 / 240);
+    expect(Math.abs(top.x)).toBeLessThan(.02); expect(top.y).toBeGreaterThan(9.4); expect(top.awake).toBe(false);
   });
-  it('launches one blade at a time, charges ammo once and uses the true aiming guide', () => {
+  it('keeps every unhit level standing with no passive points', () => {
+    for (let level = 1; level <= SLING_LEVELS.length; level++) {
+      const run = new SlingersRun(); run.level = level; run.launch(); const count = run.world.bodies.length; advance(run, 3);
+      expect(run.score, run.stage.name).toBe(0); expect(run.robotsLeft).toBe(run.stage.robots.length); expect(run.world.bodies).toHaveLength(count);
+    }
+  });
+  it('fires one blade at a time from the rack and charges ammo once', () => {
     const run = new SlingersRun(); expect(run.fire()).toBe(false); run.launch(); run.config.assist = true;
-    const v = run.velocity(); expect(v.x).toBeGreaterThan(0); expect(v.y).toBeLessThan(0);
-    expect(run.fire()).toBe(true); expect(run.fire()).toBe(false); expect(run.lives).toBe(4); expect(run.metrics.actions).toBe(1); expect(run.metrics.assisted).toBe(1);
-    advance(run, 1.2); expect(run.score).toBeGreaterThan(0); expect(run.metrics.scored).toBeGreaterThan(0);
+    expect(run.preview().length).toBeGreaterThan(5); const start = run.queue.length;
+    expect(run.fire()).toBe(true); expect(run.fire()).toBe(false); expect(run.queue).toHaveLength(start - 1); expect(run.metrics.assisted).toBe(1);
+    advance(run, 8); expect(run.state).toBe('aim');
   });
-  it('cancels an interrupted drag without firing and bounds the pull distance', () => {
-    const run = new SlingersRun(); run.launch(); run.pointer('down', 160, 425); run.pointer('move', -300, 900);
-    expect(Math.hypot(run.aim.x, run.aim.y)).toBeLessThanOrEqual(115.01); run.pointer('cancel', 0, 0); run.pointer('up', 0, 0); expect(run.blade).toBeNull(); expect(run.lives).toBe(5);
+  it('aims by dragging anywhere, bounds the pull and cancels without firing', () => {
+    const run = new SlingersRun(); run.launch(); run.pointer('down', 5, 5); run.pointer('move', -10, -12);
+    expect(Math.hypot(run.pull.x, run.pull.y)).toBeLessThanOrEqual(3.21); expect(run.aimPower).toBe(1); expect(run.aimAngle).toBeGreaterThan(0);
+    run.pointer('cancel', 0, 0); run.pointer('up', 0, 0); expect(run.state).toBe('aim'); expect(run.flying).toHaveLength(0);
+    run.pointer('down', 5, 5); run.pointer('move', 3, 4); run.pointer('up', 3, 4); expect(run.state).toBe('flight');
   });
-  it('gates the blast upgrade and counts chain-reaction victims exactly once', () => {
-    const run = new SlingersRun(); run.launch(); run.fire(); run.action('ability'); expect(run.blade?.blasted).toBe(false);
-    run.config.overdrive = true; run.blade!.x = 900; run.blade!.y = 530; run.action('ability'); expect(run.blade!.blasted).toBe(true); advance(run, .1);
-    const score = run.score; expect(score).toBeGreaterThan(0); expect(run.bodies.some(b => b.kind === 'crate')).toBe(false); advance(run, .1); expect(run.score).toBeGreaterThanOrEqual(score);
-    expect(run.cues.length).toBeLessThanOrEqual(80);
+  it('splits, boosts and detonates special blades, and gates the blast upgrade', () => {
+    const split = new SlingersRun(); split.level = 3; split.launch(); split.queue[0] = 'split'; split.fire(); split.action('primary'); expect(split.flying).toHaveLength(3);
+    const turbo = new SlingersRun(); turbo.launch(); turbo.queue[0] = 'turbo'; turbo.fire(); const v = turbo.flying[0].vx; turbo.action('primary'); expect(turbo.flying[0].vx).toBeGreaterThan(v * 1.9);
+    const blast = new SlingersRun(); blast.launch(); blast.fire(); blast.action('ability'); expect(blast.flying).toHaveLength(1);
+    blast.config.overdrive = true; blast.action('ability'); expect(blast.flying).toHaveLength(0);
+  });
+  it('can clear every level with a known sequence of shots and rewards spare blades', () => {
+    const solutions: [number, number][][] = [[[.1, .8]], [[.1, 1], [.1, .5]], [[.1, 1]], [[.1, 1]], [[.85, .8], [.325, .8]], [[.175, 1]], [[.1, .5], [.1, .9]], [[.7, .8], [.475, .9]], [[.175, .9]], [[.4, 1]], [[.925, .5]], [[.325, .9]]];
+    for (let level = 1; level <= SLING_LEVELS.length; level++) {
+      const run = play(level, solutions[level - 1]); expect(run.phase, `${level} ${run.stage.name}`).toBe('cleared'); expect(run.stars).toBeGreaterThanOrEqual(1);
+      if (level === 1) { const restored = new SlingersRun(run.checkpoint); restored.launch(); expect(restored.phase).toBe('cleared'); expect(restored.robotsLeft).toBe(0); }
+    }
   });
 });
 

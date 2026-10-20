@@ -1,95 +1,157 @@
 import { ArcadeRun, clamp, type ArcadeAction } from '../premium-kit/core';
 import { slingersCatalog } from './catalog';
+import { World2D, type Body } from './physics2d';
+import { slingLevel, slingLevelName, type BladeKind, type Material, type RobotKind, type SlingLevel } from './levels';
 
-export interface SlingBody { id: number; kind: 'wood' | 'steel' | 'crate' | 'robot' | 'helmet'; x: number; y: number; w: number; h: number; vx: number; vy: number; angle: number; spin: number; hp: number; maxHp: number; mass: number; flash: number }
-export interface Sawblade { x: number; y: number; vx: number; vy: number; age: number; hits: number[]; blasted: boolean; trail: { x: number; y: number }[] }
-export const SLING = { x: 160, y: 425 }, FLOOR = 562;
+export const SLING = { x: 0, y: 2.3 }, MAX_PULL = 3.2, STEP = 1 / 240;
+export type PieceKind = Material | RobotKind | 'blade' | 'ground';
+export interface Piece { kind: PieceKind; hp: number; maxHp: number; blade?: BladeKind; born: number }
+const HP: Record<Material | RobotKind, number> = { wood: 40, glass: 16, steel: 130, tnt: 6, robot: 22, helmet: 55, boss: 280 };
+const FRAGILITY: Record<Material | RobotKind, number> = { wood: .8, glass: 1.8, steel: .25, tnt: 3, robot: 1.4, helmet: .8, boss: .4 };
+const DENSITY: Record<Material, number> = { wood: .7, glass: .6, steel: 3, tnt: .8 };
+const POINTS: Record<Material, number> = { wood: 100, glass: 60, steel: 250, tnt: 150 };
+const BLADE_RADIUS: Record<BladeKind, number> = { saw: .32, split: .27, turbo: .3, bomb: .38 };
+export const pieceOf = (b: Body) => b.tag as Piece;
+
 export class SlingersRun extends ArcadeRun {
-  bodies: SlingBody[] = []; blade: Sawblade | null = null; aim = { x: -96, y: 22 }; dragging = false; angle = 13; flightWait = 0;
-  private nextId = 1; private trailTimer = 0;
-  constructor(checkpoint?: unknown) { super('makita-slingers', slingersCatalog.defaults, slingersCatalog.schema, checkpoint); }
-  protected setup(): void {
-    this.bodies = []; this.blade = null; this.dragging = false; this.flightWait = 0; this.angle = 13; this.setAim(); this.nextId = 1;
-    const body = (kind: SlingBody['kind'], x: number, y: number, w: number, h: number) => {
-      const hp = (kind === 'steel' ? 95 : kind === 'robot' ? 52 : kind === 'helmet' ? 90 : kind === 'crate' ? 28 : 42) * (1 + Math.min(5, this.level - 1) * 0.08);
-      this.bodies.push({ id: this.nextId++, kind, x, y, w, h, vx: 0, vy: 0, angle: 0, spin: 0, hp, maxHp: hp, mass: kind === 'steel' ? 3 : kind === 'robot' || kind === 'helmet' ? 1.2 : 1.8, flash: 0 });
-    };
-    for (const [i, x] of [615, 800].entries()) {
-      const steel = this.level > 1 && i === 1;
-      body(steel ? 'steel' : 'wood', x - 38, 507, 22, 110); body('wood', x + 38, 507, 22, 110);
-      body('wood', x, 440, 132, 24); body(i === 1 && this.level > 1 ? 'helmet' : 'robot', x, 403, 44, 50);
-      if (this.level > 2) body('crate', x + 8, 355, 44, 44);
-    }
-    body('crate', 884, 530, 48, 64); body('helmet', 934, 536, 42, 52);
-    this.notice = 'Pull the blade back, then release. Aim for the supports.';
+  world = new World2D(); stage: SlingLevel = slingLevel(1);
+  /** Blades still waiting in the rack (the loaded one is queue[0]). */
+  queue: BladeKind[] = []; flying: Body[] = []; special = false;
+  aimAngle = .55; aimPower = .85; dragging = false; pull = { x: 0, y: 0 }; private dragStart = { x: 0, y: 0 };
+  state: 'aim' | 'flight' | 'settle' = 'aim'; settleTimer = 0; lastPath: { x: number; y: number }[] = []; path: { x: number; y: number }[] = [];
+  robotsLeft = 0; private clock = 0; private pathTimer = 0; private grace = 0; private exploding: { x: number; y: number; r: number }[] = [];
+  constructor(checkpoint?: unknown) { super('makita-slingers', slingersCatalog.defaults, slingersCatalog.schema, checkpoint); this.build(); }
+  get levelName() { return slingLevelName(this.level); }
+  get gravity() { return this.config.gravity / 32; }
+  get maxSpeed() { return this.config.power * .19; }
+  get loaded(): BladeKind | null { return this.state === 'aim' && this.queue.length ? this.queue[0] : null; }
+  get structureEnd() { return Math.max(...this.stage.blocks.map(b => b.x + b.w / 2), ...this.stage.robots.map(r => r.x + 1), ...this.stage.hills.map(h => h.x + h.w / 2)); }
+  private build() {
+    this.stage = slingLevel(this.level); const w = new World2D(); this.world = w; w.gravity = -this.gravity;
+    const ground = (x: number, y: number, width: number, h: number) => w.add('box', x, y, { w: width, h }, 0, { friction: .8, tag: { kind: 'ground', hp: Infinity, maxHp: Infinity, born: 0 } satisfies Piece });
+    ground(10, -1, 80, 2); ground(-1.2, .45, 4, .9);
+    for (const h of this.stage.hills) ground(h.x, h.h / 2, h.w, h.h);
+    for (const b of this.stage.blocks) w.add('box', b.x, b.y, { w: b.w, h: b.h }, DENSITY[b.material], { friction: b.material === 'glass' ? .4 : .7, restitution: .05, tag: { kind: b.material, hp: HP[b.material], maxHp: HP[b.material], born: 0 } satisfies Piece });
+    for (const r of this.stage.robots) { const size = r.kind === 'boss' ? 1.5 : .84; w.add('box', r.x, r.y, { w: size, h: size }, .9, { friction: .8, tag: { kind: r.kind, hp: HP[r.kind], maxHp: HP[r.kind], born: 0 } satisfies Piece }); }
+    // Settle the structures before anything can take damage, then freeze them.
+    for (let i = 0; i < 480; i++) w.step(STEP);
+    for (const b of w.bodies) { b.vx = b.vy = b.w0 = 0; b.awake = false; }
+    w.onImpact = (a, b, speed) => { this.impact(a, b, speed); };
+    this.robotsLeft = this.stage.robots.length;
   }
-  private setAim(): void { this.aim = { x: -Math.cos(this.angle * Math.PI / 180) * 100, y: Math.sin(this.angle * Math.PI / 180) * 100 }; }
-  velocity(): { x: number; y: number } { return { x: -this.aim.x * this.config.power * 0.08, y: -this.aim.y * this.config.power * 0.08 }; }
+  protected setup(): void {
+    this.build(); this.queue = Array.from({ length: Math.max(1, this.config.lives) }, (_, i) => this.stage.blades[i % this.stage.blades.length]);
+    this.lives = this.queue.length; this.flying = []; this.special = false; this.state = 'aim'; this.settleTimer = 0; this.path = []; this.lastPath = []; this.dragging = false; this.pull = { x: 0, y: 0 };
+    this.clock = 0; this.grace = .4; this.exploding = []; this.aimAngle = .55; this.aimPower = .85;
+    this.notice = `${this.levelName.toUpperCase()} · ${this.stage.tip}`;
+  }
+  /** Launch velocity for the current aim (or drag). */
+  velocity(): { x: number; y: number } {
+    const speed = this.maxSpeed * this.aimPower; return { x: Math.cos(this.aimAngle) * speed, y: Math.sin(this.aimAngle) * speed };
+  }
+  /** Predicted path of a blade fired with the current aim, for the trajectory guide. */
+  preview(points = 36): { x: number; y: number }[] {
+    const v = this.velocity(), g = this.gravity, out: { x: number; y: number }[] = [];
+    for (let i = 1; i <= points; i++) { const t = i * .07, y = SLING.y + v.y * t - g * t * t / 2; if (y < -.2) break; out.push({ x: SLING.x + v.x * t, y }); }
+    return out;
+  }
   fire(): boolean {
-    if (this.phase !== 'playing' || this.blade || this.lives <= 0 || Math.hypot(this.aim.x, this.aim.y) < 12) return false;
-    const v = this.velocity(); this.blade = { x: SLING.x, y: SLING.y, vx: v.x, vy: v.y, age: 0, hits: [], blasted: false, trail: [] };
-    this.lives--; this.metrics.actions++; if (this.config.assist) this.metrics.assisted++;
-    this.dragging = false; this.cue('launch', SLING.x, SLING.y); this.notice = this.config.overdrive ? 'BLADE AWAY! Press BLAST in flight for a shockwave.' : 'BLADE AWAY! Watch the supports.'; return true;
+    const kind = this.loaded; if (this.phase !== 'playing' || !kind || this.aimPower < .1) return false;
+    const v = this.velocity(), blade = this.world.add('circle', SLING.x, SLING.y, { r: BLADE_RADIUS[kind] }, kind === 'bomb' ? 6 : 5, { friction: .5, restitution: .3, tag: { kind: 'blade', hp: Infinity, maxHp: Infinity, blade: kind, born: this.elapsed } satisfies Piece });
+    blade.vx = v.x; blade.vy = v.y; blade.w0 = -14;
+    this.queue.shift(); this.lives = this.queue.length; this.flying = [blade]; this.special = false; this.state = 'flight'; this.settleTimer = 0;
+    this.lastPath = this.path; this.path = []; this.pathTimer = 0; this.dragging = false; this.pull = { x: 0, y: 0 };
+    this.metrics.actions++; if (this.config.assist) this.metrics.assisted++;
+    this.cue('launch', SLING.x, SLING.y); this.notice = kind === 'saw' ? 'BLADE AWAY!' : 'BLADE AWAY! Tap again in flight for its special move.'; return true;
+  }
+  /** Tap in flight: each blade has its own trick. */
+  private trigger(): void {
+    if (this.state !== 'flight' || this.special || !this.flying.length) return;
+    const lead = this.flying[0], piece = pieceOf(lead), kind = piece.blade!; this.special = true;
+    if (kind === 'split') {
+      const speed = Math.hypot(lead.vx, lead.vy), heading = Math.atan2(lead.vy, lead.vx);
+      for (const spread of [-.22, .22]) { const copy = this.world.add('circle', lead.x, lead.y, { r: .22 }, 5, { friction: .5, restitution: .3, tag: { ...piece } }); copy.vx = Math.cos(heading + spread) * speed; copy.vy = Math.sin(heading + spread) * speed; copy.w0 = -14; this.flying.push(copy); }
+      this.cue('ability', lead.x, lead.y, 'SPLIT!');
+    } else if (kind === 'turbo') { lead.vx *= 2.1; lead.vy *= 1.4; this.cue('ability', lead.x, lead.y, 'TURBO!'); }
+    else if (kind === 'bomb') this.detonate(lead);
+    else { this.special = false; return; }
+    this.metrics.actions++;
+  }
+  private detonate(blade: Body): void {
+    this.blast(blade.x, blade.y, 3.2, 70); this.world.remove(blade); this.flying = this.flying.filter(b => b !== blade); this.cue('ability', blade.x, blade.y, 'KABOOM!');
+  }
+  private blast(x: number, y: number, radius: number, power: number): void {
+    this.exploding.push({ x, y, r: radius });
+    for (const b of this.world.explode(x, y, radius, power)) { const p = pieceOf(b); if (p.kind !== 'blade' && p.kind !== 'ground') p.hp -= power * 2.2 * (1 - Math.min(1, Math.hypot(b.x - x, b.y - y) / radius)) * FRAGILITY[p.kind]; }
+  }
+  private impact(a: Body, b: Body, speed: number): void {
+    if (this.grace > 0 || speed < 2.5) return;
+    for (const [self, other] of [[a, b], [b, a]] as const) {
+      const p = pieceOf(self), o = pieceOf(other); if (p.kind === 'blade' || p.kind === 'ground') continue;
+      const weight = other.invMass === 0 ? 2 : Math.min(2, other.mass), cut = o.kind === 'blade' ? 1.5 : 1;
+      p.hp -= (speed - 2.5) * 6 * weight * cut * FRAGILITY[p.kind];
+      if (o.kind === 'blade') { const piece = pieceOf(other); if (piece.blade === 'bomb' && !this.special && this.flying.includes(other)) { this.special = true; this.detonate(other); } }
+    }
   }
   action(action: ArcadeAction): void {
     if (this.phase !== 'playing') return;
-    if (action === 'primary' || action === 'launch') this.fire();
-    if (!this.blade && (action === 'up' || action === 'down')) { this.angle = clamp(this.angle + (action === 'up' ? 3 : -3), 3, 65); this.setAim(); }
-    if (action === 'ability' && this.config.overdrive && this.blade && !this.blade.blasted) {
-      this.blade.blasted = true; this.explode(this.blade.x, this.blade.y, 145, 100); this.blade.age = 7;
-      this.cue('ability', this.blade.x, this.blade.y, 'BLAST BLADE');
-    }
+    if (action === 'primary' || action === 'launch') { if (this.state === 'aim') this.fire(); else this.trigger(); }
+    if (this.state === 'aim' && (action === 'up' || action === 'down')) { this.aimAngle = clamp(this.aimAngle + (action === 'up' ? .05 : -.05), -.2, 1.35); this.metrics.actions++; }
+    if (this.state === 'aim' && (action === 'left' || action === 'right')) { this.aimPower = clamp(this.aimPower + (action === 'right' ? .05 : -.05), .2, 1); this.metrics.actions++; }
+    if (action === 'ability' && this.config.overdrive && this.state === 'flight' && this.flying.length) { this.special = true; this.detonate(this.flying[0]); this.metrics.actions++; }
   }
+  /** Drag anywhere: pull back and down to aim up and forward; release to fire. Taps in flight trigger specials. */
   pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number): void {
-    if (phase === 'cancel') { this.dragging = false; return; }
-    if (this.phase !== 'playing' || this.blade) return;
-    if (phase === 'down') this.dragging = Math.hypot(x - SLING.x, y - SLING.y) < 160;
-    if (this.dragging && (phase === 'move' || phase === 'down')) { const dx = clamp(x - SLING.x, -115, -8), dy = clamp(y - SLING.y, -25, 110), length = Math.hypot(dx, dy), factor = Math.min(1, 115 / length); this.aim = { x: dx * factor, y: dy * factor }; }
-    if (phase === 'up' && this.dragging) this.fire();
-  }
-  private explode(x: number, y: number, radius: number, damage: number): void {
-    for (const b of this.bodies) { const dx = b.x - x, dy = b.y - y, distance = Math.hypot(dx, dy); if (b.hp <= 0 || distance > radius) continue; const strength = 1 - distance / radius; b.hp -= damage * strength; b.vx += (dx / Math.max(20, distance)) * strength * 370 / b.mass; b.vy -= (120 + Math.abs(dy) * 2) * strength / b.mass; b.spin += dx * 0.035; b.flash = 0.2; }
-    this.cue('hit', x, y, 'SCRAP STORM', '#ffd28e');
+    if (phase === 'cancel') { this.dragging = false; this.pull = { x: 0, y: 0 }; return; }
+    if (this.phase !== 'playing') return;
+    if (this.state === 'flight') { if (phase === 'down') this.trigger(); return; }
+    if (this.state !== 'aim') return;
+    if (phase === 'down') { this.dragging = true; this.dragStart = { x, y }; this.pull = { x: 0, y: 0 }; return; }
+    if (!this.dragging) return;
+    const dx = x - this.dragStart.x, dy = y - this.dragStart.y, length = Math.hypot(dx, dy), scale = length > MAX_PULL ? MAX_PULL / length : 1;
+    this.pull = { x: dx * scale, y: dy * scale };
+    if (length > .15) { this.aimAngle = clamp(Math.atan2(-dy, -dx), -.2, 1.35); this.aimPower = clamp(Math.min(length, MAX_PULL) / MAX_PULL, .1, 1); }
+    if (phase === 'up') { this.dragging = false; if (length > .3) this.fire(); this.pull = { x: 0, y: 0 }; }
   }
   protected tick(dt: number): void {
-    for (const b of this.bodies) {
-      if (b.hp <= 0) continue;
-      b.flash = Math.max(0, b.flash - dt); b.vy += this.config.gravity * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.angle = clamp(b.angle + b.spin * dt, -0.65, 0.65); b.spin *= Math.exp(-dt * 2);
-      if (b.y + b.h / 2 > FLOOR) { const impact = b.vy; b.y = FLOOR - b.h / 2; b.vy = Math.abs(b.vy) < 25 ? 0 : -b.vy * 0.12; b.vx *= Math.exp(-dt * 12); if (impact > 125 && this.elapsed > 0.6) b.hp -= (impact - 100) * 0.17; }
-      if (b.x < -80 || b.x > 1080 || b.y > 750) b.hp = 0;
+    this.world.gravity = -this.gravity; this.grace = Math.max(0, this.grace - dt); this.clock += dt;
+    while (this.clock >= STEP) { this.world.step(STEP); this.clock -= STEP; }
+    this.exploding = [];
+    // Pieces that ran out of health break apart; crates take their neighbours with them.
+    for (const b of [...this.world.bodies]) {
+      const p = pieceOf(b);
+      if (p.kind === 'blade' || p.kind === 'ground') continue;
+      if (b.y < -3 || Math.abs(b.x) > 80) p.hp = 0;
+      if (p.hp > 0) continue;
+      this.world.remove(b);
+      if (p.kind === 'robot' || p.kind === 'helmet' || p.kind === 'boss') { this.robotsLeft--; this.metrics.perfects++; this.addScore(this.config.bonus * (p.kind === 'boss' ? 3 : 1), b.x, b.y, `ROBOT +${this.config.bonus * (p.kind === 'boss' ? 3 : 1)}`); }
+      else { this.addScore(POINTS[p.kind], b.x, b.y); if (p.kind === 'tnt') { this.blast(b.x, b.y, 3, 60); this.cue('hit', b.x, b.y, 'BOOM!'); } }
+      this.cue('hit', b.x, b.y);
     }
-    for (let pass = 0; pass < 3; pass++) for (let i = 0; i < this.bodies.length; i++) for (let j = i + 1; j < this.bodies.length; j++) {
-      const a = this.bodies[i], b = this.bodies[j]; if (a.hp <= 0 || b.hp <= 0) continue;
-      const dx = b.x - a.x, dy = b.y - a.y, ox = (a.w + b.w) / 2 - Math.abs(dx), oy = (a.h + b.h) / 2 - Math.abs(dy); if (ox <= 0 || oy <= 0) continue;
-      const horizontal = ox < oy, nx = horizontal ? Math.sign(dx) || 1 : 0, ny = horizontal ? 0 : Math.sign(dy) || 1;
-      const ia = 1 / a.mass, ib = 1 / b.mass, correction = Math.max(0, (horizontal ? ox : oy) - 0.03) * 0.85 / (ia + ib);
-      a.x -= nx * correction * ia; a.y -= ny * correction * ia; b.x += nx * correction * ib; b.y += ny * correction * ib;
-      const relative = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-      if (relative < 0) { const impulse = -relative * 1.05 / (ia + ib); a.vx -= impulse * nx * ia; a.vy -= impulse * ny * ia; b.vx += impulse * nx * ib; b.vy += impulse * ny * ib; if (pass === 0 && -relative > 95 && this.elapsed > 0.6) { a.hp -= -relative * 0.08; b.hp -= -relative * 0.08; } }
-    }
-    const blade = this.blade;
-    if (blade) {
-      blade.age += dt; blade.vy += this.config.gravity * dt; blade.x += blade.vx * dt; blade.y += blade.vy * dt;
-      this.trailTimer -= dt; if (this.trailTimer <= 0) { blade.trail.push({ x: blade.x, y: blade.y }); blade.trail = blade.trail.slice(-22); this.trailTimer = 0.025; }
-      for (const b of this.bodies) {
-        if (b.hp <= 0 || blade.hits.includes(b.id)) continue;
-        const cx = clamp(blade.x, b.x - b.w / 2, b.x + b.w / 2), cy = clamp(blade.y, b.y - b.h / 2, b.y + b.h / 2);
-        if (Math.hypot(blade.x - cx, blade.y - cy) > 19) continue;
-        const speed = Math.hypot(blade.vx, blade.vy); b.hp -= speed * (this.config.overdrive ? 0.25 : 0.16); b.vx += blade.vx * 0.55 / b.mass; b.vy += blade.vy * 0.35 / b.mass - 45; b.spin += blade.vx * 0.008; b.flash = 0.18;
-        blade.hits.push(b.id); blade.vx *= 0.76; blade.vy *= 0.85; this.cue('hit', b.x, b.y); this.metrics.perfects += b.kind === 'robot' || b.kind === 'helmet' ? 1 : 0;
+    if (this.state === 'flight') {
+      const lead = this.flying[0];
+      if (lead) { this.pathTimer -= dt; if (this.pathTimer <= 0) { this.path.push({ x: lead.x, y: lead.y }); this.pathTimer = .045; } }
+      for (const blade of [...this.flying]) if (blade.y < -2 || blade.x > this.structureEnd + 12 || Math.hypot(blade.vx, blade.vy) < .5 && this.elapsed - pieceOf(blade).born > 1.2) {
+        this.flying = this.flying.filter(f => f !== blade);
       }
-      if (blade.y > FLOOR - 15) { blade.y = FLOOR - 15; blade.vy = -Math.abs(blade.vy) * 0.28; blade.vx *= 0.97; }
-      if (blade.x > 1080 || blade.x < -80 || blade.age > 6 || Math.hypot(blade.vx, blade.vy) < 30) { this.blade = null; this.flightWait = 1.4; }
-    } else this.flightWait = Math.max(0, this.flightWait - dt);
-    for (let processed = 0; processed < 40; processed++) {
-      const b = this.bodies.find(body => body.hp <= 0); if (!b) break;
-      this.bodies = this.bodies.filter(body => body !== b);
-      const robot = b.kind === 'robot' || b.kind === 'helmet'; this.addScore(robot ? this.config.bonus : 25, b.x, b.y, robot ? `ROBOT +${this.config.bonus}` : '+25 SCRAP');
-      if (b.kind === 'crate') this.explode(b.x, b.y, 125, 85);
+      if (!this.flying.length || this.elapsed - (pieceOf(this.flying[0]).born) > 9) { this.state = 'settle'; this.settleTimer = 0; }
     }
-    this.bodies = this.bodies.filter(b => b.hp > 0);
-    if (!this.bodies.some(b => b.kind === 'robot' || b.kind === 'helmet')) { this.score += this.lives * 100; this.clear(650, 250); }
-    else if (!this.blade && this.lives === 0 && this.flightWait <= 0) { this.phase = 'gameover'; this.notice = 'Blade rack empty. Retry the stage and aim for the supports.'; }
+    if (this.state === 'settle') {
+      this.settleTimer += dt;
+      const calm = this.world.bodies.every(b => !b.awake || b.invMass === 0 || pieceOf(b).kind === 'blade' || Math.hypot(b.vx, b.vy) < .3);
+      if (this.robotsLeft <= 0 && this.settleTimer > .8) {
+        const bonus = this.queue.length * 500; this.addScore(bonus, 0, 0, bonus ? `${this.queue.length} SPARE BLADES +${bonus}` : 'CLEARED!'); this.clear(0, 0); return;
+      }
+      if (calm && this.settleTimer > 1 || this.settleTimer > 5) {
+        for (const b of this.world.bodies.filter(b => pieceOf(b).kind === 'blade')) this.world.remove(b);
+        if (!this.queue.length) { this.phase = 'gameover'; this.notice = 'Out of blades. Try a different angle: hit the supports, not the walls.'; this.cue('lose', 0, 0, 'OUT OF BLADES'); this.releaseInput(); return; }
+        this.state = 'aim'; this.notice = `${this.robotsLeft} robot${this.robotsLeft === 1 ? '' : 's'} left. Next blade: ${this.queue[0].toUpperCase()}.`;
+      }
+    }
   }
-  stats() { return [{ label: 'BLADES', value: this.lives }, { label: 'ROBOTS', value: this.bodies.filter(b => b.kind === 'robot' || b.kind === 'helmet').length }, { label: 'AIM', value: `${this.angle}°` }]; }
+  get stars(): number { const max = this.stage.robots.length * this.config.bonus + this.stage.blocks.length * 100 + (this.stage.blades.length - 1) * 500; const got = this.score; return got >= max * .7 ? 3 : got >= max * .45 ? 2 : 1; }
+  protected runtime() { return { robots: this.robotsLeft, blades: this.queue.length }; }
+  protected stageSummary() { return { blades: this.queue.length }; }
+  protected restoreSummary(summary: Readonly<Record<string, number>>) { this.queue = this.queue.slice(0, clamp(Math.floor(summary.blades ?? 0), 0, this.queue.length)); this.lives = this.queue.length; this.robotsLeft = 0; for (const b of [...this.world.bodies]) { const k = pieceOf(b).kind; if (k === 'robot' || k === 'helmet' || k === 'boss') this.world.remove(b); } }
+  stats() { return [{ label: 'BLADES', value: this.queue.length }, { label: 'ROBOTS', value: this.robotsLeft }, { label: 'AIM', value: `${Math.round(this.aimAngle * 180 / Math.PI)}°` }]; }
 }

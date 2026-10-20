@@ -1,49 +1,10 @@
 import * as T from 'three';
-import { World, material, mesh, label, floorTexture, batchScenery } from './world';
+import { World, material, mesh, label, batchScenery } from './world';
 import { tree } from './models';
-import { SlingersRun, SLING, FLOOR } from '../makita-slingers/run';
 import { PinballRun, PIN_RAILS } from '../pinballerz/run';
 import { StackRun, type StackSlab } from '../speed-stack/run';
 import { NajaRun, NAJA_SIZE } from '../naja-run/run';
 import { unityModel } from './unity-assets';
-
-/** The original deterministic engines now drive real, shadow-casting 3D scenes. */
-export class SlingersView extends World<SlingersRun> {
-  private stage = new T.Group(); private actors = new T.Group(); private bodies = new Map<number, T.Group>(); private saw = new T.Group(); private guide = new T.Line();
-  private ray = new T.Raycaster(); private plane = new T.Plane(new T.Vector3(0, 0, 1), 0);
-  constructor(canvas: HTMLCanvasElement, run: SlingersRun) {
-    super(canvas, run, '#e4b883', 15); this.camera = new T.OrthographicCamera(-12, 12, 7.5, -7.5, .1, 180); this.scene.add(this.stage, this.actors, this.saw); const s = this.shapes;
-    const earth = material('#b57454'), grass = material('#839450'); s.cube(this.stage, earth, 10, -1.4, 0, 42, 2.6, 12); s.cube(this.stage, grass, 10, -.03, 0, 42, .25, 12);
-    const wood = material('#a66b3e'); wood.map = floorTexture('wood');
-    for (const x of [2.75, 3.65]) { const arm = s.cube(this.stage, wood, x, 1.8, 0, .3, 3.5, .35); arm.rotation.z = x < 3 ? -.15 : .15; s.tube(this.stage, material('#d8a35a'), x, 3.5, 0, .2, .3); }
-    s.cube(this.stage, wood, 3.2, .32, 0, 1.8, .5, .8);
-    for (let i = 0; i < 15; i++) { const x = -7 + i * 3; s.cube(this.stage, material('#725d56'), x, .7, -5, .18, 1.8, .2); s.cube(this.stage, material('#a38968'), x, 1, -5, 3, .2, .18); if (i % 3 === 0) tree(s, this.stage, x, -8, 1.3); }
-    for (let i = 0; i < 8; i++) { const hut = new T.Group(); hut.position.set(i * 5 - 8, 0, -16 - i % 2 * 5); this.stage.add(hut); s.cube(hut, material(i % 2 ? '#819990' : '#a99b82'), 0, 2, 0, 4, 4, 3); const roof = mesh(new T.ConeGeometry(3.2, 1.6, 4), material('#6f7369'), hut, 0, 4.7); roof.rotation.y = Math.PI / 4; }
-    const chrome = material('#dce7ec', .24, .8); s.tube(this.saw, chrome, 0, 0, 0, .42, .12).rotation.x = Math.PI / 2;
-    for (let i = 0; i < 16; i++) { const tooth = s.cube(this.saw, chrome, Math.sin(i * Math.PI / 8) * .44, Math.cos(i * Math.PI / 8) * .44, 0, .15, .19, .15); tooth.rotation.z = -i * Math.PI / 8; } s.ball(this.saw, this.paint, 0, 0, .09, .14);
-    this.guide = new T.Line(new T.BufferGeometry(), new T.LineDashedMaterial({ color: '#fff5bd', dashSize: .2, gapSize: .18, transparent: true, opacity: .8 })); this.scene.add(this.guide); batchScenery(this.stage);
-  }
-  resize(w: number, h: number, d: number) { super.resize(w, h, d); const c = this.camera as T.OrthographicCamera, size = Math.max(12, 20.5 / (w / h)); c.left = -size * w / h / 2; c.right = -c.left; c.top = size / 2; c.bottom = -size / 2; c.updateProjectionMatrix(); }
-  protected rebuild() { for (const b of this.bodies.values()) { this.actors.remove(b); this.disposeStage(b); } this.bodies.clear(); }
-  protected update(_dt: number, reduced: boolean) {
-    const run = this.run, s = this.shapes;
-    for (const b of run.bodies) {
-      let root = this.bodies.get(b.id);
-      if (!root) {
-        root = new T.Group(); this.actors.add(root); this.bodies.set(b.id, root);
-        if (b.kind === 'robot' || b.kind === 'helmet') {
-          const metal = material(b.kind === 'helmet' ? '#ddb15b' : '#7e9d9a', .45, .4); s.cube(root, metal, 0, 0, 0, b.w / 50, b.h / 50, .8); s.cube(root, material('#182d3c'), 0, .14, .43, b.w / 60, .22, .06); for (const x of [-.2, .2]) s.ball(root, material('#ff954f'), x, .15, .48, .07); for (const side of [-1, 1]) { s.cube(root, metal, side * .53, -.1, 0, .2, .5, .25); s.cube(root, material('#3d4757'), side * .22, -.56, 0, .2, .22, .4); } unityModel(root, 'robot', .8, -.6); this.remix.character(root, 'machine');
-        } else { const m = material(b.kind === 'steel' ? '#6d7c89' : b.kind === 'crate' ? '#dc7853' : '#c39b68', .6, b.kind === 'steel' ? .5 : 0); if (b.kind === 'wood') m.map = floorTexture('wood'); s.cube(root, m, 0, 0, 0, b.w / 50, b.h / 50, .75); if (b.kind === 'crate') { const cross = s.cube(root, material('#ffe4a5'), 0, 0, .4, .12, b.h / 40, .05); cross.rotation.z = .65; } }
-      }
-      root.position.set(b.x / 50, (FLOOR - b.y) / 50, 0); root.rotation.z = -b.angle; root.scale.setScalar(b.flash > 0 && !reduced ? 1.035 : 1);
-    }
-    for (const [id, root] of this.bodies) if (!run.bodies.some(b => b.id === id)) { this.actors.remove(root); this.disposeStage(root); this.bodies.delete(id); }
-    const p = run.blade ?? { x: SLING.x + (run.dragging ? run.aim.x : 0), y: SLING.y + (run.dragging ? run.aim.y : 0) }; this.saw.position.set(p.x / 50, (FLOOR - p.y) / 50, 0); this.saw.rotation.z = reduced ? 0 : -run.elapsed * 18;
-    const points: T.Vector3[] = [], v = run.velocity(); if (!run.blade && run.config.assist) for (let i = 0; i < 30; i++) { const t = i * .045; points.push(new T.Vector3((SLING.x + v.x * t) / 50, (FLOOR - SLING.y - v.y * t - .5 * run.config.gravity * t * t) / 50, .1)); } this.guide.geometry.dispose(); this.guide.geometry = new T.BufferGeometry().setFromPoints(points); this.guide.computeLineDistances();
-    this.camera.position.set(10, 7, 25); this.camera.lookAt(10, 3.2, 0); this.origin.copy(this.saw.position); this.followLight(10, 0);
-  }
-  pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number) { this.ray.setFromCamera(new T.Vector2(x * 2 - 1, 1 - y * 2), this.camera); const p = new T.Vector3(); if (this.ray.ray.intersectPlane(this.plane, p)) this.run.pointer(phase, p.x * 50, FLOOR - p.y * 50); }
-}
 
 export class PinballView extends World<PinballRun> {
   private table = new T.Group(); private ball: T.Mesh; private bumpers: T.Group[] = []; private flippers: T.Group[] = []; private targets: T.Mesh[] = []; private rings: T.Mesh[] = [];

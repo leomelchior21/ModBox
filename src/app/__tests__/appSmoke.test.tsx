@@ -16,6 +16,7 @@ import { MODS } from '../../interpreter/core/mods';
 vi.mock('../../games/three-kit/arcade-views', () => { class View { resize() {} render() {} dispose() {} } return { SlingersView: View, NajaView: View, PinballView: View, StackView: View }; });
 vi.mock('../../games/makitas-vs-zombies/view', () => ({ YardView: class { resize() {} render() {} dispose() {} preview() {} icon() { return ''; } snapshot() { return null; } batteryPoint() { return null; } feedback() { return []; } cell() { return {}; } point() { return { x: .5, y: .5 }; } } }));
 vi.mock('../../games/three-kit/runner-view', () => ({ RunnerView: class { resize() {} render() {} dispose() {} } }));
+vi.mock('../../games/makita-slingers/view', () => ({ SlingersView: class { resize() {} render() {} dispose() {} } }));
 vi.mock('../../games/team-counters/view', () => ({ TeamView: class { resize() {} render() {} dispose() {} } }));
 vi.mock('../../games/monster-strider/view', () => ({ MonsterView: class { resize() {} render() {} dispose() {} } }));
 vi.mock('../../games/roomba-run/view', () => ({ RoombaView: class { resize() {} render() {} dispose() {} } }));
