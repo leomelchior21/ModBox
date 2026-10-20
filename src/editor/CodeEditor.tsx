@@ -411,10 +411,16 @@ export function applyModToEditor(
 ): void {
   if (!view) return;
   const source = view.state.doc.toString();
-  const current = prepareModInsert?.(source, snippet, language) ?? source;
-  const placed = language === 'csharp'
-    ? placeMod(current, snippet, mode)
-    : placeLanguageSnippet(current, snippet, language, mode);
+  let current = prepareModInsert?.(source, snippet, language) ?? source;
+  const place = (code: string, part: string, how: ModInsertMode) => language === 'csharp' ? placeMod(code, part, how) : placeLanguageSnippet(code, part, language, how);
+  // A rule snippet may open with the declarations it needs. Each is added only when the
+  // student has not declared it yet, so their chosen values are never overwritten.
+  const prelude = splitDeclarationPrelude(snippet, language);
+  if (prelude) {
+    for (const line of prelude.declarations) if (!isDeclared(current, line.name, language)) current = place(current, line.text, 'duplicate');
+    snippet = prelude.body;
+  }
+  const placed = place(current, snippet, mode);
   const next = normalizeVariableSpacing(placed, language);
   const addedAt = Math.max(0, next.lastIndexOf(snippet.trim()));
   view.dispatch({
@@ -426,6 +432,22 @@ export function applyModToEditor(
     if (view.dom.isConnected) view.dispatch({ effects: setAddedLine.of(null) });
   }, 2600);
   requestAnimationFrame(() => showInsertedCodeCue(view, addedAt));
+}
+
+const DECLARATION: Record<LanguageId, RegExp> = {
+  csharp: /^(?:bool|int|string|float|double)\s+([A-Za-z_]\w*)\s*=/,
+  swift: /^(?:var|let)\s+([A-Za-z_]\w*)\b/,
+  python: /^([A-Za-z_]\w*)\s*=/,
+};
+/** Leading one-line declarations of a multi-statement snippet, followed by the rest of it. */
+export function splitDeclarationPrelude(snippet: string, language: LanguageId): { declarations: { name: string; text: string }[]; body: string } | null {
+  const lines = snippet.trim().split('\n'), declarations: { name: string; text: string }[] = [];
+  while (lines.length > 1) { const name = lines[0].match(DECLARATION[language])?.[1]; if (!name) break; declarations.push({ name, text: lines.shift()! }); }
+  return declarations.length ? { declarations, body: lines.join('\n') } : null;
+}
+function isDeclared(source: string, name: string, language: LanguageId): boolean {
+  const pattern = language === 'csharp' ? `^\\s*(?:bool|int|string|float|double)\\s+${name}\\s*=` : language === 'swift' ? `^\\s*(?:var|let)\\s+${name}\\b` : `^${name}\\s*=`;
+  return new RegExp(pattern, 'm').test(source);
 }
 
 function showInsertedCodeCue(view: EditorView, position: number): void {

@@ -95,7 +95,7 @@ describe('Block Forge learning and languages', () => {
   it.each(['python', 'swift', 'csharp'] as const)('starts basic and applies rotation, hints, undo and live rules without mission gates in %s', language => {
     const run = new ForgeRun(), basic = parseGameScript<ForgeConfig>(formatCodeForLanguage(FORGE_STARTER, language), language, forgeSchema);
     run.setProgram(basic); run.launch();
-    expect(basic.config).toEqual(FORGE_DEFAULTS); expect(run.hint()).toBeNull(); expect(run.rotate(0)).toBe(false);
+    expect(run.config).toEqual(FORGE_DEFAULTS); expect(run.hint()).toBeNull(); expect(run.rotate(0)).toBe(false);
     run.setProgram(parseGameScript<ForgeConfig>(formatCodeForLanguage(FORGE_REMIX, language), language, forgeSchema));
     expect(run.rotate(2)).toBe(true); expect(run.hint()).not.toBeNull();
     expect(run.place(0, 7, 6)?.lines).toBe(1); expect(run.config.comboBoost).toBe(true); expect(run.undo()).toBe(true);

@@ -109,11 +109,12 @@ describe('Team Counters decisions', () => {
 });
 
 describe('Monster Strider vehicle simulation', () => {
-  /** A fair human-like driver: full throttle, and BACK in the air when the nose climbs too high. */
+  /** A fair human-like driver: throttle on the ground, and counter-steering pitch in the air. */
   const drive = (run: MonsterRun, seconds: number, until: () => boolean = () => false, jitter = false) => {
     for (let i = 0; i < seconds * 60 && run.phase === 'playing' && !until(); i++) {
       run.input.right = true; run.input.left = false;
-      if (run.airtime > .15 && run.angle > .35) { run.input.right = false; run.input.left = true; }
+      if (run.airtime > .1) { if (run.angle - .12 * run.spinRate > .25) { run.input.right = false; run.input.left = true; } else if (run.angle < -.3 || run.spinRate < -2.5) run.input.right = true; else run.input.right = run.angle < 0; }
+      else if (run.angle > .75) run.input.right = false;
       run.step(jitter ? 1 / 144 + (i * 7919 % 1000) / 1000 * (1 / 20 - 1 / 144) : 1 / 60);
     }
   };
@@ -129,11 +130,11 @@ describe('Monster Strider vehicle simulation', () => {
     const restored = new MonsterRun(run.checkpoint); restored.launch(); expect(restored.phase).toBe('cleared'); expect(restored.x).toBeGreaterThan(restored.goal - 3);
     expect(restored.coins).toEqual(run.coins); expect(restored.finishTime).toBeCloseTo(run.finishTime, 1);
   });
-  it('offers a fair route through all eight courses at any frame rate, and pars are reachable', () => {
-    expect(MONSTER_LEVELS).toHaveLength(8); expect(new Set(MONSTER_LEVELS.map(l => l.name)).size).toBe(8);
+  it('offers a fair route through every course at any frame rate, and pars are reachable', () => {
+    expect(MONSTER_LEVELS.length).toBeGreaterThanOrEqual(20); expect(new Set(MONSTER_LEVELS.map(l => l.name)).size).toBe(MONSTER_LEVELS.length);
     for (let level = 1; level <= MONSTER_LEVELS.length; level++) {
       const run = new MonsterRun(); run.level = level; run.launch(); drive(run, 40, undefined, true);
-      expect(run.phase, `level ${level} ${run.stage.name} at x=${run.x.toFixed(1)}`).toBe('cleared'); expect(run.lives).toBe(3); expect(run.finishTime).toBeLessThan(run.stage.par);
+      expect(run.phase, `level ${level} ${run.stage.name} at x=${run.x.toFixed(1)}`).toBe('cleared'); expect(run.lives, `level ${level} ${run.stage.name}`).toBe(3); expect(run.finishTime).toBeLessThan(run.stage.par);
     }
   });
   it('sags rope bridges under the truck, drops crumbling boards and tips seesaws', () => {
@@ -149,7 +150,7 @@ describe('Monster Strider vehicle simulation', () => {
     run.input.right = false; run.input.left = true; advance(run, .5); expect(run.velocity).toBeLessThan(speed); advance(run, 2.5); expect(run.velocity).toBeLessThan(0);
     run.input.left = false; advance(run, 1); teleport(run, 0, 0, true); advance(run, .7); expect(run.crash?.message).toMatch(/ROOF/);
     advance(run, 1.6); expect(run.crash).toBeNull(); expect(run.lives).toBe(2); expect(Math.abs(run.angle)).toBeLessThan(.2); expect(run.x).toBeCloseTo(run.stage.start, 0);
-    drive(run, 8, () => run.safeX === 28 || run.x > 37); expect(run.safeX).toBe(28); teleport(run, 43 - run.x, 1); advance(run, 1); expect(run.crash?.splash).toBe(true); expect(run.splash).not.toBeNull();
+    drive(run, 8, () => run.safeX === 28 || run.x > 37); expect(run.safeX).toBe(28); teleport(run, -16 - run.x, 1); for (let i = 0; i < 240 && !run.crash; i++) run.step(1 / 60); expect(run.crash?.splash).toBe(true); expect(run.splash).not.toBeNull();
     advance(run, 1.6); expect(run.lives).toBe(1); expect(run.x).toBeCloseTo(28, 0); expect(run.phase).toBe('playing');
   });
   it('stabilizes in the air through code, counts assisted landings and respects multiple touch holds', () => {

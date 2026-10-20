@@ -67,3 +67,23 @@
 @container(max-width:480px) { .lab .premium__head { top:12px; left:12px; max-width:31%; }.lab .premium__head .premium__logo { height:22px; }.lab .premium__player { font-size:8px; }.lab .premium__stats { top:12px; right:54px; padding:7px 8px; gap:6px; max-width:54%; }.lab .premium__stats > div { padding-left:5px; }.lab .premium__stats small { font-size:7px; white-space:normal; }.lab .premium__stats strong { font-size:17px; }.lab .world__objective { top:72px; left:12px; width:140px; }.lab .premium__notice { max-width:90%; font-size:10px; }.lab .premium__missionNav { max-width:54%; } }
 
 @container(max-width:480px) { .lab .premium-stage:has(.premium__controls--touch) .premium__notice { top:130px; bottom:auto; font-size:9px; } }
+
+/* Start screen: logo, one-line goal, one big play button, compact control chips. */
+.lab .premium-stage .premium__overlay--ready { align-items:flex-end; justify-content:flex-start; padding:clamp(18px,5cqw,56px); background:linear-gradient(0deg,#07101ef2 0%,#07101eb8 34%,#07101e1a 72%),var(--arcade-cover) center/cover; }
+.lab .premium-stage .premium__overlay:not(.premium__overlay--ready) { align-items:center; justify-content:center; background:#07101ec4; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+.lab .premium-stage .premium__intro.start { width:auto; max-width:min(560px,100%); margin:0; padding:0; gap:clamp(10px,2.2cqh,16px); align-items:flex-start; font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif; }
+.premium__overlay:not(.premium__overlay--ready) .start { align-items:center !important; text-align:center; }
+.start .start__logo { width:min(380px,72cqw); max-width:100%; max-height:none; height:auto; filter:drop-shadow(0 8px 22px #0008); }
+.premium__overlay:not(.premium__overlay--ready) .start__logo { width:min(220px,50cqw); }
+.start h1.start__goal { margin:0; color:#ffffff; font:900 clamp(18px,3.3cqw,30px)/1.15 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif; letter-spacing:.005em; text-shadow:0 2px 14px #000a; }
+.start__score { margin:0; color:#ffe27a; font:900 clamp(26px,5cqw,40px)/1 system-ui,-apple-system,'Segoe UI',Arial,sans-serif; }.start__score small { color:#ffffffb0; font-size:.4em; letter-spacing:.12em; }
+.lab .premium-stage .start__play { display:inline-flex; align-items:center; gap:12px; min-height:60px; padding:0 34px 0 26px; border:0; border-radius:999px; background:#ffffff; color:#0f1d33; font:900 clamp(16px,2.4cqw,20px)/1 system-ui,-apple-system,'Segoe UI',Arial,sans-serif; letter-spacing:.07em; box-shadow:0 10px 28px #0007,inset 0 -4px 0 #00000022; cursor:pointer; transition:transform .12s ease,box-shadow .12s ease; touch-action:manipulation; }
+.start__play svg { width:22px; height:22px; fill:currentColor; }
+.lab .premium-stage .start__play:hover { transform:translateY(-1px) scale(1.03); box-shadow:0 14px 32px #0008,inset 0 -4px 0 #00000022; }.lab .premium-stage .start__play:active { transform:scale(.97); }
+.start__keys { list-style:none; display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 0; padding:0; }
+.start__keys li { display:flex; align-items:center; gap:8px; min-height:38px; padding:5px 13px 5px 6px; border:1px solid #ffffff2e; border-radius:999px; background:#0a1426b8; color:#eef4ff; font:700 12px/1.2 system-ui,-apple-system,'Segoe UI',Arial,sans-serif; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+.start__keys li:only-child { padding-left:13px; border-radius:12px; max-width:440px; }
+.start__keys kbd { display:grid; place-items:center; min-width:28px; height:28px; padding:0 8px; border-radius:8px; background:#ffffff; color:#0f1d33; font:900 12px/1 system-ui,-apple-system,'Segoe UI',Arial,sans-serif; box-shadow:inset 0 -2px 0 #00000026; white-space:nowrap; }
+.lab .premium-stage .start__mode { min-height:44px; padding:6px 0; border:0; background:none; color:#e4ecf9cc; font:700 12px system-ui,-apple-system,'Segoe UI',Arial,sans-serif; text-decoration:underline; text-underline-offset:3px; cursor:pointer; box-shadow:none; }
+.start__note { color:#e4ecf9a6; font:700 10px system-ui,-apple-system,'Segoe UI',Arial,sans-serif; letter-spacing:.08em; }
+@container(max-height:480px) { .start .start__logo { width:min(240px,45cqw); } .lab .premium-stage .start__play { min-height:50px; } .start__keys li { min-height:32px; } }

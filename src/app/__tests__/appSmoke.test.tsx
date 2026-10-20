@@ -357,14 +357,14 @@ describe('MODBOX app shell', () => {
     await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(1) button')?.click());
     expect(await waitFor(() => Boolean(host.querySelector('.forge__start')))).toBe(true);
     expect(host.querySelector('.cm-content')?.textContent).toContain('allowUndo = False');
-    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(10);
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(9);
     await act(async () => host.querySelector<HTMLButtonElement>('.forge__start')?.click());
     expect(host.querySelector<HTMLButtonElement>('.forge__actions button:nth-child(1)')?.disabled).toBe(true);
     await act(async () => host.querySelector<HTMLButtonElement>('[data-forge-cell="62"]')?.click());
     expect(host.querySelector('.forge__stats > div:nth-child(2) strong')?.textContent).toBe('01');
     expect(useProgress.getState().getGameProgress('block-forge').bestScore).toBe(110);
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    const enhanced = view!.state.doc.toString().replace('allowUndo = False', 'allowUndo = True').replace('rotations = False', 'rotations = True').replace('palette = "aurora"', 'palette = "sunset"');
+    const enhanced = view!.state.doc.toString().replace('allowUndo = False', 'allowUndo = True').replace('rotations = False', 'rotations = True').replace('blockStyle = "bevel"', 'blockStyle = "glass"');
     await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: enhanced } }));
     expect(await waitFor(() => !host.querySelector<HTMLButtonElement>('.forge__actions button:nth-child(1)')?.disabled)).toBe(true);
     await act(async () => host.querySelector<HTMLButtonElement>('.forge__piece:nth-child(2)')?.click());
@@ -381,7 +381,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.forge__intro h2')?.textContent).toBe('Room to breathe.');
     await act(async () => { window.location.hash = '#/lab?game=maze&mission=m00'; });
     expect(await waitFor(() => Boolean(host.querySelector('.neon-stage')))).toBe(true);
-    expect(useProgress.getState().getGameProgress('block-forge').codes['python:free']).toContain('sunset');
+    expect(useProgress.getState().getGameProgress('block-forge').codes['python:free']).toContain('glass');
   }, 15000);
 
   it('preserves existing guided saves when a game switches to the play-first entry', async () => {
@@ -400,16 +400,16 @@ describe('MODBOX app shell', () => {
   }, 15000);
 
   it.each([
-    ['makita-slingers', 'MAKITA SLINGERS', 'amber'],
-    ['naja-run', 'NAJA RUN', 'orchid'],
-    ['pinballerz', 'PINBALLERZ', 'sunset'],
-    ['speed-stack', 'SPEED STACK', 'mint'],
-    ['temple-race', 'TEMPLE RACE', 'gold'],
-    ['subway-runnerz', 'SUBWAY RUNNERZ', 'sunset'],
-    ['team-counters', 'TEAM COUNTERS', 'violet'],
-    ['monster-strider', 'MONSTER STRIDER', 'teal'],
-    ['roomba-run', 'ROOMBA RUN', 'coral'],
-  ])('opens %s in basic free play, enables every mod and keeps challenges optional', async (id, title, color) => {
+    ['makita-slingers', 'MAKITA SLINGERS', 'alpine', 'blastBlade'],
+    ['naja-run', 'NAJA RUN', 'volcanic', 'venomRush'],
+    ['pinballerz', 'PINBALLERZ', 'neon', 'jackpotMode'],
+    ['speed-stack', 'SPEED STACK', 'alpine', 'focusMode'],
+    ['temple-race', 'TEMPLE RACE', 'volcanic', 'relicShield'],
+    ['subway-runnerz', 'SUBWAY RUNNERZ', 'neon', 'hoverboard'],
+    ['team-counters', 'TEAM COUNTERS', 'alpine', 'teamShield'],
+    ['monster-strider', 'MONSTER STRIDER', 'volcanic', 'nitro'],
+    ['roomba-run', 'ROOMBA RUN', 'neon', 'turboBrush'],
+  ])('opens %s in basic free play, enables every mod and keeps challenges optional', async (id, title, theme, ability) => {
     window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
     await act(async () => host.querySelector<HTMLButtonElement>(`.home-game--${id}`)?.click()); await flush();
     expect(host.querySelector('.languages__game h2')?.textContent).toBe(title);
@@ -417,10 +417,11 @@ describe('MODBOX app shell', () => {
     expect(await waitFor(() => Boolean(host.querySelector('.premium__start')))).toBe(true);
     expect(host.querySelector('.premium__introLogo')?.getAttribute('alt')).toBe(title);
     expect(window.location.hash).toContain('mission=free');
-    expect(host.querySelector('.cm-content')?.textContent).toContain('playerName');
-    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'roomba-run' ? 14 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 13 : 12);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('worldTheme'); expect(host.querySelector('.cm-content')?.textContent).not.toContain('playerName');
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'roomba-run' ? 13 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 12 : 11);
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    const enhanced = view!.state.doc.toString().replace(/palette = "[^"]+"/, `palette = "${color}"`).replace(/(blastBlade|venomRush|jackpotMode|focusMode|relicShield|hoverboard|teamShield|nitro|turboBrush) = False/, '$1 = True');
+    const enhanced = `${view!.state.doc.toString().replace(/worldTheme = "[^"]+"/, `worldTheme = "${theme}"`)}
+${ability} = True`;
     await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: enhanced } }));
     expect(await waitFor(() => host.querySelector('.premium-stage')?.getAttribute('style')?.includes('--arcade-accent') ?? false)).toBe(true);
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 260)); });
@@ -429,12 +430,12 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector<HTMLButtonElement>('.premium__controls button:last-child')?.disabled).toBe(false);
     await act(async () => host.querySelector<HTMLButtonElement>('.premium__control--primary')?.click());
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
-    expect(host.querySelector('.premium__intro h1')?.textContent).toBe('HOLD THAT THOUGHT.');
+    expect(host.querySelector('.premium__intro h1')?.textContent).toBe('PAUSED');
     await act(async () => host.querySelector<HTMLButtonElement>('.play-mode button')?.click());
     expect(await waitFor(() => window.location.hash.includes('mission=m00'))).toBe(true);
     await act(async () => host.querySelector<HTMLButtonElement>('.premium__next')?.click());
     expect(await waitFor(() => host.querySelector('.feedback__message')?.textContent?.includes('YOUR SIGNATURE') ?? false)).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain(`palette = "${color}"`);
+    expect(host.querySelector('.cm-content')?.textContent).toContain(`worldTheme = "${theme}"`);
     expect(useProgress.getState().getGameProgress(id).completed).toContain('m00');
     expect(useProgress.getState().getGameProgress('block-forge').completed).toEqual([]);
   }, 15000);

@@ -6,6 +6,8 @@ import { MONSTER_LEVELS, SEABED_Y, WATER_Y, landHeight, levelFor, levelName, typ
 export const WHEEL_RADIUS = .72, WHEEL_REST = -.55;
 const WHEEL_MASS = .8, WHEEL_INERTIA = .5 * WHEEL_MASS * WHEEL_RADIUS * WHEEL_RADIUS;
 const TRAVEL_UP = .3, TRAVEL_DOWN = .2, STEP = 1 / 240, ITERATIONS = 6, GRIP = 1.15;
+/** Pitch control: air torque, extra ground torque for wheelies / nose dives, and the spin-rate cap (rad/s). */
+export const AIR_TORQUE = 120, GROUND_TORQUE = 26, PITCH_RATE = 6.5;
 /** Chassis points in the axle frame: name, x, y, collision radius. "h" is the cab roof: touching anything with it ends the run. */
 const CHASSIS = [['a0', -1.1, 0, .2], ['a1', 1.1, 0, .2], ['b0', -1.72, .45, .22], ['b1', 1.82, .25, .22], ['h', -.25, 1.32, .3], ['c0', -1.55, -.2, .18], ['c1', 1.65, -.2, .18]] as const;
 type PartName = typeof CHASSIS[number][0];
@@ -132,14 +134,19 @@ export class MonsterRun extends ArcadeRun {
       const before = t.spin[i]; t.spin[i] += torque / WHEEL_INERTIA * h;
       if (throttle < 0 && forward > .5 && Math.sign(t.spin[i]) !== Math.sign(before)) t.spin[i] = 0;
       if (!throttle) t.spin[i] *= 1 - Math.min(1, (airborne ? .6 : 1.4) * h);
-      chassisTorque -= torque * .22;
+      chassisTorque -= torque * .3;
     }
     // Air control: GAS rotates nose-up, BACK nose-down. The stabilizer steers the truck level instead.
     const omega = ((a1.vx - a0.vx) * nx + (a1.vy - a0.vy) * ny) / length;
+    // Pitch is the core skill, so it is deliberately strong and snappy: big air flips, real wheelies.
     if (airborne) {
-      if (this.config.assist) chassisTorque += -this.angle * 55 - omega * 16 + throttle * 25;
-      else if (throttle * omega < 3.8) chassisTorque += throttle * 52;
-    } else if (this.config.assist && Math.abs(this.angle) > .85) chassisTorque -= Math.sign(this.angle) * 40;
+      if (this.config.assist) chassisTorque += -this.angle * 70 - omega * 18 + throttle * 40;
+      else if (throttle * omega < PITCH_RATE) chassisTorque += throttle * AIR_TORQUE;
+    } else {
+      const lifted = t.touching[0] < .06 !== t.touching[1] < .06;
+      if (throttle && throttle * omega < PITCH_RATE * .6) chassisTorque += throttle * (lifted ? GROUND_TORQUE * 1.4 : GROUND_TORQUE);
+      if (this.config.assist && Math.abs(this.angle) > .85) chassisTorque -= Math.sign(this.angle) * 60;
+    }
     const couple = chassisTorque / length * h;
     a1.vx += nx * couple * a1.w; a1.vy += ny * couple * a1.w; a0.vx -= nx * couple * a0.w; a0.vy -= ny * couple * a0.w;
     // Suspension springs push each wheel away from its mount along the chassis "up" axis.

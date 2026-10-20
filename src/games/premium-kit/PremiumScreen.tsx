@@ -33,6 +33,9 @@ export interface PremiumGameSpec<R extends ArcadeRun = ArcadeRun> {
   /** Optional instant-photo result card shown instead of the standard overlay when a stage is cleared or lost. */
   result?(run: R): ResultCard | null;
   stages?(run: R): readonly StageChip[];
+  /** Short control hints for the start screen: keyboard first, with optional touch wording for tablets. */
+  hints?: readonly { keys: string; label: string }[];
+  touchHints?: readonly { keys: string; label: string }[];
 }
 const menuOpen = () => Boolean(document.querySelector('.mod-options,.topbar__more[open],.modal'));
 const KEY_DIRECTIONS: Record<string, keyof ArcadeInput> = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down' };
@@ -184,14 +187,16 @@ export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, de
       <PlayModeNav className="premium__missionNav" nextClassName="premium__next" exploring={mission.kind === 'sandbox'} onExplore={() => go(catalog.missions[8])} onGuide={() => go(catalog.missions[0])} onPrevious={previous ? () => go(previous) : undefined} onNext={next ? () => go(next) : undefined} />
       {card ? <ResultOverlay key={`${run.revision}-${run.phase}`} card={card} snapshot={world.current?.snapshot?.() ?? null} stages={spec.stages?.(run) ?? []} footnote={footnote}
         onHome={() => navigate({ name: 'landing' })} onPrimary={() => resume(() => card.win ? run.advance() : run.retryStage())} onPick={level => resume(() => run.replayStage(level))} /> : null}
-      {run.phase !== 'playing' && !card ? <div className={`premium__overlay premium__overlay--${run.phase}`}><div className="premium__intro"><span className="premium__eyebrow">{run.phase === 'ready' ? spec.eyebrow : run.phase === 'paused' ? 'TAKE A BREATHER' : run.phase === 'cleared' ? 'ANOTHER ONE FOR THE HIGHLIGHT REEL' : 'YOUR NEXT RUN STARTS HERE'}</span><img src={`/art/${gameId}/logo.svg`} alt={spec.title} className="premium__introLogo" />
-        <h1>{run.phase === 'ready' ? spec.goal : run.phase === 'paused' ? 'HOLD THAT THOUGHT.' : run.phase === 'cleared' ? 'BEAUTIFULLY DONE.' : 'ONE MORE TRY.'}</h1>
-        <p>{run.phase === 'ready' ? spec.description : run.phase === 'paused' ? 'Your game is right here when you are ready.' : run.phase === 'cleared' ? `Stage ${run.level} secured. ${run.score.toLocaleString()} points and a tougher challenge ahead.` : 'Retry this stage with your latest code. A different approach can change everything.'}</p>
-        <div className="premium__how"><b>HOW TO PLAY</b><span>{spec.instructions}</span></div>
-        {spec.features ? <div className="world__features">{spec.features.map((feature, index) => <span key={feature}><i style={{ backgroundPosition: `${index % 2 * 100}% ${Math.floor(index / 2) * 100}%` }} />{feature}</span>)}</div> : null}
-        <button className="premium__start" onClick={() => { engage(); if (run.phase === 'paused') run.resume(); else if (run.phase === 'cleared') run.advance(); else if (run.phase === 'gameover') run.retryStage(); else run.launch(); update(); canvas.current?.focus({ preventScroll: true }); }}>{run.phase === 'paused' ? 'BACK TO IT' : run.phase === 'cleared' ? 'NEXT STAGE' : run.phase === 'gameover' ? 'RETRY SAVED STAGE' : run.hasCheckpoint ? 'CONTINUE PLAYING' : 'LET’S PLAY'} →</button>
-        <small>{footnote}</small>
-        {run.phase === 'ready' ? <button className="play-mode__intro" onClick={() => go(catalog.missions[mission.kind === 'sandbox' ? 0 : 8])}>{mission.kind === 'sandbox' ? 'TRY OPTIONAL CHALLENGES' : 'SWITCH TO FREE PLAY'}</button> : null}
+      {run.phase !== 'playing' && !card ? <div className={`premium__overlay premium__overlay--${run.phase}`}><div className="premium__intro start">
+        <img src={`/art/${gameId}/logo.svg`} alt={spec.title} className="premium__introLogo start__logo" />
+        <h1 className="start__goal">{run.phase === 'ready' ? spec.goal : run.phase === 'paused' ? 'PAUSED' : run.phase === 'cleared' ? `STAGE ${run.level} CLEAR` : 'GAME OVER'}</h1>
+        {run.phase === 'cleared' || run.phase === 'gameover' ? <p className="start__score">{run.score.toLocaleString()} <small>POINTS</small></p> : null}
+        <button className="premium__start start__play" onClick={() => { engage(); if (run.phase === 'paused') run.resume(); else if (run.phase === 'cleared') run.advance(); else if (run.phase === 'gameover') run.retryStage(); else run.launch(); update(); canvas.current?.focus({ preventScroll: true }); }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d={run.phase === 'gameover' ? 'M12 4a8 8 0 1 1-7.6 5.5h3.3A5 5 0 1 0 12 7v3.4L6.8 5.7 12 1z' : 'M7 4.5v15l12-7.5z'} /></svg>
+          {run.phase === 'paused' ? 'RESUME' : run.phase === 'cleared' ? 'NEXT STAGE' : run.phase === 'gameover' ? 'RETRY' : run.hasCheckpoint && run.level > 1 ? `CONTINUE · STAGE ${run.level}` : 'PLAY'}
+        </button>
+        {run.phase === 'ready' || run.phase === 'paused' ? <ul className="start__keys" aria-label="How to play">{(touch ? spec.touchHints ?? spec.hints : spec.hints)?.map(hint => <li key={hint.label}>{hint.keys ? <kbd>{hint.keys}</kbd> : null}{hint.label}</li>) ?? <li>{spec.instructions}</li>}</ul> : null}
+        {run.phase !== 'ready' ? <small className="start__note">{footnote}</small> : null}
       </div></div> : null}
       {graphicsFailed ? <div className="world__unavailable" role="alert"><strong>Let’s get your 3D world running.</strong><p>The scene could not start. Reload it, or try a browser with 3D support.</p><button onClick={() => setGraphicsAttempt(v => v + 1)}>RELOAD SCENE</button></div> : null}
     </div>}

@@ -38,7 +38,7 @@ describe.each(games)('$id campaign and interpreter', ({ id, catalog, create }) =
   it.each(['python', 'swift', 'csharp'] as const)('starts a complete basic game and accepts every mod immediately in %s', language => {
     const run = create(), parse = (source: string) => parseGameScript<ArcadeConfig>(formatCodeForLanguage(source, language), language, catalog.schema);
     const basic = parse(catalog.starter); run.setProgram(basic); run.launch();
-    expect(basic.ok).toBe(true); expect(Object.keys(basic.config)).toHaveLength(catalog.mods.length);
+    expect(basic.ok).toBe(true); expect(Object.keys(basic.config)).toEqual(["worldTheme", "characterStyle", "weather"]);
     expect(run.config).toEqual(catalog.defaults); expect(run.phase).toBe('playing');
     expect(run.config.assist).toBe(false); expect(run.config.overdrive).toBe(false);
     run.setProgram(parse(catalog.remix)); expect(run.config.assist).toBe(true);
