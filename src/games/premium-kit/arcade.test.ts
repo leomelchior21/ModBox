@@ -9,7 +9,7 @@ import { NajaRun, type Tile } from '../naja-run/run';
 import { najaCatalog } from '../naja-run/catalog';
 import { PinballRun, closestSegment, pinStage } from '../pinballerz/run';
 import { pinballCatalog } from '../pinballerz/catalog';
-import { StackRun, overlap1D } from '../speed-stack/run';
+import { StackRun, overlap1D, STACK_LEVELS } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
 import { readCampaign, type ArcadeConfig, type ArcadeRun } from './core';
 import { ArcadeEffects } from './visuals';
@@ -214,8 +214,17 @@ describe('Speed Stack overlap and timing', () => {
   });
   it('chains perfect placements, widens after three, and clears a skyline', () => {
     const run = new StackRun(); run.launch();
-    for (let i = 0; i < 15; i++) { const top = run.slabs[run.slabs.length - 1]; run.moving.x = top.x; run.moving.z = top.z; run.dropLock = 0; expect(run.drop()).toBe(true); }
-    expect(run.phase).toBe('cleared'); expect(run.placed).toBe(15); expect(run.metrics.perfects).toBe(15); expect(run.slabs[3].w).toBe(290); expect(run.slabs[6].w).toBe(300); expect(run.metrics.clears).toBe(1);
+    for (let i = 0; i < 12; i++) { const top = run.slabs[run.slabs.length - 1]; run.moving.x = top.x; run.moving.z = top.z; run.dropLock = 0; expect(run.drop()).toBe(true); }
+    expect(run.phase).toBe('cleared'); expect(run.placed).toBe(12); expect(run.metrics.perfects).toBe(12); expect(run.slabs[3].w).toBe(292); expect(run.slabs[6].w).toBe(300); expect(run.metrics.clears).toBe(1); expect(run.best).toBe(12);
+    const restored = new StackRun(run.checkpoint); restored.launch(); expect(restored.phase).toBe('cleared'); expect(restored.slabs).toHaveLength(13); expect(restored.best).toBe(12);
+  });
+  it('pays triple for perfect gold slabs, cuts gold away on a miss, and blows gusts on windy stages', () => {
+    const run = new StackRun(); run.level = 3; run.launch(); expect(run.stage.gold).toBe(4);
+    for (let i = 0; i < 3; i++) { run.moving.x = run.top.x; run.moving.z = run.top.z; run.dropLock = 0; run.drop(); }
+    expect(run.moving.gold).toBe(true); run.moving.x = run.top.x; run.moving.z = run.top.z; const before = run.score; run.dropLock = 0; run.drop();
+    expect(run.score - before).toBe((25 + run.config.bonus * 4) * 3); expect(run.top.w).toBe(300);
+    const windy = new StackRun(); windy.level = 7; windy.launch(); const speeds = new Set<number>(); for (let i = 0; i < 40; i++) { windy.step(.05); speeds.add(Math.round(windy.speed)); }
+    expect(speeds.size).toBeGreaterThan(10); expect(STACK_LEVELS.every(l => l.floors >= 12 && l.width >= 200)).toBe(true);
   });
   it('uses magnetic alignment, spends chances on misses, and ends at zero', () => {
     const run = new StackRun(); run.launch(); run.config.assist = true; run.moving.x = -125; run.drop(); expect(run.metrics.assisted).toBe(1); expect(run.slabs[1].w).toBe(280);

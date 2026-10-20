@@ -8,5 +8,6 @@ export const stackCatalog = createArcadeCatalog({
   physics: { key: 'speed', name: 'blockSpeed', label: 'BUILD TEMPO', blurb: 'The speed of the incoming slab.', min: 70, max: 260, goal: 180 },
   overdrive: { name: 'focusMode', label: 'SLOW THE MOMENT', blurb: 'Use FOCUS or E for a three-second timing window in slow motion.' },
   lives: { name: 'chances', label: 'SECOND CHANCES', min: 1, max: 4 },
-  final: 'Stack fifteen slabs and finish a skyline.',
+  final: 'Stack every floor of a skyline and clear the stage.',
+  runtime: { floors: 'floors stacked this stage', streak: 'perfect drops in a row' },
 });

@@ -1,0 +1,8 @@
+.ss__hud { position:absolute; z-index:2; top:14px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:2px; pointer-events:none; color:#fff; text-shadow:0 2px 12px #0005; }
+.ss__hud b { font:900 64px/1 "Arial Black", Arial, sans-serif; letter-spacing:-.02em; }
+.ss__hud span { font:700 11px var(--font-mono); letter-spacing:.12em; text-transform:uppercase; opacity:.85; }
+.ss__hud em { margin-top:6px; padding:4px 12px; border-radius:20px; background:#ffffff33; font:900 13px "Arial Black", Arial, sans-serif; font-style:normal; letter-spacing:.06em; animation:ss-pop .35s ease-out; }
+.ss__hud i { margin-top:4px; padding:3px 10px; border-radius:20px; background:#ffc93acc; color:#4a2f00; font:900 11px "Arial Black", Arial, sans-serif; font-style:normal; letter-spacing:.08em; text-shadow:none; }
+@keyframes ss-pop { from { transform:scale(1.5); opacity:0; } to { transform:scale(1); opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .ss__hud em { animation:none; } }
+@media (max-width:600px) { .ss__hud { top:52px; } .ss__hud b { font-size:46px; } }
