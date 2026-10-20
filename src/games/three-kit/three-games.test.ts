@@ -3,7 +3,8 @@ import { parseGameScript } from '../../interpreter/gameScript';
 import { formatCodeForLanguage } from '../../interpreter/languageSyntax';
 import { RunnerRun, runnerCourse, runnerFrame } from './runner';
 import { TeamRun, gateResult } from '../team-counters/run';
-import { MonsterRun, trackHeight } from '../monster-strider/run';
+import { MonsterRun } from '../monster-strider/run';
+import { MONSTER_LEVELS } from '../monster-strider/levels';
 import { RoombaRun, ROOM, cellPoint, roomBlocked, roomPath } from '../roomba-run/run';
 import { templeCatalog } from '../temple-race/catalog';
 import { subwayCatalog } from '../subway-runnerz/catalog';
@@ -108,19 +109,63 @@ describe('Team Counters decisions', () => {
 });
 
 describe('Monster Strider vehicle simulation', () => {
-  it('accelerates, brakes, traverses both gaps and reaches the finish with basic physics', () => {
-    const run = new MonsterRun(); run.launch(); run.input.right = true;
-    let wasAirborne = false;
-    for (let i = 0; i < 60 * 50 && run.phase === 'playing'; i++) { run.step(1 / 60); wasAirborne ||= !run.grounded; }
-    expect(wasAirborne).toBe(true); expect(run.phase).toBe('cleared'); expect(run.metrics.perfects).toBeGreaterThan(0); expect(run.lives).toBe(3);
-    const restored = new MonsterRun(run.checkpoint); restored.launch(); expect(restored.x).toBe(restored.goal); expect(restored.coins).toEqual(run.coins); expect(restored.phase).toBe('cleared');
-    expect(trackHeight(25)).toBeNull(); expect(trackHeight(90)).toBeNull();
-    const other = new MonsterRun(); other.launch(); other.input.right = true; advance(other, 1); const speed = other.velocity; other.input.right = false; other.input.left = true; advance(other, .5); expect(other.velocity).toBeLessThan(speed);
+  /** A fair human-like driver: full throttle, and BACK in the air when the nose climbs too high. */
+  const drive = (run: MonsterRun, seconds: number, until: () => boolean = () => false, jitter = false) => {
+    for (let i = 0; i < seconds * 60 && run.phase === 'playing' && !until(); i++) {
+      run.input.right = true; run.input.left = false;
+      if (run.airtime > .15 && run.angle > .35) { run.input.right = false; run.input.left = true; }
+      run.step(jitter ? 1 / 144 + (i * 7919 % 1000) / 1000 * (1 / 20 - 1 / 144) : 1 / 60);
+    }
+  };
+  const teleport = (run: MonsterRun, dx: number, dy: number, flip = false) => {
+    const p = run.course.sim.p, t = run.course.truck, cx = run.x, cy = run.y + 1.8;
+    for (const id of [...Object.values(t.parts), ...t.wheels]) { const q = p[id]; q.x = flip ? 2 * cx - q.x : q.x + dx; q.y = flip ? 2 * cy - q.y : q.y + dy; q.px = q.x; q.py = q.y; q.vx = q.vy = 0; }
+  };
+  it('clears the first course just by holding GAS, with air time, landings and a restorable finish', () => {
+    const run = new MonsterRun(); run.launch(); run.input.right = true; let airborne = false;
+    for (let i = 0; i < 60 * 20 && run.phase === 'playing'; i++) { run.step(1 / 60); airborne ||= run.airtime > .3; }
+    expect(run.phase).toBe('cleared'); expect(airborne).toBe(true); expect(run.lives).toBe(3); expect(run.finishTime).toBeGreaterThan(5); expect(run.finishTime).toBeLessThan(10);
+    expect(run.metrics.scored).toBeGreaterThan(1); expect(run.score).toBeGreaterThan(300);
+    const restored = new MonsterRun(run.checkpoint); restored.launch(); expect(restored.phase).toBe('cleared'); expect(restored.x).toBeGreaterThan(restored.goal - 3);
+    expect(restored.coins).toEqual(run.coins); expect(restored.finishTime).toBeCloseTo(run.finishTime, 1);
   });
-  it('recovers from a fall at a safe checkpoint, applies stabilization and respects multiple touch holds', () => {
-    const run = new MonsterRun(); run.launch(); run.pointer('down', 900, 200, 1); run.pointer('down', 100, 200, 2); run.pointer('up', 900, 200, 1); expect(run.input.right).toBe(false); expect(run.input.left).toBe(true); run.pointer('cancel', 0, 0); expect(run.input.left).toBe(false);
-    run.invulnerable = 0; run.y = -6; run.grounded = false; run.step(.01); expect(run.lives).toBe(2); expect(run.x).toBe(2); expect(run.y).toBeGreaterThan(0);
-    run.config.assist = true; run.action('primary'); run.pitch = .5; advance(run, .7); expect(Math.abs(run.pitch)).toBeLessThan(.5); expect(run.metrics.assisted).toBeGreaterThan(0);
+  it('offers a fair route through all eight courses at any frame rate, and pars are reachable', () => {
+    expect(MONSTER_LEVELS).toHaveLength(8); expect(new Set(MONSTER_LEVELS.map(l => l.name)).size).toBe(8);
+    for (let level = 1; level <= MONSTER_LEVELS.length; level++) {
+      const run = new MonsterRun(); run.level = level; run.launch(); drive(run, 40, undefined, true);
+      expect(run.phase, `level ${level} ${run.stage.name} at x=${run.x.toFixed(1)}`).toBe('cleared'); expect(run.lives).toBe(3); expect(run.finishTime).toBeLessThan(run.stage.par);
+    }
+  });
+  it('sags rope bridges under the truck, drops crumbling boards and tips seesaws', () => {
+    const rope = new MonsterRun(); rope.launch(); const p = rope.course.sim.p, chain = rope.course.planks.map(plank => plank.a), rest = chain.map(id => p[id].y); let dip = 0;
+    drive(rope, 6, () => { dip = Math.max(dip, ...chain.map((id, i) => rest[i] - p[id].y)); return rope.x > 22; }); expect(dip).toBeGreaterThan(.12); expect(rope.lives).toBe(3);
+    const crumble = new MonsterRun(); crumble.level = 6; crumble.launch(); drive(crumble, 6, () => crumble.x > 27);
+    expect(crumble.course.planks.filter(plank => plank.fallen).length).toBeGreaterThan(8); expect(crumble.lives).toBe(3);
+    const seesaw = new MonsterRun(); seesaw.level = 3; seesaw.launch(); const left = seesaw.course.sim.p[seesaw.course.seesaws[0].left], start = left.y;
+    drive(seesaw, 6, () => seesaw.x > 21); expect(left.y).toBeGreaterThan(start + .5);
+  });
+  it('brakes, reverses, ends a roof landing and a splash with spare trucks at the last checkpoint', () => {
+    const run = new MonsterRun(); run.launch(); run.input.right = true; advance(run, 1.2); const speed = run.velocity; expect(speed).toBeGreaterThan(5);
+    run.input.right = false; run.input.left = true; advance(run, .5); expect(run.velocity).toBeLessThan(speed); advance(run, 2.5); expect(run.velocity).toBeLessThan(0);
+    run.input.left = false; advance(run, 1); teleport(run, 0, 0, true); advance(run, .7); expect(run.crash?.message).toMatch(/ROOF/);
+    advance(run, 1.6); expect(run.crash).toBeNull(); expect(run.lives).toBe(2); expect(Math.abs(run.angle)).toBeLessThan(.2); expect(run.x).toBeCloseTo(run.stage.start, 0);
+    drive(run, 8, () => run.safeX === 28 || run.x > 37); expect(run.safeX).toBe(28); teleport(run, 43 - run.x, 1); advance(run, 1); expect(run.crash?.splash).toBe(true); expect(run.splash).not.toBeNull();
+    advance(run, 1.6); expect(run.lives).toBe(1); expect(run.x).toBeCloseTo(28, 0); expect(run.phase).toBe('playing');
+  });
+  it('stabilizes in the air through code, counts assisted landings and respects multiple touch holds', () => {
+    const run = new MonsterRun(); run.setProgram(parseGameScript<ArcadeConfig>('bool autoBalance = false;\nif (airborne > 0) { autoBalance = true; }', 'csharp', monsterCatalog.schema)); run.level = 2; run.launch();
+    let tilt = 0; for (let i = 0; i < 60 * 30 && run.phase === 'playing'; i++) { run.input.right = true; run.step(1 / 60); if (run.airtime > .4) tilt = Math.max(tilt, Math.abs(run.angle)); }
+    expect(run.phase).toBe('cleared'); expect(run.metrics.assisted).toBeGreaterThan(0); expect(tilt).toBeLessThan(.6); expect(run.metrics.ruleTraces.some(t => t.includes('autoBalance'))).toBe(true);
+    const touch = new MonsterRun(); touch.launch(); touch.pointer('down', 900, 200, 1); touch.pointer('down', 100, 200, 2); touch.pointer('up', 900, 200, 1);
+    expect(touch.input.right).toBe(false); expect(touch.input.left).toBe(true); touch.pointer('cancel', 0, 0); expect(touch.input.left).toBe(false);
+  });
+  it('replays an earlier stage without rewriting the campaign save, then rejoins it', () => {
+    const run = new MonsterRun(); run.launch(); drive(run, 20); run.advance(); const saved = run.checkpoint!; expect(saved.level).toBe(2); expect(run.frontier).toBe(2);
+    expect(run.replayStage(3)).toBe(false); expect(run.replayStage(1)).toBe(true); expect([run.level, run.phase, run.score]).toEqual([1, 'playing', saved.score]);
+    drive(run, 20); expect(run.phase).toBe('cleared'); expect(run.checkpoint).toEqual(saved);
+    run.advance(); expect([run.level, run.score]).toEqual([2, saved.score]); expect(run.checkpoint).toEqual(saved);
+    run.replayStage(1); run.lives = 1; run.invulnerable = 0; teleport(run, 0, -9); advance(run, 2); expect(run.phase).toBe('gameover');
+    run.retryStage(); expect([run.level, run.phase]).toEqual([1, 'playing']); expect(run.checkpoint).toEqual(saved);
   });
 });
 

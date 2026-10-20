@@ -42,7 +42,7 @@ describe('live world remixes', () => {
 });
 
 describe('Unity model exports', () => {
-  it.each(['vacuum', 'truck', 'cobra', 'robot', 'turret'])('loads %s as a complete glTF mesh with finite bounds', async name => {
+  it.each(['vacuum', 'truck', 'tire', 'cobra', 'robot', 'turret'])('loads %s as a complete glTF mesh with finite bounds', async name => {
     const file = readFileSync(`public/models/unity/${name}.glb`), buffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
     const result = await new GLTFLoader().parseAsync(buffer, ''); let vertices = 0;
     result.scene.traverse(o => { if (o instanceof T.Mesh) { vertices += o.geometry.attributes.position.count; o.geometry.computeBoundingBox(); expect(o.geometry.boundingBox?.isEmpty()).toBe(false); expect(o.geometry.getAttribute('color').count).toBe(o.geometry.attributes.position.count); o.geometry.dispose(); for (const mat of Array.isArray(o.material) ? o.material : [o.material]) mat.dispose(); } });

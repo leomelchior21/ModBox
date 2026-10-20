@@ -22,7 +22,7 @@ public static class ModboxArt
     static void Disc(string n, Material m,float x,float y,float z,float r,float h) { Part(n,PrimitiveType.Cylinder,m,x,y,z,r*2,h/2,r*2); }
     static void Ball(string n,Material m,float x,float y,float z,float r) { Part(n,PrimitiveType.Sphere,m,x,y,z,r*2,r*2,r*2); }
     static void Begin(string name) { root = new GameObject(name).transform; }
-    static void End(string path) { Export(root.gameObject,path); }
+    static void End(string path, bool linear = false) { Export(root.gameObject,path,linear); }
 
     [MenuItem("MODBOX/Build web model pack")]
     public static void Build() {
@@ -34,11 +34,33 @@ public static class ModboxArt
         Disc("lidar base",dark,.07f,.43f,-.04f,.105f,.13f); Disc("lidar cap",white,.07f,.51f,-.04f,.11f,.04f); Box("power button",teal,-.1f,.39f,.12f,.075f,.025f,.06f); Box("front sensor",dark,0,.22f,.378f,.25f,.09f,.035f);
         for(int side=-1;side<=1;side+=2) for(int b=0;b<3;b++) { var o=Part("side brush",PrimitiveType.Cube,dark,side*.31f,.06f,.2f,.035f,.035f,.32f); o.transform.localRotation=Quaternion.Euler(0,b*120,0); }
         End(Path.Combine(output,"vacuum.glb")); root.position = new Vector3(-5,0,0);
-        Begin("Monster truck / expedition body");
-        Box("frame",dark,0,-.05f,0,3.35f,.25f,1.7f); Box("yellow body",gold,-.05f,.4f,0,3.25f,.65f,1.8f); Box("cab",gold,-.45f,.98f,0,1.6f,.8f,1.7f); Box("windscreen",glass,.02f,1.04f,0,.66f,.5f,1.76f); Box("roof",gold,-.4f,1.45f,0,1.8f,.15f,1.9f); Box("front grille",dark,1.6f,.35f,0,.08f,.38f,1.4f); Box("bumper",chrome,1.7f,.04f,0,.18f,.2f,2);
-        for(int side=-1;side<=1;side+=2) { Box("headlamp",white,1.66f,.58f,side*.61f,.09f,.2f,.3f); Box("roll rail",dark,-.8f,1.75f,side*.7f,.12f,.6f,.12f); Box("cab step",chrome,-.1f,-.05f,side*.96f,1.4f,.14f,.2f); }
-        for(int i=0;i<6;i++) Box("grille slat",chrome,1.65f,.35f,-.48f+i*.19f,.025f,.26f,.055f);
-        End(Path.Combine(output,"truck.glb")); root.position=new Vector3(0,0,0);
+        Begin("Monster truck / island stunt body");
+        // Axle frame: x forward, y up, axle mounts at y = 0. Pure #ffcc00 marks panels the web palette mod repaints.
+        var paint=Paint("#ffcc00",.15f); var grey=Paint("#a3abb7",.2f); var frame=Paint("#2a2f3b",.3f); var red=Paint("#ff4b4b",.1f); var glassDark=Paint("#29313f",.6f); var lamp=Paint("#fff3b8"); var tail=Paint("#ff2f45");
+        Box("ladder frame",frame,0,-.12f,0,3.1f,.22f,1.15f); Box("lower body",grey,.05f,.28f,0,3.55f,.56f,1.86f); Box("race stripe",red,.05f,.3f,0,3.58f,.12f,1.9f);
+        Box("hood",paint,1.12f,.7f,0,1.36f,.32f,1.8f); Box("hood scoop",frame,.95f,.9f,0,.62f,.12f,.62f); Box("scoop mouth",glassDark,1.27f,.9f,0,.04f,.08f,.5f);
+        Box("cab",paint,-.25f,.92f,0,1.36f,.76f,1.72f); Box("roof",paint,-.25f,1.33f,0,1.5f,.12f,1.82f); Box("windscreen",glassDark,.29f,.98f,0,.2f,.5f,1.6f);
+        Box("light bar",frame,-.25f,1.47f,0,.3f,.12f,1.5f); for(int i=0;i<4;i++) Box("roof lamp",lamp,-.13f,1.47f,-.54f+i*.36f,.06f,.1f,.22f);
+        Box("tailgate",paint,-1.75f,.7f,0,.1f,.3f,1.86f); Box("bed floor",frame,-1.38f,.57f,0,.82f,.04f,1.6f); Box("spare",frame,-1.35f,.74f,0,.5f,.3f,.5f);
+        Box("front bumper",grey,1.88f,.12f,0,.2f,.22f,2.02f); Box("bull bar",frame,1.95f,.4f,0,.08f,.3f,1.2f);
+        for(int i=0;i<5;i++) Box("grille slat",frame,1.8f,.45f,-.4f+i*.2f,.03f,.24f,.07f);
+        for(int side=-1;side<=1;side+=2) {
+            Box("side window",glassDark,-.3f,.98f,side*.87f,.9f,.46f,.04f); Box("bed wall",paint,-1.38f,.7f,side*.86f,.82f,.3f,.14f); Box("headlamp",lamp,1.81f,.58f,side*.62f,.06f,.18f,.3f); Box("tail lamp",tail,-1.82f,.45f,side*.7f,.06f,.16f,.25f);
+            Box("mirror",frame,.34f,1.02f,side*1.0f,.1f,.16f,.2f); Box("door seam",frame,.0f,.92f,side*.865f,.03f,.62f,.01f); Box("step",grey,-.1f,.02f,side*.98f,1.2f,.08f,.16f);
+            Disc("exhaust stack",grey,-1.02f,1.42f,side*.48f,.07f,.6f); Disc("exhaust tip",frame,-1.02f,1.74f,side*.48f,.08f,.06f);
+        }
+        End(Path.Combine(output,"truck.glb"),true); root.position=new Vector3(0,0,0);
+        Begin("Monster tire / voxel lugs");
+        // Rolls around z. Radius .72, width .68, hub faces on both sides so either wheel side can face the camera.
+        var rubber=Paint("#1d2029"); var lug=Paint("#2e3343"); var hub=Paint("#c3cad4",.6f); var bolt=Paint("#7b8494",.5f);
+        var core=Part("carcass",PrimitiveType.Cylinder,rubber,0,0,0,1.3f,.31f,1.3f); core.transform.localRotation=Quaternion.Euler(90,0,0);
+        for(int i=0;i<16;i++) { float a=i*Mathf.PI/8; var block=Part("lug",PrimitiveType.Cube,i%2==0?lug:rubber,Mathf.Cos(a)*.66f,Mathf.Sin(a)*.66f,0,.26f,.16f,i%2==0?.7f:.6f); block.transform.localRotation=Quaternion.Euler(0,0,a*Mathf.Rad2Deg); }
+        for(int side=-1;side<=1;side+=2) {
+            var face=Part("hub",PrimitiveType.Cylinder,hub,0,0,side*.33f,.62f,.02f,.62f); face.transform.localRotation=Quaternion.Euler(90,0,0);
+            var cap=Part("hub cap",PrimitiveType.Cylinder,bolt,0,0,side*.36f,.22f,.02f,.22f); cap.transform.localRotation=Quaternion.Euler(90,0,0);
+            for(int b=0;b<6;b++) { float a=b*Mathf.PI/3; Box("bolt",bolt,Mathf.Cos(a)*.2f,Mathf.Sin(a)*.2f,side*.35f,.06f,.06f,.03f); }
+        }
+        End(Path.Combine(output,"tire.glb"),true); root.position=new Vector3(0,0,-3);
         Begin("Cobra / jade guardian");
         var jade=Paint("#31a778",.2f); Ball("head",jade,0,.52f,0,.34f); var hood=Part("hood",PrimitiveType.Sphere,jade,0,.49f,.18f,.86f,1.05f,.27f); var belly=Part("gold throat",PrimitiveType.Sphere,gold,0,.36f,-.12f,.5f,.45f,.22f);
         for(int side=-1;side<=1;side+=2) { Ball("eye",gold,side*.2f,.67f,-.19f,.08f); Ball("pupil",dark,side*.2f,.67f,-.25f,.04f); Box("fang",white,side*.1f,.29f,-.28f,.035f,.13f,.04f); }
@@ -58,11 +80,12 @@ public static class ModboxArt
     }
 
     static string F(float v) { return v.ToString("R",CI); }
-    static void Export(GameObject obj,string path) {
+    // Linear exports store vertex colors in glTF linear space, so the web renders the exact authored hex.
+    static void Export(GameObject obj,string path,bool linear=false) {
         var positions=new List<Vector3>(); var normals=new List<Vector3>(); var colors=new List<Color>(); var indices=new List<uint>(); var min=new Vector3(float.MaxValue,float.MaxValue,float.MaxValue); var max=new Vector3(float.MinValue,float.MinValue,float.MinValue);
         foreach(var filter in obj.GetComponentsInChildren<MeshFilter>()) {
             var mesh=filter.sharedMesh; var transform=filter.transform; int offset=positions.Count; var vertices=mesh.vertices; var ns=mesh.normals; var color=filter.GetComponent<Renderer>().sharedMaterial.color;
-            for(int i=0;i<vertices.Length;i++) { var p=transform.TransformPoint(vertices[i]); p.z=-p.z; positions.Add(p); min=Vector3.Min(min,p); max=Vector3.Max(max,p); var n=transform.TransformDirection(ns[i]); n.z=-n.z; normals.Add(n); colors.Add(color); }
+            for(int i=0;i<vertices.Length;i++) { var p=transform.TransformPoint(vertices[i]); p.z=-p.z; positions.Add(p); min=Vector3.Min(min,p); max=Vector3.Max(max,p); var n=transform.TransformDirection(ns[i]); n.z=-n.z; normals.Add(n); colors.Add(linear?color.linear:color); }
             var triangles=mesh.triangles; for(int i=0;i<triangles.Length;i+=3) { indices.Add((uint)(offset+triangles[i])); indices.Add((uint)(offset+triangles[i+2])); indices.Add((uint)(offset+triangles[i+1])); }
         }
         int count=positions.Count, posBytes=count*12, normalBytes=count*12, colorBytes=count*16, indexBytes=indices.Count*4, total=posBytes+normalBytes+colorBytes+indexBytes;

@@ -6,4 +6,6 @@ export interface WorldView {
   pointer?(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number, pointerId: number): void;
   dispose(): void;
   diagnostics?(): Record<string, number>;
+  /** Image of the last rendered frame, captured when a run ends (for result cards). */
+  snapshot?(): string | null;
 }

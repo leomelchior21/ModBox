@@ -52,9 +52,23 @@ export abstract class ArcadeRun {
   }
   advance(): void {
     if (this.phase !== 'cleared') return;
-    this.level++; this.phase = 'playing'; this.evaluate(); this.lives = this.config.lives; this.elapsed = 0;
-    this.releaseInput(); this.cues = []; this.revision++; this.setup(); this.evaluate(); this.saveBoundary();
+    this.level++; this.phase = 'playing';
+    // Advancing out of a replayed stage rejoins the saved campaign instead of rewriting it.
+    const rejoin = this.saved !== null && this.level <= this.saved.level; if (rejoin && this.saved) this.score = this.saved.score;
+    this.evaluate(); this.lives = this.config.lives; this.elapsed = 0;
+    this.releaseInput(); this.cues = []; this.revision++; this.setup(); this.evaluate(); if (!rejoin) this.saveBoundary();
   }
+  /** Highest stage the campaign save has reached. */
+  get frontier(): number { return Math.max(1, this.saved?.level ?? this.level); }
+  /** Replays a stage that was already reached. The save only moves when play goes past it again. */
+  replayStage(level: number): boolean {
+    if (!Number.isInteger(level) || level < 1 || level > this.frontier || this.phase === 'paused') return false;
+    if (this.saved) this.score = this.saved.score;
+    this.level = level; this.phase = 'playing'; this.evaluate(); this.lives = this.config.lives; this.elapsed = 0;
+    this.releaseInput(); this.cues = []; this.revision++; this.setup(); this.evaluate(); return true;
+  }
+  /** Retries a lost stage. An earlier stage being replayed is retried in place instead of jumping back to the save. */
+  retryStage(): void { if (this.saved && this.level < this.saved.level) this.replayStage(this.level); else this.launch(); }
   pause(): void { if (this.phase === 'playing') this.phase = 'paused'; this.releaseInput(); }
   resume(): void { if (this.phase === 'paused') this.phase = 'playing'; }
   releaseInput(): void { this.input = { left: false, right: false, up: false, down: false }; }
@@ -82,7 +96,7 @@ export abstract class ArcadeRun {
   protected clear(x: number, y: number): void {
     if (this.phase !== 'playing') return;
     this.phase = 'cleared'; this.metrics.clears++; this.releaseInput(); this.notice = 'STAGE SECURED. Your progress is saved.';
-    this.cue('clear', x, y, 'STAGE CLEAR'); this.evaluate(); this.saveBoundary();
+    this.cue('clear', x, y, 'STAGE CLEAR'); this.evaluate(); if (!this.saved || this.level > this.saved.level || this.level === this.saved.level && !this.saved.cleared) this.saveBoundary();
   }
   protected cue(kind: ArcadeCue['kind'], x: number, y: number, text?: string, color?: string): void { this.cues.push({ kind, x, y, text, color }); this.cues = this.cues.slice(-80); }
   get checkpoint(): CampaignSave | null { return this.saved ? structuredClone(this.saved) : null; }

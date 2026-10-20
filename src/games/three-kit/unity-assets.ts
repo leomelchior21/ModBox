@@ -2,7 +2,7 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /** Models exported by the checked-in Unity studio; procedural meshes cover loading/offline errors. */
-export function unityModel(parent: T.Group, name: 'vacuum' | 'truck' | 'cobra' | 'robot' | 'turret', scale = 1, y = 0) {
+export function unityModel(parent: T.Group, name: 'vacuum' | 'truck' | 'tire' | 'cobra' | 'robot' | 'turret', scale = 1, y = 0) {
   const fallback = [...parent.children], holder = new T.Group(); holder.name = `unity:${name}`; parent.add(holder);
   holder.position.y = y; holder.scale.setScalar(scale);
   new GLTFLoader().load(`/models/unity/${name}.glb`, gltf => {
