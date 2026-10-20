@@ -78,7 +78,7 @@ export class Footballer {
   pose: Pose = 'idle'; speed = 0; private clock = Math.random() * 10; private kickTimer = 0; private flip = 0;
   /** Dive tilt (-1 to 1, sideways) and how far the body is knocked back (0 to 1). */
   dive = 0; knocked = 0;
-  constructor(readonly kit: Kit, readonly seed: number, scale = .74) {
+  constructor(public kit: Kit, readonly seed: number, scale = .74) {
     this.root.add(this.pivot); this.pivot.scale.setScalar(scale);
     // Head and arms ride on the body, so a lean carries them; legs hang from the hips.
     for (const part of PARTS) { const g = new T.Group(); this.limbs[part] = g; }
@@ -104,6 +104,9 @@ export class Footballer {
     this.sourceParts = owned ? source : null;
   }
   private sourceParts: Map<Part, T.BufferGeometry> | null = null;
+  private lookKey = '';
+  /** Dresses the player in a kit and a character style; repaints only when something changed. */
+  setLook(kit: Kit, style: string) { const key = JSON.stringify(kit) + style; if (key === this.lookKey) return; this.lookKey = key; this.kit = kit; this.style = ''; this.setStyle(style); }
   /** Applies a character style: repaints the kit and swaps the gear. */
   setStyle(style: string) {
     if (style === this.style) return; this.style = style;

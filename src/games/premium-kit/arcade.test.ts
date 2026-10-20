@@ -9,6 +9,10 @@ import { NajaRun, type Tile } from '../naja-run/run';
 import { najaCatalog } from '../naja-run/catalog';
 import { PinballRun, PIN_STAGES, GOAL, HOME, KEEPER_Y, closestSegment, pinStage } from '../pinballerz/run';
 import { flipBot, aimBot, playStage } from '../pinballerz/testBots';
+import { WEATHER } from '../pinballerz/run';
+import { VENUES } from '../pinballerz/stadium';
+import { YOUR_KITS, rivalKit } from '../pinballerz/kits';
+import { pinballerzSpec } from '../pinballerz/PinballScreen';
 import { pinballCatalog } from '../pinballerz/catalog';
 import { StackRun, overlap1D, STACK_LEVELS } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
@@ -225,6 +229,25 @@ describe('Pinballerz soccer pinball', () => {
     const hat = new PinballRun(); hat.level = 9; hat.launch(); hat.kickOff();
     for (let n = 0; n < 3; n++) { hat.keeper.x = 250; shoot(hat, 330, 220, 0, -1600); for (let i = 0; i < 30; i++) hat.step(1 / 60); for (let i = 0; i < 150 && hat.phase === 'playing'; i++) hat.step(1 / 60); }
     expect(hat.tally.hattricks).toBe(1); expect(hat.phase).toBe('cleared');
+  });
+  it('plays the weather: rain skids, snow drags and a storm blows the ball sideways', () => {
+    const roll = (weather: string) => { const run = new PinballRun(); run.launch(); run.config.weather = weather; run.kickOff(); const b = run.ball; Object.assign(b, { x: 320, y: 600, vx: 0, vy: -900 }); let top = 999; for (let i = 0; i < 40; i++) { run.step(1 / 60); top = Math.min(top, b.y); } return { top, run }; };
+    const clear = roll('clear'), rain = roll('rain'), snow = roll('snow'), storm = roll('storm');
+    expect(rain.top).toBeLessThan(clear.top); expect(snow.top).toBeGreaterThan(clear.top); expect(clear.run.wind).toBe(0); expect(Math.abs(storm.run.wind)).toBeGreaterThan(0);
+    expect(WEATHER.storm.wind).toBe(true); expect(Object.keys(WEATHER)).toEqual(pinballCatalog.mods.find(m => m.id === 'weather')!.values);
+  });
+  it('dresses the home side in its stadium colours and switches kits on a clash', () => {
+    const dortmund = VENUES.dortmund, yellow = YOUR_KITS.yellow.outfield;
+    expect(rivalKit(dortmund.home, dortmund.away, yellow)).toBe(dortmund.away); expect(rivalKit(dortmund.home, dortmund.away, YOUR_KITS.blue.outfield)).toBe(dortmund.home);
+    expect(Object.keys(VENUES)).toEqual(pinballCatalog.mods.find(m => m.id === 'worldTheme')!.values); expect(Object.keys(YOUR_KITS)).toEqual(pinballCatalog.mods.find(m => m.id === 'characterStyle')!.values);
+  });
+  it('invites a fitting mod after a loss, a win, or mid-match trouble', () => {
+    const run = new PinballRun(); run.launch(); run.conceded = 2; run.keeper.saves = 5;
+    const lose = pinballerzSpec.invites!(run, 'lose'); expect(lose[0].code).toBe('bool superKeeper = true;'); expect(lose.map(i => i.code)).toContain('int kickPower = 1200;');
+    run.config.assist = true; expect(pinballerzSpec.invites!(run, 'lose').some(i => i.code.includes('superKeeper'))).toBe(false);
+    const win = pinballerzSpec.invites!(run, 'win'); expect(win[0].code).toBe('string difficulty = "pro";'); expect(win.some(i => i.code === 'string worldTheme = "bernabeu";')).toBe(true);
+    run.savesSinceGoal = 3; expect(pinballerzSpec.invites!(run, 'struggle')[0].code).toBe('int kickPower = 1200;');
+    for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of pinballerzSpec.invites!(run, moment)) { const program = parseGameScript<ArcadeConfig>(invite.code, 'csharp', pinballCatalog.schema); expect(program.ok, invite.code).toBe(true); }
   });
   it('ramps twelve named matches step by step', () => {
     expect(PIN_STAGES).toHaveLength(12); expect(new Set(PIN_STAGES.map(s => s.name)).size).toBe(12);

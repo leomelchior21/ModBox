@@ -9,10 +9,15 @@ export const pinballCatalog = createArcadeCatalog({
   overdrive: { name: 'powerShot', label: 'POWER SHOT', blurb: 'Enable POWER / E: your next flipper strike fires a blazing shot at the goal.' },
   lives: { name: 'matchBalls', label: 'BALL RACK', min: 2, max: 5 },
   final: 'Win a full match: score the goals your stage needs before your ball rack runs out.',
+  remix: {
+    worldTheme: { label: 'STADIUM', blurb: 'Choose the stadium: "bernabeu" in Madrid, the Yellow Wall in "dortmund", the "maracana" in Rio or the Arch in "wembley". The home team plays in its own colours.', values: ['classic', 'bernabeu', 'dortmund', 'maracana', 'wembley'] },
+    characterStyle: { label: 'TEAM KIT', blurb: 'Pick your jerseys: "red", "blue", "yellow", "white", zebra "stripes" or a "robot" squad. The home team changes kit if the colours clash.', values: ['original', 'red', 'blue', 'yellow', 'white', 'stripes', 'robot'] },
+    weather: { label: 'MATCH WEATHER', blurb: 'Watch it roll in live. Rain makes the ball skid, snow makes it heavy, fog hides the far goal and a storm blows it sideways.', values: ['clear', 'rain', 'snow', 'fog', 'storm'] },
+  },
   runtime: { goals: 'goals scored this stage', streak: 'goals in a row without losing a ball', saves: 'saves by your goalkeeper this stage' },
   extraMods: [
-    { id: 'teammates', name: 'teammates', type: 'int', label: 'SQUAD GOALS', blurb: 'Put up to four pink teammates on the pitch. They pass the ball toward goal.', example: 'int teammates = 2;', limits: { min: 0, max: 4 }, defaultValue: 0, glyph: '⚑', unlockAt: 0 },
-    { id: 'rivals', name: 'extraDefenders', type: 'int', label: 'RIVAL SQUAD', blurb: 'Send on up to four extra purple defenders.', example: 'int extraDefenders = 2;', limits: { min: 0, max: 4 }, defaultValue: 0, glyph: '⛨', unlockAt: 0 },
+    { id: 'teammates', name: 'teammates', type: 'int', label: 'SQUAD GOALS', blurb: 'Put up to four teammates in your kit on the pitch. They pass the ball toward goal.', example: 'int teammates = 2;', limits: { min: 0, max: 4 }, defaultValue: 0, glyph: '⚑', unlockAt: 0 },
+    { id: 'rivals', name: 'extraDefenders', type: 'int', label: 'RIVAL SQUAD', blurb: 'Send on up to four extra defenders for the home team.', example: 'int extraDefenders = 2;', limits: { min: 0, max: 4 }, defaultValue: 0, glyph: '⛨', unlockAt: 0 },
     { id: 'balls', name: 'ballsInPlay', type: 'int', label: 'MULTIBALL MADNESS', blurb: 'How many balls start at every kick-off. Only the last one costs you.', example: 'int ballsInPlay = 2;', limits: { min: 1, max: 3 }, defaultValue: 1, glyph: '◎', unlockAt: 0 },
     { id: 'difficulty', name: 'difficulty', type: 'string', label: 'MATCH LEVEL', blurb: 'How fast the rival keeper and defenders react.', example: 'string difficulty = "easy";', values: ['easy', 'normal', 'hard', 'pro'], defaultValue: 'normal', glyph: '▲', unlockAt: 0 },
     { id: 'celebration', name: 'celebration', type: 'string', label: 'GOAL PARTY', blurb: 'Choose the goal celebration: confetti, fireworks, a keeper backflip or smoke flares.', example: 'string celebration = "fireworks";', values: ['confetti', 'fireworks', 'backflip', 'flares'], defaultValue: 'confetti', glyph: '✺', unlockAt: 0 },

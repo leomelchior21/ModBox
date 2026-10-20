@@ -19,3 +19,6 @@
 @keyframes sp-pulse { 50% { transform:scale(1.06); } }
 @media (prefers-reduced-motion: reduce) { .sp__goal, .sp__call, .sp__kick, .sp__power--shot.is-armed { animation:none; } }
 @media (max-width:600px) { .sp__kick { font-size:11px; padding:9px 14px; } .sp__call { font-size:14px; } .sp__goal span { font-size:11px; } }
+.sp__weather { position:absolute; left:50%; top:clamp(150px,22%,190px); transform:translateX(-50%); display:flex; align-items:center; gap:7px; padding:5px 12px; border-radius:20px; background:#0d1830c8; border:1.5px solid #ffffff4d; color:#fff; font:800 10px var(--font-mono); letter-spacing:.06em; white-space:nowrap; }
+.sp__weather i { font-style:normal; font-size:14px; }.sp__weather b { display:inline-block; color:#9fe8ff; font-size:14px; transition:transform .4s; }
+.sp__weather--storm { border-color:#9fe8ff; }.sp__weather--snow { border-color:#ffffff; }.sp__weather--rain { border-color:#6fb6ff; }

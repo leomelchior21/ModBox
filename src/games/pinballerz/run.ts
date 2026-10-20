@@ -45,6 +45,12 @@ export interface Keeper { x: number; vx: number; target: number; error: number; 
 export interface Token { id: number; kind: PowerKind; x: number; y: number; life: number }
 export interface GoalEvent { id: number; text: string; detail: string; points: number; combo: number; x: number; conceded: boolean }
 const DIFFICULTY: Record<string, number> = { easy: .7, normal: 1, hard: 1.25, pro: 1.5 };
+/** How the weather plays: grass drag on the ball (per second) and whether gusts blow across the pitch. */
+export const WEATHER: Record<string, { drag: number; wind: boolean; text: string }> = {
+  clear: { drag: .3, wind: false, text: '' }, rain: { drag: .14, wind: false, text: 'WET PITCH · the ball skids faster' },
+  snow: { drag: .5, wind: false, text: 'SNOW · the ball rolls heavy and slow' }, fog: { drag: .3, wind: false, text: 'FOG · the far goal fades from view' },
+  storm: { drag: .16, wind: true, text: 'STORM · gusts push the ball sideways' },
+};
 
 export class PinballRun extends ArcadeRun {
   balls: Pinball[] = []; waiting = true; flippers: Flipper[] = []; players: Player[] = []; tokens: Token[] = [];
@@ -52,6 +58,8 @@ export class PinballRun extends ArcadeRun {
   tally: Record<PinGoal | 'saves', number> = { goals: 0, volleys: 0, powerups: 0, hattricks: 0, score: 0, saves: 0 };
   /** Active power-up timers in seconds. */
   power: Record<PowerKind, number> = { fire: 0, multi: 0, wall: 0, freeze: 0, double: 0 };
+  /** Sideways wind on the ball in table units per second squared; only storms blow. */
+  wind = 0; savesSinceGoal = 0; lastGoalAt = 0;
   streak = 0; best = 0; stageScore = 0; conceded = 0; kickoffTimer = 0; powerArmed = 0; powerCooldown = 0; pulse = 0;
   /** The latest goal (or goal against) for the scoreboard banner and the stadium celebration. */
   goal: GoalEvent | null = null; goalTimer = 0; goals = 0;
@@ -67,6 +75,7 @@ export class PinballRun extends ArcadeRun {
   get live() { return this.balls.filter(b => b.state === 'play'); }
   get multiball() { return this.live.length > 1; }
   get gravity() { return this.config.gravity * (1 + Math.min(.2, (this.level - 1) * .018)); }
+  get weather() { return WEATHER[this.config.weather ?? 'clear'] ?? WEATHER.clear; }
   get skill() { return DIFFICULTY[this.config.difficulty ?? 'normal'] ?? 1; }
   /** How fast your keeper moves across the goal. */
   get homeSpeed() { return this.config.assist ? 340 : Math.max(60, 160 - (this.level - 1) * 9) / this.skill; }
@@ -81,7 +90,7 @@ export class PinballRun extends ArcadeRun {
     this.flippers = [{ x: 196, y: 846, angle: .62, omega: 0, left: true, rest: .62, up: -.42, length: 92, pressed: 0 }, { x: 444, y: 846, angle: Math.PI - .62, omega: 0, left: false, rest: Math.PI - .62, up: Math.PI + .42, length: 92, pressed: 0 }];
     this.keeper = this.freshKeeper(); this.home = this.freshKeeper(); this.tokens = []; this.layout = ''; this.arrange();
     this.tally = { goals: 0, volleys: 0, powerups: 0, hattricks: 0, score: 0, saves: 0 }; this.power = { fire: 0, multi: 0, wall: 0, freeze: 0, double: 0 };
-    this.streak = 0; this.best = 0; this.conceded = 0; this.stageScore = this.score; this.kickoffTimer = 0; this.powerArmed = 0; this.powerCooldown = 0; this.pulse = 0;
+    this.streak = 0; this.best = 0; this.conceded = 0; this.wind = 0; this.savesSinceGoal = 0; this.lastGoalAt = 0; this.stageScore = this.score; this.kickoffTimer = 0; this.powerArmed = 0; this.powerCooldown = 0; this.pulse = 0;
     this.goal = null; this.goalTimer = 0; this.tokenTimer = this.stage.powerups ? Math.min(5, this.stage.powerups) : 0; this.stuck.clear();
     this.serve(true); this.show(this.levelName.toUpperCase(), 2.5);
     this.notice = `${this.levelName.toUpperCase()} · ${this.stage.tip}`;
@@ -142,6 +151,7 @@ export class PinballRun extends ArcadeRun {
     for (const k of Object.keys(this.power) as PowerKind[]) this.power[k] = Math.max(0, this.power[k] - dt);
     for (const f of this.flippers) f.pressed = Math.max(0, f.pressed - dt);
     if (this.kickoffTimer > 0) { this.kickoffTimer -= dt; if (this.kickoffTimer <= 0 && this.phase === 'playing') { this.kickoffTimer = 0; this.serve(false); this.show('KICK-OFF', 1.2); } }
+    this.wind = this.weather.wind ? Math.sin(this.elapsed * .42) * 230 + Math.sin(this.elapsed * 1.7 + 1) * 90 : 0;
     this.movePlayers(dt); this.moveKeepers(dt); this.spawnTokens(dt);
     const steps = Math.max(1, Math.round(dt / STEP)), h = dt / steps;
     for (let s = 0; s < steps && this.phase === 'playing'; s++) this.substep(h);
@@ -206,7 +216,7 @@ export class PinballRun extends ArcadeRun {
     const g = this.gravity;
     for (const b of this.balls) {
       if (b.state !== 'play') { this.inNet(b, h); continue; }
-      b.vy += g * h; const drag = 1 - h * .3; b.vx *= drag; b.vy *= drag; b.x += b.vx * h; b.y += b.vy * h;
+      b.vy += g * h; b.vx += this.wind * h; const drag = 1 - h * this.weather.drag; b.vx *= drag; b.vy *= drag; b.x += b.vx * h; b.y += b.vy * h;
       // Rails are lively up the pitch and dead low down, so a ball rolls down the side lanes onto a flipper.
       for (const r of PIN_RAILS) if (this.collide(b, r[0], r[1], r[2], r[3], 4, r[1] > 640 ? .08 : .45) > 60) b.touch.rail = true;
       for (const r of HOME_GUIDES) this.collide(b, r[0], r[1], r[2], r[3], 3, .3);
@@ -274,7 +284,7 @@ export class PinballRun extends ArcadeRun {
     if (b.fire > 0) { if (Math.abs(b.x - k.x) < reach + 20 && Math.abs(b.y - KEEPER_Y) < 24 && !k.knocked) { k.knocked = 1; this.show('UNSTOPPABLE!', 1.2); } return; }
     if (!this.collide(b, k.x - reach, KEEPER_Y, k.x + reach, KEEPER_Y, 11, .45, k.vx, 0)) return;
     if (b.vy < 280) { b.vy = 280 + this.rand() * 200; b.vx += (b.x - k.x) * 6 + (this.rand() - .5) * 200; }
-    if (!b.touch.keeper) { k.saves++; k.dive = Math.sign(b.x - k.x || 1) * .5; this.show('SAVED!', 1); this.cue('hit', b.x, b.y, 'SAVED!'); }
+    if (!b.touch.keeper) { k.saves++; this.savesSinceGoal++; k.dive = Math.sign(b.x - k.x || 1) * .5; this.show('SAVED!', 1); this.cue('hit', b.x, b.y, 'SAVED!'); }
     b.touch.keeper = true;
   }
   private homeKeeper(b: Pinball): void {
@@ -298,7 +308,7 @@ export class PinballRun extends ArcadeRun {
     this.notice = { fire: 'FIREBALL! Your shots burn through defenders and the keeper for eight seconds.', multi: 'MULTIBALL! Two more balls from the centre spot.', wall: 'THE WALL! Your teammates guard the goal for ten seconds.', freeze: 'ICE KEEPER! The rival keeper is frozen for six seconds.', double: 'DOUBLE POINTS for twelve seconds!' }[k];
   }
   private scored(b: Pinball): void {
-    b.state = 'net'; b.timer = .7; this.goals++; this.tally.goals++; this.streak++; this.best = Math.max(this.best, this.streak);
+    b.state = 'net'; b.timer = .7; this.goals++; this.savesSinceGoal = 0; this.lastGoalAt = this.elapsed; this.tally.goals++; this.streak++; this.best = Math.max(this.best, this.streak);
     const t = b.touch, volley = !t.defender && !t.keeper && !t.rail && !t.mate && !t.power && this.elapsed - b.kickAt < 1.6;
     const [text, mult] = t.power ? ['POWER SHOT', 2] : t.mate ? ['TEAM GOAL', 1.5] : volley ? ['VOLLEY', 1.5] : t.keeper ? ['REBOUND', 1.25] : t.rail && !t.defender ? ['BANK SHOT', 1.25] : ['GOAL', 1];
     if (volley) this.tally.volleys++;

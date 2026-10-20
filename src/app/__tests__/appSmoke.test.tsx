@@ -401,7 +401,7 @@ describe('MODBOX app shell', () => {
   it.each([
     ['makita-slingers', 'MAKITA SLINGERS', 'alpine', 'blastBlade'],
     ['naja-run', 'NAJA RUN', 'volcanic', 'venomRush'],
-    ['pinballerz', 'PINBALLERZ', 'neon', 'powerShot'],
+    ['pinballerz', 'PINBALLERZ', 'maracana', 'powerShot'],
     ['speed-stack', 'SPEED STACK', 'alpine', 'focusMode'],
     ['temple-race', 'TEMPLE RACE', 'volcanic', 'relicShield'],
     ['subway-runnerz', 'SUBWAY RUNNERZ', 'neon', 'hoverboard'],

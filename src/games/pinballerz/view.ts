@@ -3,7 +3,9 @@ import type { ArcadeCue } from '../premium-kit/core';
 import { World } from '../three-kit/world';
 import { PinballRun, PIN_RAILS, GOAL, HOME, KEEPER_Y, HOME_KEEPER_Y, BALL_R, TOKEN_R, CENTRE_SPOT, type Pinball, type PowerKind, type Player } from './run';
 import { Footballer, KITS } from './players';
-import { X, Z, U, venue, buildVenue, buildRails, Crowd, CentreNumber, GoalFrame, netTexture } from './stadium';
+import { yourKit, rivalKit } from './kits';
+import { PitchWeather } from './weather';
+import { X, Z, U, venue, buildVenue, buildRails, Crowd, CentreNumber, GoalFrame, netTexture, type VenueParts } from './stadium';
 
 const LIGHT = {
   day: { hemi: ['#ffffff', '#4f6a45', 1.25], sun: ['#fff4de', 2.3], lamps: false, exposure: 1.05 },
@@ -81,19 +83,20 @@ interface BallView { ball: T.Mesh; trail: T.Sprite[]; flame: T.Sprite }
 export class PinballView extends World<PinballRun> {
   private venueRoot = new T.Group(); private railRoot = new T.Group(); private table = new T.Group();
   private hemi: T.HemisphereLight; private crowd: Crowd; private number: CentreNumber; private goals: GoalFrame[] = []; private party: Party;
-  private lamps: T.Object3D[] = []; private boards: T.Texture[] = []; private pitchMaterial: T.MeshStandardMaterial | null = null; private venueKey = '';
+  private lamps: T.Object3D[] = []; private boards: T.Texture[] = []; private pitchMaterial: T.MeshStandardMaterial | null = null; private venueKey = ''; private parts: VenueParts | null = null;
+  private weather: PitchWeather; private baseLight = { hemi: 1, sun: 1 };
   private balls = new Map<number, BallView>(); private ballMaterial: T.MeshStandardMaterial; private glow = glowTexture(); private ballGeometry = new T.SphereGeometry(U(BALL_R), 24, 16);
   private flippers: { root: T.Group; stripe: T.MeshStandardMaterial }[] = []; private players = new Map<number, Footballer>(); private keeper: Footballer; private homeKeeper: Footballer; private referee: Footballer; private wall: Footballer[] = [];
   private ice: T.Mesh; private tokens = new Map<number, { sprite: T.Sprite; ring: T.Mesh }>(); private tokenTextures = new Map<PowerKind, T.CanvasTexture>();
   private fit = { width: 1, height: 1, key: '' }; private shake = 0; private lastGoal = -1; private celebrate = 0; private celebrateWin = true; private touch = false;
   private shot: string | null = null; private shotKey = '';
   constructor(canvas: HTMLCanvasElement, run: PinballRun) {
-    super(canvas, run, '#3c1a78', 16); this.remix.ownWorld(); this.floaterScale = .42;
+    super(canvas, run, '#3c1a78', 16); this.remix.ownWorld(true); this.floaterScale = .42;
     this.camera = new T.PerspectiveCamera(36, 1, .1, 160);
     this.hemi = this.scene.children.find((o): o is T.HemisphereLight => o instanceof T.HemisphereLight)!;
     this.sun.shadow.camera.left = -7.5; this.sun.shadow.camera.right = 7.5; this.sun.shadow.camera.top = 9; this.sun.shadow.camera.bottom = -9; this.sun.shadow.camera.updateProjectionMatrix(); this.sun.shadow.mapSize.set(2048, 2048);
     this.scene.fog = null; this.scene.add(this.venueRoot, this.railRoot, this.table);
-    this.crowd = new Crowd(this.scene); this.number = new CentreNumber(this.table); this.party = new Party(this.scene, this.glow);
+    this.crowd = new Crowd(this.scene); this.weather = new PitchWeather(this.scene, this.glow); this.number = new CentreNumber(this.table); this.party = new Party(this.scene, this.glow);
     const net = netTexture(); this.goals = [new GoalFrame(this.table, GOAL.left, GOAL.right, GOAL.y, GOAL.back, .92, net), new GoalFrame(this.table, HOME.left, HOME.right, HOME.y + 6, HOME.back + 8, .7, net)];
     this.ballMaterial = new T.MeshStandardMaterial({ map: soccerTexture(), roughness: .45 });
     this.keeper = this.footballer(KITS.rivalKeeper, 101); this.homeKeeper = this.footballer(KITS.homeKeeper, 202); this.referee = this.footballer(KITS.referee, 303);
@@ -119,13 +122,13 @@ export class PinballView extends World<PinballRun> {
   private dressVenue() {
     const theme = this.run.config.worldTheme ?? 'classic', light = this.run.stage.light, key = `${theme}|${light}`; if (key === this.venueKey) return; this.venueKey = key;
     for (const root of [this.venueRoot, this.railRoot]) { this.disposeStage(root); root.clear(); }
-    const v = venue(theme), built = buildVenue(this.venueRoot, v, this.crowd); this.lamps = built.lamps; this.boards = built.boards; this.pitchMaterial = built.pitch;
-    buildRails(this.railRoot, PIN_RAILS, v.rail, v.railGlow);
+    const v = venue(theme), built = buildVenue(this.venueRoot, v, this.crowd); this.parts = built; this.lamps = built.lamps; this.boards = built.boards; this.pitchMaterial = built.pitch;
+    buildRails(this.railRoot, PIN_RAILS, v.rail);
     this.scene.background = new T.Color(v.outside);
-    const l = LIGHT[light], dark = theme === 'neon' || theme === 'volcanic';
-    this.hemi.color.set(l.hemi[0]); this.hemi.groundColor.set(l.hemi[1]); this.hemi.intensity = l.hemi[2] * (dark ? .8 : 1) * (theme === 'alpine' ? 1.1 : 1);
-    this.sun.color.set(theme === 'volcanic' ? '#ffb889' : theme === 'neon' ? '#d9c8ff' : l.sun[0]); this.sun.intensity = l.sun[1] * (dark ? .85 : 1);
-    this.renderer.toneMappingExposure = l.exposure; this.scene.environmentIntensity = light === 'night' || dark ? .35 : .55;
+    const l = LIGHT[light];
+    this.hemi.color.set(light === 'day' ? v.hemi : l.hemi[0]); this.hemi.groundColor.set(l.hemi[1]); this.baseLight.hemi = l.hemi[2];
+    this.sun.color.set(light === 'day' ? v.sun : l.sun[0]); this.baseLight.sun = l.sun[1];
+    this.renderer.toneMappingExposure = l.exposure; this.scene.environmentIntensity = light === 'night' ? .35 : .55;
     for (const lamp of this.lamps) { const m = (lamp as T.Mesh).material as T.MeshBasicMaterial; m.color.set(l.lamps ? '#fff6d6' : '#8b8f99'); if (l.lamps) { const s = new T.Sprite(new T.SpriteMaterial({ map: this.glow, color: '#fff2c8', blending: T.AdditiveBlending, transparent: true, opacity: light === 'night' ? .9 : .5, depthWrite: false })); s.scale.setScalar(4); s.position.copy(lamp.position); this.venueRoot.add(s); } }
   }
   resize(width: number, height: number, pixelRatio: number): void { super.resize(width, height, pixelRatio); this.fit = { width, height, key: '' }; }
@@ -168,7 +171,7 @@ export class PinballView extends World<PinballRun> {
   }
   protected update(dt: number, reduced: boolean): void {
     this.dressVenue(); this.frame();
-    const run = this.run, time = this.time, style = run.config.characterStyle ?? 'original', v = venue(run.config.worldTheme);
+    const run = this.run, time = this.time, v = venue(run.config.worldTheme), mine = yourKit(run.config.characterStyle), theirs = rivalKit(v.home, v.away, mine.outfield), style = mine.robot ? 'robot' : 'original';
     // Balls roll on the grass: rotation follows the distance travelled.
     const live = new Set<number>();
     for (const b of run.balls) {
@@ -190,20 +193,20 @@ export class PinballView extends World<PinballRun> {
     const seen = new Set<number>();
     for (const p of run.players) {
       seen.add(p.id); let f = this.players.get(p.id);
-      if (!f) { f = this.footballer(p.mate ? KITS.home : KITS.rival, p.id * 13); this.players.set(p.id, f); }
-      this.place(f, p, lead, dt, style);
+      if (!f) { f = this.footballer(p.mate ? mine.outfield : theirs, p.id * 13); this.players.set(p.id, f); }
+      f.setLook(p.mate ? mine.outfield : theirs, p.mate ? style : 'original'); this.place(f, p, lead, dt);
     }
     for (const [id, f] of this.players) if (!seen.has(id)) { f.dispose(); this.players.delete(id); }
     // Keepers, referee and the goal-line wall.
-    const k = run.keeper, kf = this.keeper; kf.setStyle(style); kf.root.position.set(X(k.x), 0, Z(KEEPER_Y)); kf.root.rotation.y = lead ? Math.atan2(X(lead.x) - X(k.x), Z(lead.y) - Z(KEEPER_Y)) * .5 : 0;
+    const k = run.keeper, kf = this.keeper; kf.setLook(KITS.rivalKeeper, 'original'); kf.root.position.set(X(k.x), 0, Z(KEEPER_Y)); kf.root.rotation.y = lead ? Math.atan2(X(lead.x) - X(k.x), Z(lead.y) - Z(KEEPER_Y)) * .5 : 0;
     kf.pose = this.celebrate > 0 && !this.celebrateWin ? 'celebrate' : this.celebrate > 0 ? 'dejected' : 'keeper'; kf.speed = k.vx / 120; kf.dive = k.dive; kf.knocked = k.knocked; kf.update(dt, reduced);
     this.ice.visible = run.power.freeze > 0; this.ice.position.set(X(k.x), .42, Z(KEEPER_Y));
-    const h = run.home, hf = this.homeKeeper; hf.setStyle(style); hf.root.position.set(X(h.x), 0, Z(HOME_KEEPER_Y)); hf.root.rotation.y = Math.PI;
+    const h = run.home, hf = this.homeKeeper; hf.setLook(mine.keeper, style); hf.root.position.set(X(h.x), 0, Z(HOME_KEEPER_Y)); hf.root.rotation.y = Math.PI;
     if (this.celebrate <= 0) hf.pose = 'keeper'; hf.speed = h.vx / 120; hf.dive = h.dive; hf.update(dt, reduced);
     const ref = this.referee, refX = 34 + Math.max(0, Math.min(1, ((lead?.x ?? 320) - 100) / 440)) * 40, refY = 66; ref.setStyle('original');
     const rx = X(refX), moving = Math.abs(ref.root.position.x - rx) > .02; ref.root.position.x += (rx - ref.root.position.x) * Math.min(1, dt * 3); ref.root.position.z = Z(refY);
     ref.root.rotation.y = lead ? Math.atan2(X(lead.x) - ref.root.position.x, Z(lead.y) - ref.root.position.z) : 0; ref.pose = this.celebrate > 0 ? 'point' : moving ? 'run' : 'idle'; ref.speed = .3; ref.update(dt, reduced);
-    this.wall.forEach((w, i) => { w.setStyle(style); const on = run.power.wall > 0; w.root.visible = on; w.root.position.set(X(282 + i * 38), 0, Z(918)); w.root.rotation.y = Math.PI; w.root.scale.setScalar(on ? Math.min(1, run.power.wall * 3, 1) : .01); w.pose = 'keeper'; w.dive = 0; w.update(dt, reduced); });
+    this.wall.forEach((w, i) => { w.setLook(mine.outfield, style); const on = run.power.wall > 0; w.root.visible = on; w.root.position.set(X(282 + i * 38), 0, Z(918)); w.root.rotation.y = Math.PI; w.root.scale.setScalar(on ? Math.min(1, run.power.wall * 3, 1) : .01); w.pose = 'keeper'; w.dive = 0; w.update(dt, reduced); });
     // Power-up tokens bob and spin above glowing rings.
     const tokenIds = new Set<number>();
     for (const t of run.tokens) {
@@ -232,19 +235,23 @@ export class PinballView extends World<PinballRun> {
     }
     this.celebrate = Math.max(0, this.celebrate - dt); this.party.update(dt); for (const g of this.goals) g.update(dt, reduced);
     if (this.celebrate <= 0 && hf.pose === 'celebrate') hf.pose = 'keeper';
-    this.crowd.update(dt, time, run.config.crowd ?? 70, v.fans, reduced);
+    this.crowd.update(dt, time, run.config.crowd ?? 70, v.fans, reduced); this.parts?.animate(time, this.crowd.excitement, reduced);
+    // Weather rolls in live: wet grass darkens and shines, snow settles, storms dim the lights and flash.
+    const w = this.weather; w.update(dt, run.config.weather ?? 'clear', run.wind, reduced);
+    if (this.pitchMaterial) { this.pitchMaterial.roughness = .85 - w.wet * .5; this.pitchMaterial.color.setScalar(1 - w.wet * .22); }
+    this.hemi.intensity = this.baseLight.hemi * (1 - w.gloom * .4) + w.flash * 1.6; this.sun.intensity = this.baseLight.sun * (1 - w.gloom * .55) + w.flash * 2;
+    this.ballMaterial.color.set(w.cover > .3 ? '#ffb15c' : '#ffffff');
     this.number.set(String(run.tally.goals), run.streak >= 3 ? '#ffd23f' : '#ffffff');
     const crowded = run.balls.some(b => Math.hypot(b.x - CENTRE_SPOT.x, b.y - CENTRE_SPOT.y) < 70); this.number.fade(crowded ? .25 : 1, dt);
     for (const b of this.boards) b.offset.x = reduced ? 0 : (time * .04) % 1;
-    if (this.pitchMaterial && v.lineGlow) this.pitchMaterial.emissiveIntensity = .7 + (reduced ? 0 : Math.sin(time * 2) * .15) + (this.celebrate > 0 ? .5 : 0);
     // Camera: a gentle punch-in on goals and a short shake.
     this.shake = Math.max(0, this.shake - dt); const cam = this.camera, base = this.cameraBase, s = reduced ? 0 : this.shake;
     cam.position.copy(base.position).add(new T.Vector3(Math.sin(time * 57) * s * .08, Math.cos(time * 49) * s * .06, 0)); cam.lookAt(base.target);
     // Sun from the upper right, so shadows fall toward the lower left as in a broadcast.
     this.sun.position.set(9, 18, -10); this.sun.target.position.set(0, 0, 0); this.sun.target.updateMatrixWorld();
   }
-  private place(f: Footballer, p: Player, lead: Pinball | undefined, dt: number, style: string) {
-    f.setStyle(style); f.root.position.set(X(p.x), 0, Z(p.y));
+  private place(f: Footballer, p: Player, lead: Pinball | undefined, dt: number) {
+    f.root.position.set(X(p.x), 0, Z(p.y));
     const toward = p.mate ? Math.PI : lead ? Math.atan2(X(lead.x) - X(p.x), Z(lead.y) - Z(p.y)) : 0;
     let diff = toward - f.root.rotation.y; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2; f.root.rotation.y += diff * Math.min(1, dt * 6);
     const speed = Math.hypot(p.vx, p.vy) / 120;
@@ -259,5 +266,5 @@ export class PinballView extends World<PinballRun> {
   }
   snapshot(): string | null { return this.shot; }
   diagnostics(): Record<string, number> { return { ...super.diagnostics(), players: this.players.size + 4, unityPlayers: [...this.players.values(), this.keeper].filter(p => p.loadedFromUnity).length }; }
-  dispose(): void { this.glow.dispose(); this.ballGeometry.dispose(); for (const t of this.tokenTextures.values()) t.dispose(); this.party.clear(); super.dispose(); }
+  dispose(): void { this.weather.dispose(); this.glow.dispose(); this.ballGeometry.dispose(); for (const t of this.tokenTextures.values()) t.dispose(); this.party.clear(); super.dispose(); }
 }
