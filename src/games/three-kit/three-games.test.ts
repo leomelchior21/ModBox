@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseGameScript } from '../../interpreter/gameScript';
 import { formatCodeForLanguage } from '../../interpreter/languageSyntax';
-import { RunnerRun, runnerCourse, runnerFrame } from './runner';
+import { RunnerRun, runnerFrame, runnerCourse, runnerStageName, LANE, type RunnerObstacle, type RunnerPickup } from './runner';
 import { TeamRun, gateResult, teamCourse, formation, hazardSpans, TEAM_LEVEL_NAMES, START_TEAM, VISIBLE, SPREAD, SQUEEZED, type TeamHazard } from '../team-counters/run';
 import { MonsterRun } from '../monster-strider/run';
 import { MONSTER_LEVELS } from '../monster-strider/levels';
@@ -47,40 +47,67 @@ describe.each(games)('$id scripts and saves', ({ id, catalog, create }) => {
 });
 
 describe('3D runner routes and collision rules', () => {
-  it.each(['temple', 'subway'] as const)('offers a fair route through %s at several difficulties with basic controls', theme => {
-    for (const level of [1, 2, 5, 12]) {
+  /** Dodges trains early, jumps hurdles and gaps, slides under bars and takes the marked turns. */
+  const bot = (run: RunnerRun) => {
+    const turn = run.nextTurn; if (turn && turn.at - run.distance < 9 && !turn.queued) { run.action(turn.direction > 0 ? 'right' : 'left'); return; }
+    if (turn && turn.at - run.distance < 14) return;
+    const ahead = (lane: number, range: number) => run.obstacles.filter(o => !o.passed && !o.hit && o.lane === lane && o.at + o.length > run.distance - .5 && o.at - run.distance < range);
+    const blocking = (lane: number, range = 16) => ahead(lane, range).some(o => o.kind === 'train' && !o.ramp), lane = run.lane;
+    if (blocking(lane) && run.y < 2.4) {
+      const target = [-1, 0, 1].filter(l => !blocking(l, 24)).sort((a, b) => Math.abs(a - lane) - Math.abs(b - lane))[0] ?? [-1, 0, 1].filter(l => !blocking(l))[0];
+      if (target !== undefined && target !== lane) { const step = target < lane ? -1 : 1; if (!ahead(lane + step, 3.5).length) { run.action(step < 0 ? 'left' : 'right'); return; } }
+    }
+    const next = ahead(lane, 6).filter(o => o.kind !== 'train').sort((a, b) => a.at - b.at)[0];
+    if (next) { const d = next.at - run.distance, lead = run.speed * .14; if ((next.kind === 'hurdle' || next.kind === 'gap') && d < lead + .8 && d > lead - .6) run.action('primary'); if (next.kind === 'arch' && d < 3) run.action('down'); }
+  };
+  it.each(['temple', 'subway'] as const)('offers a fair route through %s at several difficulties', theme => {
+    for (const level of [1, 3, 6, 9]) {
       const run = new RunnerRun(theme); run.level = level; run.launch();
-      for (let frame = 0; frame < 60 * 140 && run.phase === 'playing'; frame++) {
-        const turn = run.nextTurn; if (turn && turn.at - run.distance < 10 && !turn.queued) run.action(turn.direction > 0 ? 'right' : 'left');
-        const obstacle = run.obstacles.find(o => !o.passed && !o.hit && o.at - run.distance < 8 && o.at + o.length > run.distance);
-        if (obstacle && run.lane === obstacle.lane && (!turn || turn.at - run.distance > 14)) run.action(obstacle.lane === -1 ? 'right' : 'left');
-        run.step(1 / 60);
-      }
-      expect(run.phase, `${theme} level ${level}`).toBe('cleared'); expect(run.lives).toBeGreaterThan(0); expect(run.metrics.clears).toBe(1); expect(run.score).toBeGreaterThan(0);
+      for (let frame = 0; frame < 60 * 140 && run.phase === 'playing'; frame++) { bot(run); run.step(1 / 60); }
+      expect(run.phase, `${theme} level ${level}`).toBe('cleared'); expect(run.lives, `${theme} level ${level}`).toBe(3); expect(run.metrics.clears).toBe(1); expect(run.score).toBeGreaterThan(run.goal);
       const restored = new RunnerRun(theme, run.checkpoint); restored.launch(); expect(restored.distance).toBe(run.goal); expect(restored.coins).toBe(run.coins); expect(restored.lives).toBe(run.lives); expect(restored.phase).toBe('cleared');
     }
   });
-  it('uses real right-angle path frames and keeps obstacle rows away from turn windows', () => {
-    const p = runnerFrame(82, 'temple'); expect(p.x).toBeCloseTo(10); expect(p.z).toBeCloseTo(-72); expect(p.yaw).toBeCloseTo(-Math.PI / 2);
-    for (let level = 1; level <= 30; level++) { const c = runnerCourse('temple', level); for (const o of c.obstacles) expect(c.turns.every(t => Math.abs(t.at - o.at) >= 14)).toBe(true); }
+  it('builds deterministic courses that always leave a way through each row', () => {
+    for (const theme of ['temple', 'subway'] as const) for (let level = 1; level <= 12; level++) {
+      const c = runnerCourse(theme, level); expect(runnerCourse(theme, level)).toEqual(c); expect(c.pickups.length).toBeGreaterThan(0);
+      const rows = new Map<number, RunnerObstacle[]>(); for (const o of c.obstacles.filter(o => !o.moving)) rows.set(o.at, [...(rows.get(o.at) ?? []), o]);
+      for (const row of rows.values()) { const solid = row.filter(o => o.kind === 'train' && !o.ramp); expect(solid.length).toBeLessThan(3); if (row.length === 3) expect(row.some(o => o.kind !== 'train' || o.ramp)).toBe(true); }
+      if (theme === 'temple') for (const o of c.obstacles) expect(c.turns.every(t => Math.abs(t.at - o.at) >= 14)).toBe(true);
+    }
+    expect(runnerStageName('subway', 1)).toBe('Downtown'); expect(runnerStageName('temple', 13)).toBe('Jungle Steps 2');
   });
-  it('jumps over a barrier, slides under an arch and spends one charm for one collision', () => {
+  it('uses real right-angle path frames that zigzag without crossing', () => {
+    const p = runnerFrame(82, 'temple'); expect(p.x).toBeCloseTo(10); expect(p.z).toBeCloseTo(-72); expect(p.yaw).toBeCloseTo(-Math.PI / 2);
+    expect(runnerFrame(82, 'temple', 2).x).toBeCloseTo(-10); expect(Math.abs(runnerFrame(200, 'temple').yaw)).toBeLessThanOrEqual(Math.PI / 2 + 1e-9);
+  });
+  it('jumps over a barrier, slides under a bar and spends one charm for one collision', () => {
     const run = new RunnerRun('subway'); run.launch(); const barrier = run.obstacles.find(o => o.kind === 'hurdle')!;
     run.distance = barrier.at - 2; run.x = run.lane = 0; barrier.lane = 0; run.invulnerable = 0; run.action('primary'); advance(run, .3); expect(barrier.hit).toBe(false); expect(run.y).toBeGreaterThan(.8);
     const arch = run.obstacles.find(o => o.kind === 'arch')!; run.y = 0; run.vy = 0; run.distance = arch.at - .1; arch.lane = 0; run.action('down'); advance(run, .1); expect(arch.hit).toBe(false);
-    run.slide = 0; run.y = 0; run.distance = barrier.at - .05; barrier.hit = false; barrier.passed = false; run.invulnerable = 0; advance(run, .05); expect(run.lives).toBe(2); advance(run, .05); expect(run.lives).toBe(2);
+    run.slide = 0; run.y = 0; run.distance = barrier.at - .05; barrier.hit = false; barrier.passed = false; run.invulnerable = 0; advance(run, .05); expect(run.lives).toBe(2); expect(run.chase).toBeGreaterThan(.9); advance(run, .05); expect(run.lives).toBe(2);
   });
   it('takes continuous ramps onto roofs, moves oncoming trains and lets a board absorb one hit', () => {
-    const run = new RunnerRun('subway'); run.launch(); const ramp = run.obstacles.find(o => o.ramp)!;
-    run.distance = ramp.at - 5; run.lane = ramp.lane; run.x = ramp.lane * 2.15; advance(run, .6); expect(run.y).toBeCloseTo(2.6, 1); expect(ramp.hit).toBe(false);
-    const other = new RunnerRun('subway'); other.launch(); const incoming = other.obstacles.find(o => o.moving)!; const at = incoming.at; advance(other, .1); expect(incoming.at).toBeLessThan(at);
-    other.config.overdrive = true; other.action('ability'); expect(other.shield).toBe(9); other.invulnerable = 0; other.distance = incoming.at; other.x = incoming.lane * 2.15; other.lane = incoming.lane; other.y = 0; other.vy = 0; other.step(.01); expect(other.lives).toBe(3); expect(other.shield).toBe(0);
+    const run = new RunnerRun('subway'); run.level = 4; run.launch(); const ramp = run.obstacles.find(o => o.ramp)!;
+    run.distance = ramp.at - 5; run.lane = ramp.lane; run.x = ramp.lane * LANE; advance(run, .6); expect(run.y).toBeCloseTo(2.6, 1); expect(ramp.hit).toBe(false);
+    const other = new RunnerRun('subway'); other.level = 6; other.launch(); const incoming = other.obstacles.find(o => o.moving)!; const at = incoming.at; advance(other, .1); expect(incoming.at).toBeLessThan(at);
+    other.config.overdrive = true; other.action('ability'); expect(other.shield).toBe(9); other.invulnerable = 0; other.distance = incoming.at; other.x = incoming.lane * LANE; other.lane = incoming.lane; other.y = 0; other.vy = 0; other.step(.01); expect(other.lives).toBe(3); expect(other.shield).toBe(0);
+  });
+  it('grants power-ups: magnet pulls coins, 2× doubles points, jetpack flies over trains and sprint smashes roots', () => {
+    const run = new RunnerRun('subway'); run.launch(); run.invulnerable = 0;
+    const pick = (kind: RunnerPickup['kind']) => { run.pickups = [{ at: run.distance + .2, lane: run.lane, kind, taken: false }]; run.step(.02); };
+    pick('double'); expect(run.multiplier).toBe(2); const before = run.score; run.tokens = [{ at: run.distance + .3, lane: run.lane, y: .9, taken: false }]; run.step(.02); expect(run.score - before).toBeGreaterThanOrEqual(run.config.bonus * 2);
+    pick('magnet'); run.tokens = [{ at: run.distance + .3, lane: 1, y: .9, taken: false }]; run.lane = run.x = -1; run.step(.02); expect(run.tokens[0].taken).toBe(true);
+    pick('jetpack'); advance(run, 2); expect(run.y).toBeGreaterThan(5); expect(run.tokens.some(t => t.y > 6)).toBe(true);
+    run.obstacles = [{ id: 99, at: run.distance + .5, lane: run.lane, kind: 'train', variant: 'parked', length: 10, ramp: false, moving: false, speed: 0, passed: false, hit: false }]; advance(run, 1); expect(run.lives).toBe(3);
+    const temple = new RunnerRun('temple'); temple.launch(); temple.invulnerable = 0; temple.pickups = [{ at: .2, lane: 0, kind: 'sprint', taken: false }]; temple.step(.03);
+    temple.obstacles = [{ id: 1, at: temple.distance + 1, lane: 0, kind: 'hurdle', variant: 'root', length: 1, ramp: false, moving: false, speed: 0, passed: false, hit: false }]; advance(temple, .3); expect(temple.lives).toBe(3); expect(temple.obstacles[0].hit).toBe(true);
   });
   it('applies magnets and runtime conditions immediately and rejects unrelated touch pointers', () => {
     const run = new RunnerRun('temple'); run.launch(); run.tokens = [{ at: 1, lane: 1, y: .9, taken: false }]; run.distance = .95; run.step(.01); expect(run.coins).toBe(0);
     run.setProgram(parseGameScript<ArcadeConfig>('bool coinMagnet = true;\nbool relicShield = false;\nif (distance >= 100) { relicShield = true; }', 'csharp', templeCatalog.schema)); run.step(.01); expect(run.coins).toBe(1); expect(run.metrics.assisted).toBe(1);
     run.distance = 100; run.step(.01); expect(run.config.overdrive).toBe(true);
-    run.pointer('down', 500, 300, 1); run.pointer('up', 700, 300, 2); expect(run.lane).toBe(0); run.pointer('up', 700, 300, 1); expect(run.lane).toBe(1);
+    run.pointer('down', 500, 300, 1); run.pointer('up', 700, 300, 2); expect(run.lane).toBe(0); run.pointer('move', 700, 300, 1); expect(run.lane).toBe(1);
   });
 });
 

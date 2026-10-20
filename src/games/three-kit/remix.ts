@@ -23,8 +23,10 @@ function free(root: T.Object3D) { const g = new Set<T.BufferGeometry>(), m = new
 export class SceneRemix {
   readonly scenery = new T.Group(); private actors: Actor[] = []; private theme = ''; private weather = ''; private stageRevision = -1;
   private originalBackground: T.Scene['background']; private sky: T.CanvasTexture | null = null; private particles: T.Points | null = null;
-  private pointPositions = new Float32Array(480 * 3); private elapsed = 0;
+  private pointPositions = new Float32Array(480 * 3); private elapsed = 0; private baseFog: T.Fog | null = null;
   constructor(private scene: T.Scene, private sun: T.DirectionalLight, private indoor = false) { this.originalBackground = scene.background; scene.add(this.scenery); this.scenery.userData.remix = true; }
+  /** Lets a game supply its own sky and fog for the default theme, for example a stage that runs at night. */
+  setBase(background: T.Scene['background'], fog: T.Fog | null) { this.originalBackground = background; this.baseFog = fog; this.theme = ''; }
   character(root: T.Group, kind: ActorKind = 'person') { const variant = new T.Group(); variant.userData.remix = true; const originals = [...root.children]; root.userData.character = true; root.add(variant); this.actors.push({ root, originals, variant, kind, style: '' }); }
   update(config: Pick<ArcadeConfig, 'worldTheme' | 'characterStyle' | 'weather'>, origin: T.Vector3, dt: number, reduced: boolean, revision: number) {
     this.elapsed += dt; const theme = config.worldTheme ?? 'classic', style = config.characterStyle ?? 'original';
@@ -46,7 +48,7 @@ export class SceneRemix {
   }
   private buildWorld(theme: string) {
     free(this.scenery); if (this.sky) { this.sky.dispose(); this.sky = null; }
-    if (!(theme in THEMES)) { this.scene.background = this.originalBackground; this.scene.fog = new T.Fog(this.indoor ? '#c9d9d5' : '#c1e4ef', 55, 160); this.sun.color.set('#fff1db'); return; }
+    if (!(theme in THEMES)) { this.scene.background = this.originalBackground; this.scene.fog = this.baseFog ?? new T.Fog(this.indoor ? '#c9d9d5' : '#c1e4ef', 55, 160); if (!this.baseFog) this.sun.color.set('#fff1db'); return; }
     const t = THEMES[theme as keyof typeof THEMES], c = document.createElement('canvas'); c.width = 16; c.height = 256; const ctx = c.getContext('2d')!, g = ctx.createLinearGradient(0, 0, 0, 256); g.addColorStop(0, t.sky); g.addColorStop(1, t.horizon); ctx.fillStyle = g; ctx.fillRect(0, 0, 16, 256);
     this.sky = new T.CanvasTexture(c); this.sky.colorSpace = T.SRGBColorSpace; this.scene.background = this.sky; this.scene.fog = new T.Fog(t.horizon, 40, 125); this.sun.color.set(t.light);
     if (this.indoor) {

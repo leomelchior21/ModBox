@@ -74,6 +74,8 @@ export abstract class World<R extends ArcadeRun> implements WorldView {
   camera: T.PerspectiveCamera | T.OrthographicCamera = new T.PerspectiveCamera(52, 1, .1, 220);
   readonly paint: T.MeshStandardMaterial; readonly sun: T.DirectionalLight;
   readonly remix: SceneRemix;
+  /** Size of the floating score labels; close cameras use smaller ones. */
+  protected floaterScale = 1;
   readonly origin = new T.Vector3(); readonly scratch = new T.Object3D();
   private sparks: Spark[] = []; private floaters: FloatText[] = []; private particleMesh: T.InstancedMesh;
   private lastPalette = ''; protected revision = -1; protected time = 0;
@@ -125,7 +127,7 @@ export abstract class World<R extends ArcadeRun> implements WorldView {
     for (const cue of cues.slice(-4)) {
       if (!reduced) for (let i = 0; i < (cue.kind === 'clear' ? 32 : 8); i++) this.sparks.push({ position: this.origin.clone(), velocity: new T.Vector3(Math.sin(i * 2.4 + this.time) * 3, 2 + i % 4, Math.cos(i * 2.4 + this.time) * 3), life: .6 + i % 4 * .12, age: 0 });
       if (cue.text && (cue.kind !== 'score' || /[×→!]|LANDED|CLEAR|CLEAN|CHOICE/.test(cue.text))) {
-        const text = label(cue.text, cue.kind === 'lose' ? '#ffb0a4' : '#fff0b7', '#152b40bb'); text.sprite.scale.set(3.6, 1.12, 1); text.sprite.position.copy(this.origin).add(new T.Vector3(0, 2.8, 0)); this.scene.add(text.sprite); this.floaters.push({ object: text.sprite, age: 0, start: text.sprite.position.y });
+        const text = label(cue.text, cue.kind === 'lose' ? '#ffb0a4' : '#fff0b7', '#152b40bb'); text.sprite.scale.set(3.6 * this.floaterScale, 1.12 * this.floaterScale, 1); text.sprite.position.copy(this.origin).add(new T.Vector3(0, 2.8 * this.floaterScale, 0)); this.scene.add(text.sprite); this.floaters.push({ object: text.sprite, age: 0, start: text.sprite.position.y });
       }
     }
     this.sparks = reduced ? [] : this.sparks.filter(s => s.age < s.life).slice(-120);
