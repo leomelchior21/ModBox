@@ -1,19 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { parseGameScript } from '../interpreter/gameScript';
-import { formatCodeForLanguage } from '../interpreter/languageSyntax';
 import { NeonMazeRun } from './neon-maze/run';
 import { MAZE_MODS, MAZE_TOOLS, mazeSchema, type MazeConfig } from './neon-maze/mods';
 import { MAZE_MISSIONS, getMazeMission, mazeMissionPassed, mazeUnlocked } from './neon-maze/missions';
 import { DevilFloorRun, HERO_HEIGHT } from './devil-floor/run';
 import { FLOOR_MODS, FLOOR_TOOLS, floorSchema, type FloorConfig } from './devil-floor/mods';
 import { FLOOR_MISSIONS } from './devil-floor/missions';
-import { YardRun, readYardCheckpoint } from './makitas-vs-zombies/run';
-import { YARD_MODS, YARD_TOOLS, yardSchema, type YardConfig } from './makitas-vs-zombies/mods';
+import { YARD_MODS, YARD_TOOLS } from './makitas-vs-zombies/mods';
 import { YARD_MISSIONS } from './makitas-vs-zombies/missions';
 
 const mazeIdle = { up: false, right: false, down: false, left: false, phase: false };
 const floorIdle = { left: false, right: false, jump: false };
-const yardCode = 'string ground = "grass";\nstring toolbox = "full";\nstring zombieType = "worker";';
 
 describe('world construction and discovery', () => {
   it('makes every mission target available when it is taught', () => {
@@ -69,43 +66,5 @@ describe('world construction and discovery', () => {
     run.setProgram(parseGameScript<FloorConfig>('int platforms = 6; int meltDelay = 1; string platformEffect = "crumble";', 'csharp', floorSchema));
     for (let i = 0; i < 11; i++) run.step(0.1, floorIdle);
     expect(run.collapsed.has(1)).toBe(true);
-  });
-
-  it.each(['csharp', 'python', 'swift'] as const)('can dismantle and rebuild the playable yard using %s', language => {
-    const run = new YardRun(); run.launch();
-    expect(run.invasionReady).toBe(true);
-    run.setProgram(parseGameScript<YardConfig>(formatCodeForLanguage('string ground = "none";\nstring toolbox = "none";\nstring zombieType = "none";', language), language, yardSchema));
-    expect(run.sendWave()).toBe(false); expect(run.interact('saw', 0, 0)).toBe(false);
-    run.setProgram(parseGameScript<YardConfig>(formatCodeForLanguage(yardCode, language), language, yardSchema));
-    expect(run.interact('saw', 0, 0)).toBe(true); expect(run.sendWave()).toBe(true);
-    run.step(0.1); expect(run.zombies[0].kind).toBe('worker');
-  });
-});
-
-describe('wave checkpoints', () => {
-  it('restores the saved wave, machines, upgrades, resources and metrics across a reload', () => {
-    const run = new YardRun(), program = parseGameScript<YardConfig>(yardCode, 'csharp', yardSchema);
-    run.setProgram(program); run.launch(); run.power = 800; run.interact('saw', 2, 0); run.interact('upgrade', 2, 0);
-    run.wave = 1; run.metrics.kills = 7; run.score = 350;
-    expect(run.sendWave()).toBe(true);
-    const saved = JSON.parse(JSON.stringify(run.checkpoint));
-    run.units[0].hp = 1; run.power = 0; run.lives = 0; run.phase = 'gameover'; run.launch();
-    expect(run.units[0].level).toBe(2); expect(run.units[0].hp).toBe(saved.units[0].hp); expect(run.power).toBe(610); expect(run.lives).toBe(3);
-    const restored = new YardRun(saved); restored.setProgram(program); restored.launch();
-    expect(restored.wave).toBe(1); expect(restored.metrics.kills).toBe(7); expect(restored.score).toBe(350);
-    expect(restored.sendWave()).toBe(true); expect(restored.wave).toBe(2);
-    restored.units[0].hp = 1; expect(saved.units[0].hp).toBeGreaterThan(1);
-    expect(readYardCheckpoint({ ...saved, nextWave: 99 })).toBeNull();
-    expect(readYardCheckpoint({ ...saved, units: [{ ...saved.units[0], kind: 'unknown' }] })).toBeNull();
-    expect(readYardCheckpoint({ ...saved, metrics: {} })).toBeNull();
-  });
-
-  it('keeps a cleared final wave cleared after reload without awarding it twice', () => {
-    const run = new YardRun(), program = parseGameScript<YardConfig>(yardCode, 'csharp', yardSchema);
-    run.setProgram(program); run.launch(); run.wave = 3; run.countdown = 0; run.step(0.1);
-    expect(run.phase).toBe('cleared');
-    const restored = new YardRun(run.checkpoint); restored.setProgram(program); restored.launch();
-    expect(restored.phase).toBe('cleared'); expect(restored.metrics.clears).toBe(1); expect(restored.score).toBe(run.score);
-    restored.advance(); expect(restored.night).toBe(2); expect(restored.checkpoint?.nextWave).toBe(1);
   });
 });

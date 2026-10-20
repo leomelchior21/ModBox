@@ -3,269 +3,249 @@ import { evaluateGameScript } from '../../interpreter/gameScript';
 import { evalExpr } from '../../interpreter/core/evaluate';
 import { renderText } from '../../interpreter/csharp/binder';
 import { YARD_DEFAULTS, YARD_MODS, yardSchema, type YardConfig } from './mods';
+import { YARD_LEVELS, yardLevel, yardLevelName, yardToughness, type UnitKind, type YardLevel, type ZombieKind } from './levels';
 
-export const ROWS = 5, COLS = 9, WAVES = 3;
-export type UnitKind = 'saw' | 'charger' | 'wall' | 'frost';
-export type YardTool = UnitKind | 'upgrade' | 'recycle';
-export const UNIT_INFO = {
-  saw: { name: 'CIRCULAR SAW', cost: 100, detail: 'Shoots spinning blades', hp: 180, cooldown: 1.2, sprite: 0 },
-  charger: { name: 'BATTERY BANK', cost: 50, detail: '+25 power every 8s', hp: 140, cooldown: 8, sprite: 1 },
-  wall: { name: 'BARRICADE', cost: 75, detail: 'Stops hungry zombies', hp: 450, cooldown: 0, sprite: 2 },
-  frost: { name: 'FROST SAW', cost: 150, detail: 'Slows zombies by 55%', hp: 180, cooldown: 1.6, sprite: 3 },
-} as const;
-export type ZombieKind = 'worker' | 'hardhat' | 'sprinter' | 'brute';
-export const ZOMBIE_INFO = {
-  worker: { hp: 65, speed: 0.115, bite: 22, sprite: 4 },
-  hardhat: { hp: 145, speed: 0.1, bite: 25, sprite: 5 },
-  sprinter: { hp: 60, speed: 0.21, bite: 18, sprite: 6 },
-  brute: { hp: 360, speed: 0.075, bite: 50, sprite: 7 },
-} as const;
-export interface Defender { id: number; kind: UnitKind; row: number; col: number; hp: number; maxHp: number; level: number; timer: number; flash: number; invested: number }
-export interface Zombie { id: number; kind: ZombieKind; row: number; x: number; hp: number; maxHp: number; slowed: number; flash: number; biteTimer: number; chewing: boolean }
+export type { UnitKind, ZombieKind };
+export const ROWS = 5, COLS = 9;
+export const UNIT_INFO: Record<UnitKind, { name: string; short: string; cost: number; recharge: number; detail: string }> = {
+  saw: { name: 'SAW SHOOTER', short: 'SAW', cost: 100, recharge: 7.5, detail: 'Fires spinning saw blades down its lane.' },
+  charger: { name: 'BATTERY CHARGER', short: 'CHARGER', cost: 50, recharge: 7.5, detail: 'Makes a 25-power battery every 10 seconds.' },
+  wall: { name: 'TOOLBOX WALL', short: 'TOOLBOX', cost: 50, recharge: 25, detail: 'A heavy steel box zombies must chew through.' },
+  mine: { name: 'NAIL MINE', short: 'MINE', cost: 25, recharge: 25, detail: 'Arms in 12 seconds, then blasts the first zombie on it.' },
+  frost: { name: 'FROST SAW', short: 'FROST', cost: 175, recharge: 7.5, detail: 'Icy blades that slow zombies to half speed.' },
+  chainsaw: { name: 'CHAINSAW', short: 'CHAINSAW', cost: 150, recharge: 7.5, detail: 'Cuts down the zombie right in front, then cools down.' },
+  twin: { name: 'TWIN SAW', short: 'TWIN', cost: 200, recharge: 7.5, detail: 'Fires two blades every shot.' },
+};
+export const ZOMBIE_INFO: Record<ZombieKind, { name: string; hp: number; speed: number; bite: number; points: number }> = {
+  worker: { name: 'WORKER', hp: 190, speed: .22, bite: 50, points: 50 },
+  flag: { name: 'FLAG BEARER', hp: 190, speed: .3, bite: 50, points: 50 },
+  hardhat: { name: 'HARD HAT', hp: 560, speed: .22, bite: 50, points: 100 },
+  runner: { name: 'RUNNER', hp: 335, speed: .45, bite: 50, points: 75 },
+  welder: { name: 'WELDER', hp: 1000, speed: .2, bite: 60, points: 150 },
+  brute: { name: 'BRUTE', hp: 2200, speed: .15, bite: 0, points: 400 },
+};
+const BLADE_SPEED = 5.5, SAW_INTERVAL = 1.3, CHARGER_INTERVAL = 10, MINE_ARM = 12, MINE_DAMAGE = 1800, CHAINSAW_REST = 20, SKY_INTERVAL = 6;
+export interface Defender { id: number; kind: UnitKind; row: number; col: number; hp: number; maxHp: number; timer: number; flash: number; armed: number; busy: number }
+export interface Zombie { id: number; kind: ZombieKind; row: number; x: number; hp: number; maxHp: number; slowed: number; flash: number; eating: boolean; smash: number }
 export interface Blade { id: number; row: number; x: number; damage: number; frost: boolean }
-export interface Battery { id: number; row: number; x: number; value: number; age: number }
-export interface Sweeper { row: number; x: number; active: boolean; used: boolean }
+export interface Battery { id: number; row: number; x: number; y: number; value: number; age: number; sky: boolean }
+export interface Sweeper { row: number; x: number; state: 'ready' | 'running' | 'used' }
 export type YardPhase = 'launch' | 'playing' | 'paused' | 'cleared' | 'gameover';
-export type YardEvent = 'place' | 'shoot' | 'hit' | 'kill' | 'charge' | 'wave' | 'breach' | 'upgrade' | 'clear' | 'error' | 'sweep';
+export type YardEvent = 'place' | 'shoot' | 'hit' | 'kill' | 'charge' | 'wave' | 'breach' | 'clear' | 'error' | 'sweep' | 'boom' | 'chomp' | 'shovel';
 export interface YardCue { kind: YardEvent; row: number; x: number; text?: string }
-export interface YardMetrics { placed: number; collected: number; kills: number; upgrades: number; slowed: number; clears: number; shots: number; ruleTraces: string[] }
-const freshMetrics = (): YardMetrics => ({ placed: 0, collected: 0, kills: 0, upgrades: 0, slowed: 0, clears: 0, shots: 0, ruleTraces: [] });
+export interface YardMetrics { placed: number; collected: number; kills: number; walls: number; shots: number; clears: number; ruleTraces: string[] }
+export interface YardCard { kind: UnitKind; cost: number; ready: number; affordable: boolean }
 export interface YardSnapshot {
-  phase: YardPhase; config: YardConfig; power: number; score: number; lives: number; wave: number; night: number;
-  countdown: number; spawning: boolean; remaining: number; batteries: number; deployed: number; surgeCooldown: number;
-  metrics: YardMetrics; messages: string[]; notice: string; noticeKind: YardEvent; noticeId: number;
+  phase: YardPhase; config: YardConfig; power: number; score: number; level: number; levelName: string; tip: string; wave: number; waves: number;
+  progress: number; flags: number[]; cards: YardCard[]; banner: string; bannerId: number; reward: UnitKind | null; night: boolean; lanes: readonly number[];
+  metrics: YardMetrics; messages: string[]; notice: string; noticeKind: YardEvent; noticeId: number; sweepersLeft: number;
 }
+export interface YardCheckpoint { version: 2; level: number; best: number; score: number; metrics: YardMetrics }
+const freshMetrics = (): YardMetrics => ({ placed: 0, collected: 0, kills: 0, walls: 0, shots: 0, clears: 0, ruleTraces: [] });
 
-export interface YardCheckpoint {
-  version: 1; nextWave: number; night: number; power: number; score: number; lives: number;
-  units: Defender[]; sweepers: Sweeper[]; metrics: YardMetrics; nextId: number;
-}
-
-/** Validate persisted data before it enters the simulation. */
+/** Validate persisted progress before it enters the simulation. Older saves start a fresh campaign. */
 export function readYardCheckpoint(value: unknown): YardCheckpoint | null {
   if (!value || typeof value !== 'object') return null;
-  const c = value as YardCheckpoint;
-  const finite = (n: unknown, min: number, max: number) => typeof n === 'number' && Number.isFinite(n) && n >= min && n <= max;
-  if (c.version !== 1 || !Number.isInteger(c.nextWave) || !finite(c.nextWave, 1, WAVES + 1) || !Number.isInteger(c.night) || !finite(c.night, 1, 10000)
-    || !finite(c.power, 0, 1e9) || !finite(c.score, 0, 1e9) || !Number.isInteger(c.lives) || !finite(c.lives, 1, 3) || !Number.isInteger(c.nextId) || !finite(c.nextId, 1, 1e9)
-    || !Array.isArray(c.units) || c.units.length > ROWS * COLS || !Array.isArray(c.sweepers) || c.sweepers.length !== ROWS || !c.metrics) return null;
-  const occupied = new Set<string>();
-  for (const u of c.units) {
-    if (!u || !Object.prototype.hasOwnProperty.call(UNIT_INFO, u.kind) || !Number.isInteger(u.row) || !finite(u.row, 0, ROWS - 1) || !Number.isInteger(u.col) || !finite(u.col, 0, COLS - 1)
-      || !Number.isInteger(u.level) || !finite(u.level, 1, 3) || !finite(u.hp, 1, 1e6) || !finite(u.maxHp, u.hp, 1e6)
-      || !finite(u.timer, 0, 100) || !finite(u.flash, 0, 10) || !finite(u.invested, 0, 1e6) || !Number.isInteger(u.id) || !finite(u.id, 1, c.nextId - 1)) return null;
-    const key = `${u.row}:${u.col}`; if (occupied.has(key)) return null; occupied.add(key);
-  }
-  if (new Set(c.units.map(u => u.id)).size !== c.units.length) return null;
-  if (c.sweepers.some((sw, row) => !sw || sw.row !== row || typeof sw.active !== 'boolean' || typeof sw.used !== 'boolean' || !finite(sw.x, -1, COLS + 2))) return null;
-  for (const key of ['placed', 'collected', 'kills', 'upgrades', 'slowed', 'clears', 'shots'] as const) if (!finite(c.metrics[key], 0, 1e9)) return null;
+  const c = value as YardCheckpoint, count = (n: unknown, max: number) => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= max;
+  if (c.version !== 2 || !count(c.level, 999) || c.level < 1 || !count(c.best ?? c.level, 999) || !count(c.score, 1e9) || !c.metrics) return null;
+  for (const key of ['placed', 'collected', 'kills', 'walls', 'shots', 'clears'] as const) if (!count(c.metrics[key], 1e9)) return null;
   if (!Array.isArray(c.metrics.ruleTraces) || c.metrics.ruleTraces.length > 1000 || c.metrics.ruleTraces.some(t => typeof t !== 'string')) return null;
-  return structuredClone(c);
+  return { ...structuredClone(c), best: Math.max(c.level, c.best ?? c.level) };
 }
 
-/** Pure, deterministic lane simulation; only the screen owns clocks and input. */
+/** Pure, deterministic lane defense; the screen owns clocks, input and rendering. */
 export class YardRun {
   phase: YardPhase = 'launch'; config = { ...YARD_DEFAULTS };
-  power = YARD_DEFAULTS.startingPower; score = 0; lives = 3; wave = 0; night = 1; elapsed = 0;
-  countdown = 15; spawning = false; spawnIndex = 0; spawnTotal = 0; spawnTimer = 0;
-  units: Defender[] = []; zombies: Zombie[] = []; blades: Blade[] = []; batteries: Battery[] = [];
-  sweepers: Sweeper[] = Array.from({ length: ROWS }, (_, row) => ({ row, x: -0.4, active: false, used: false }));
-  metrics = freshMetrics(); messages = ['Protect the workshop. Chargers fund your defense.'];
+  level = 1; score = 0; power = YARD_DEFAULTS.startingPower; elapsed = 0; wave = 0;
+  units: Defender[] = []; zombies: Zombie[] = []; blades: Blade[] = []; batteries: Battery[] = []; sweepers: Sweeper[] = [];
+  cooldowns: Partial<Record<UnitKind, number>> = {};
+  metrics = freshMetrics(); messages: string[] = ['Protect the workshop. Every lane needs a saw.'];
   feedback: YardCue[] = []; events: YardEvent[] = []; revision = 0;
-  notice = 'Select a tool, then tap an empty lawn tile.'; noticeKind: YardEvent = 'place'; noticeId = 0;
-  private program: ProgramResult<YardConfig> | null = null;
-  private base = { ...YARD_DEFAULTS }; private activeRules = new Set<string>();
+  notice = 'Pick a tool card, then tap a tile in an open lane.'; noticeKind: YardEvent = 'place'; noticeId = 0; banner = ''; bannerId = 0;
   checkpoint: YardCheckpoint | null = null; checkpointRevision = 0;
-  constructor(checkpoint?: unknown) { this.checkpoint = readYardCheckpoint(checkpoint); }
-  private nextId = 1; private skyTimer = 3; surgeCooldown = 0;
+  private program: ProgramResult<YardConfig> | null = null; private base = { ...YARD_DEFAULTS }; private activeRules = new Set<string>();
+  private nextId = 1; private skyTimer = 4; private waveClock = 0; private queue: { kind: ZombieKind; at: number; row: number }[] = []; private seed = 1; private spawned = 0;
+  constructor(checkpoint?: unknown) { this.checkpoint = readYardCheckpoint(checkpoint); if (this.checkpoint) { this.level = this.checkpoint.level; this.score = this.checkpoint.score; this.metrics = structuredClone(this.checkpoint.metrics); } }
+  get stage(): YardLevel { return yardLevel(this.level); }
+  get totalZombies(): number { return this.stage.waves.reduce((sum, w) => sum + w.zombies.length, 0); }
+  get remaining(): number { return this.totalZombies - this.spawned + this.zombies.length; }
   setProgram(program: ProgramResult<YardConfig>): void {
     if (!program.ok) return;
     this.program = program; this.base = { ...YARD_DEFAULTS, ...program.config }; this.evaluate();
     this.messages = [...program.comms.map(c => c.text), ...this.messages].filter((x, i, a) => a.indexOf(x) === i).slice(0, 3);
   }
+  /** Starts (or retries) the saved level from scratch. */
   launch(): void {
-    const saved = this.checkpoint;
-    this.night = saved?.night ?? 1; this.score = saved?.score ?? 0; this.metrics = saved ? structuredClone(saved.metrics) : freshMetrics(); this.reset();
-    if (saved) {
-      this.power = saved.power; this.lives = saved.lives; this.units = structuredClone(saved.units);
-      this.sweepers = structuredClone(saved.sweepers); this.nextId = saved.nextId; this.wave = saved.nextWave - 1;
-      if (saved.nextWave > WAVES) this.phase = 'cleared';
-      this.announce('wave', saved.nextWave > WAVES ? 'Workshop saved. Continue to the next night.' : `WAVE ${saved.nextWave} SAVED - Your defense is restored. Ready when you are.`);
-      this.evaluate();
-    }
+    if (this.checkpoint) { this.level = this.checkpoint.level; this.score = this.checkpoint.score; this.metrics = structuredClone(this.checkpoint.metrics); }
+    this.begin();
   }
-  private reset(): void {
-    this.config = { ...this.base }; this.power = this.config.startingPower; this.lives = 3;
-    this.wave = 0; this.elapsed = 0; this.countdown = 15; this.spawning = false; this.spawnIndex = 0; this.spawnTotal = 0; this.spawnTimer = 0;
-    this.units = []; this.zombies = []; this.blades = []; this.batteries = []; this.feedback = []; this.events = [];
-    this.sweepers = Array.from({ length: ROWS }, (_, row) => ({ row, x: -0.4, active: false, used: false }));
-    this.skyTimer = 3; this.surgeCooldown = 0; this.activeRules.clear(); this.revision++; this.phase = 'playing'; this.evaluate();
-    this.announce('place', this.invasionReady ? 'Build your defense. First invasion arrives in 15 seconds.' : 'BUILD MODE - Add scenery, lanes, machines, then zombies.');
-  }
-  advance(): void { if (this.phase === 'cleared') { this.night++; this.reset(); this.saveCheckpoint(1); } }
+  advance(): void { if (this.phase === 'cleared') { this.level++; this.begin(); } }
   pause(): void { if (this.phase === 'playing') this.phase = 'paused'; }
   resume(): void { if (this.phase === 'paused') this.phase = 'playing'; }
-  snapshot(): YardSnapshot {
-    return { phase: this.phase, config: { ...this.config }, power: this.power, score: this.score, lives: this.lives, wave: this.wave, night: this.night,
-      countdown: Math.ceil(this.countdown), spawning: this.spawning, remaining: this.zombies.length + (this.spawning ? this.spawnTotal - this.spawnIndex : 0),
-      batteries: this.batteries.length, deployed: this.units.length, surgeCooldown: Math.ceil(this.surgeCooldown), metrics: { ...this.metrics, ruleTraces: [...this.metrics.ruleTraces] },
-      messages: [...this.messages], notice: this.notice, noticeKind: this.noticeKind, noticeId: this.noticeId };
+  private begin(): void {
+    this.evaluate(); this.config = { ...this.base }; this.evaluate();
+    this.power = this.config.startingPower + (this.stage.night ? 150 : 0); this.elapsed = 0; this.wave = 0; this.waveClock = 0; this.spawned = 0; this.queue = []; this.seed = this.level * 9301 + 49297;
+    this.units = []; this.zombies = []; this.blades = []; this.batteries = []; this.feedback = []; this.events = []; this.activeRules.clear();
+    this.sweepers = this.stage.lanes.map(row => ({ row, x: -.35, state: 'ready' as const }));
+    this.cooldowns = { wall: UNIT_INFO.wall.recharge * .5, mine: UNIT_INFO.mine.recharge * .5 };
+    this.skyTimer = 4; this.revision++; this.phase = 'playing';
+    this.saveCheckpoint(this.level);
+    this.show(`LEVEL ${this.level} · ${yardLevelName(this.level).toUpperCase()}`); this.announce('place', this.stage.tip);
   }
-  toolAvailable(tool: YardTool): boolean {
-    if (this.config.ground === 'none' || this.config.toolbox === 'none') return false;
-    return tool !== 'wall' && tool !== 'frost' || this.config.toolbox === 'full';
+  private saveCheckpoint(level: number): void { this.checkpoint = { version: 2, level, best: Math.max(level, this.checkpoint?.best ?? 1), score: this.score, metrics: structuredClone(this.metrics) }; this.checkpointRevision++; }
+  /** Highest level reached; any level up to it can be replayed. */
+  get frontier(): number { return Math.max(this.level, this.checkpoint?.best ?? 1); }
+  playLevel(level: number): boolean { if (!Number.isInteger(level) || level < 1 || level > this.frontier) return false; this.level = level; this.begin(); return true; }
+  available(kind: UnitKind): boolean { return this.stage.cards.includes(kind); }
+  cardReady(kind: UnitKind): number { return 1 - (this.cooldowns[kind] ?? 0) / UNIT_INFO[kind].recharge; }
+  canPlace(kind: UnitKind, row: number, col: number): boolean {
+    return this.phase === 'playing' && this.available(kind) && this.stage.lanes.includes(row) && col >= 0 && col < COLS && Number.isInteger(col)
+      && !this.units.some(u => u.row === row && u.col === col) && this.power >= UNIT_INFO[kind].cost && (this.cooldowns[kind] ?? 0) <= 0;
   }
-  get invasionReady(): boolean { return this.config.ground !== 'none' && this.config.toolbox !== 'none' && this.config.zombieType !== 'none'; }
-  private saveCheckpoint(nextWave: number): void {
-    this.checkpoint = { version: 1, nextWave, night: this.night, power: this.power, score: this.score, lives: this.lives,
-      units: structuredClone(this.units), sweepers: structuredClone(this.sweepers), metrics: structuredClone(this.metrics), nextId: this.nextId };
-    this.checkpointRevision++;
-  }
-  private saveBuild(): void { if (!this.spawning && !this.zombies.length) this.saveCheckpoint(Math.min(WAVES + 1, this.wave + 1)); }
-  upgradeCost(unit: Defender): number { return unit.level === 1 ? 90 : 150; }
-  interact(tool: YardTool, row: number, col: number): boolean {
-    if (this.phase !== 'playing' || !Number.isInteger(row) || !Number.isInteger(col) || row < 0 || row >= ROWS || col < 0 || col >= COLS) return false;
-    if (!this.toolAvailable(tool)) return this.fail(row, col, 'Build the yard and enable this machine in ADD MACHINES first.');
-    const unit = this.units.find(u => u.row === row && u.col === col);
-    if (tool === 'recycle') {
-      if (!unit) return this.fail(row, col, 'Choose a defender to recycle.');
-      const refund = Math.floor(unit.invested / 2); this.power += refund; this.units = this.units.filter(u => u !== unit);
-      this.cue('charge', row, col + 0.5, `+${refund}`); this.announce('charge', `Recycled. ${refund} power refunded.`); this.saveBuild(); return true;
-    }
-    if (tool === 'upgrade') {
-      if (!unit) return this.fail(row, col, 'Choose a defender to upgrade.');
-      if (unit.level >= 3) return this.fail(row, col, 'Already at maximum level.');
-      const cost = this.upgradeCost(unit);
-      if (this.power < cost) return this.fail(row, col, `Upgrade needs ${cost} power.`);
-      this.power -= cost; unit.invested += cost; unit.level++; unit.maxHp = Math.round(unit.maxHp * 1.4); unit.hp = unit.maxHp;
-      this.metrics.upgrades++; this.cue('upgrade', row, col + 0.5, `LEVEL ${unit.level}`); this.announce('upgrade', `${UNIT_INFO[unit.kind].name} upgraded to level ${unit.level}.`); this.evaluate(); this.saveBuild(); return true;
-    }
-    if (unit) return this.fail(row, col, 'Tile occupied. Upgrade or recycle this defender.');
-    if (this.zombies.some(z => z.row === row && Math.abs(z.x - col - 0.5) < 0.45)) return this.fail(row, col, 'Zombie on this tile. Build behind the front line.');
-    const info = UNIT_INFO[tool];
+  place(kind: UnitKind, row: number, col: number): boolean {
+    if (this.phase !== 'playing') return false;
+    const info = UNIT_INFO[kind];
+    if (!this.available(kind)) return this.fail(row, col, `${info.name} unlocks in a later level.`);
+    if (!Number.isInteger(row) || !Number.isInteger(col) || !this.stage.lanes.includes(row) || col < 0 || col >= COLS) return this.fail(row, col, 'That lane is closed. Build on the grass.');
+    if (this.units.some(u => u.row === row && u.col === col)) return this.fail(row, col, 'Tile taken. Use the shovel to clear it first.');
+    if ((this.cooldowns[kind] ?? 0) > 0) return this.fail(row, col, `${info.short} is recharging.`);
     if (this.power < info.cost) return this.fail(row, col, `Not enough power. ${info.name} costs ${info.cost}.`);
-    this.power -= info.cost;
-    const hp = tool === 'wall' ? this.config.barricadeHealth : info.hp;
-    this.units.push({ id: this.nextId++, kind: tool, row, col, hp, maxHp: hp, level: 1, timer: tool === 'charger' ? 5 : 0.15, flash: 0, invested: info.cost });
-    this.metrics.placed++; this.cue('place', row, col + 0.5, info.name); this.announce('place', `${info.name} deployed. ${this.power} power left.`); this.evaluate(); this.saveBuild(); return true;
+    this.power -= info.cost; this.cooldowns[kind] = info.recharge * (this.config.quickHands ? .5 : 1);
+    const hp = kind === 'wall' ? this.config.wallHealth : 300;
+    this.units.push({ id: this.nextId++, kind, row, col, hp, maxHp: hp, timer: kind === 'charger' ? 5 : .2, flash: 0, armed: 0, busy: 0 });
+    this.metrics.placed++; if (kind === 'wall') this.metrics.walls++;
+    this.cue('place', row, col + .5); this.announce('place', `${info.name} placed. ${this.power} power left.`); this.evaluate(); return true;
+  }
+  shovel(row: number, col: number): boolean {
+    if (this.phase !== 'playing') return false;
+    const unit = this.units.find(u => u.row === row && u.col === col); if (!unit) return this.fail(row, col, 'Nothing to dig up here.');
+    this.units = this.units.filter(u => u !== unit); this.cue('shovel', row, col + .5); this.announce('place', `${UNIT_INFO[unit.kind].name} removed.`); return true;
   }
   collect(id: number): boolean {
     if (this.phase !== 'playing') return false;
     const drop = this.batteries.find(b => b.id === id); if (!drop) return false;
-    this.power += drop.value; this.metrics.collected += drop.value;
-    this.batteries = this.batteries.filter(b => b.id !== id); this.cue('charge', drop.row, drop.x, `+${drop.value}`);
-    this.announce('charge', `+${drop.value} battery power.`); this.evaluate(); return true;
+    this.power += drop.value; this.metrics.collected += drop.value; this.batteries = this.batteries.filter(b => b !== drop);
+    this.cue('charge', drop.row, drop.x, `+${drop.value}`); this.evaluate(); return true;
   }
   collectAll(): void { for (const b of [...this.batteries]) this.collect(b.id); }
-  surge(): boolean {
-    if (this.phase !== 'playing' || !this.invasionReady) return false;
-    if (this.surgeCooldown > 0) return this.fail(2, 4, `Power surge recharging: ${Math.ceil(this.surgeCooldown)}s.`);
-    if (!this.zombies.some(z => z.hp > 0)) return this.fail(2, 4, 'Save your surge for the invasion.');
-    if (this.power < 75) return this.fail(2, 4, 'Power surge needs 75 battery power.');
-    this.power -= 75; this.surgeCooldown = 24;
-    for (const z of this.zombies) {
-      if (z.hp <= 0) continue;
-      z.hp -= 45; z.slowed = Math.max(z.slowed, 3); z.flash = 0.25;
-      this.cue('hit', z.row, z.x, 'SURGE −45');
-      if (z.hp <= 0) this.defeat(z);
-    }
-    this.cue('upgrade', 2, 4.5, 'POWER SURGE'); this.announce('upgrade', 'POWER SURGE! Every zombie shocked and slowed.');
-    this.evaluate(); return true;
-  }
-  sendWave(): boolean {
-    if (!this.invasionReady || this.phase !== 'playing' || this.spawning || this.zombies.length || this.wave >= WAVES) return false;
-    this.saveCheckpoint(this.wave + 1);
-    this.wave++; this.spawnTotal = 5 + this.wave * 2 + (this.night - 1) * 2; this.spawnIndex = 0; this.spawnTimer = 0; this.spawning = true; this.countdown = 0;
-    this.announce('wave', this.wave === WAVES ? 'FINAL WAVE — the foreman is coming!' : `WAVE ${this.wave} — defend all five lanes!`);
-    this.cue('wave', 2, 4.5, `WAVE ${this.wave}`); this.evaluate(); return true;
-  }
   step(dt: number): void {
     if (this.phase !== 'playing' || !Number.isFinite(dt) || dt <= 0) return;
-    let left = Math.min(dt, 0.1); this.evaluate();
-    while (left > 0 && this.phase === 'playing') { const slice = Math.min(left, 1 / 60); this.tick(slice); left -= slice; }
+    let left = Math.min(dt, .1); this.evaluate();
+    while (left > 1e-9 && this.phase === 'playing') { const slice = Math.min(left, 1 / 60); this.tick(slice); left -= slice; }
     this.evaluate();
   }
+  private random(): number { this.seed = (this.seed * 16807) % 2147483647; return (this.seed - 1) / 2147483646; }
   private tick(dt: number): void {
-    this.surgeCooldown = Math.max(0, this.surgeCooldown - dt);
-    this.elapsed += dt; this.skyTimer -= dt;
-    if (this.skyTimer <= 0) { this.skyTimer += 6; this.drop((Math.floor(this.elapsed / 6) * 3) % ROWS, 2 + Math.floor(this.elapsed / 6) % 5, this.config.chargeRate * 5); }
-    for (const b of this.batteries) b.age += dt;
-    this.batteries = this.batteries.filter(b => b.age < 22);
+    const stage = this.stage, speedScale = this.config.zombieSpeed / 3;
+    this.elapsed += dt;
+    for (const kind of Object.keys(this.cooldowns) as UnitKind[]) this.cooldowns[kind] = Math.max(0, (this.cooldowns[kind] ?? 0) - dt * (this.config.quickHands ? 2 : 1));
+    // Waves arrive on schedule, and sooner when the yard is already clear.
+    this.waveClock += dt * (this.wave > 0 && !this.zombies.length && !this.queue.length ? 1.6 : 1);
+    while (this.wave < stage.waves.length && this.waveClock >= stage.waves[this.wave].at) {
+      const next = stage.waves[this.wave++], last = this.wave === stage.waves.length;
+      next.zombies.forEach((kind, i) => this.queue.push({ kind, at: this.elapsed + i * (next.huge ? .55 : 1.6), row: kind === 'flag' ? stage.lanes[Math.floor(stage.lanes.length / 2)] : stage.lanes[Math.floor(this.random() * stage.lanes.length)] }));
+      if (next.huge) { this.show(last ? 'FINAL WAVE!' : 'A HUGE WAVE IS COMING!'); this.cue('wave', 2, 4.5); }
+    }
+    for (const q of this.queue.filter(q => q.at <= this.elapsed)) {
+      const info = ZOMBIE_INFO[q.kind], hp = Math.round(info.hp * yardToughness(this.level));
+      this.zombies.push({ id: this.nextId++, kind: q.kind, row: q.row, x: COLS + .45 + this.random() * .3, hp, maxHp: hp, slowed: 0, flash: 0, eating: false, smash: 0 }); this.spawned++;
+    }
+    this.queue = this.queue.filter(q => q.at > this.elapsed);
+    // Power: batteries drift down from the sky by day.
+    if (!stage.night) {
+      this.skyTimer -= dt;
+      if (this.skyTimer <= 0) { this.skyTimer += SKY_INTERVAL; this.drop(stage.lanes[Math.floor(this.random() * stage.lanes.length)], 1 + this.random() * 7, 5.5, this.config.chargeRate * 5, true); }
+    }
+    for (const b of this.batteries) { if (b.y > 0) b.y = Math.max(0, b.y - dt * (b.sky ? 1.3 : 3)); else b.age += dt; }
+    this.batteries = this.batteries.filter(b => b.age < 9);
     if (this.config.autoCollect) this.collectAll();
-    if (this.invasionReady && !this.spawning && !this.zombies.length && this.wave < WAVES && (this.wave === 0 || this.countdown > 0)) { this.countdown -= dt; if (this.countdown <= 0) this.sendWave(); }
-    if (this.spawning && this.invasionReady) {
-      this.spawnTimer -= dt;
-      if (this.spawnTimer <= 0) {
-        const i = this.spawnIndex++, row = [2, 0, 4, 1, 3][i % ROWS];
-        const kind: ZombieKind = this.config.zombieType !== 'mixed' ? this.config.zombieType as ZombieKind : this.wave === 3 && i === this.spawnTotal - 1 ? 'brute' : this.wave >= 2 && i % 4 === 2 ? 'sprinter' : this.wave >= 2 && i % 3 === 0 ? 'hardhat' : 'worker';
-        const hp = Math.round(ZOMBIE_INFO[kind].hp * (1 + (this.night - 1) * 0.22));
-        this.zombies.push({ id: this.nextId++, kind, row, x: COLS + 0.35, hp, maxHp: hp, slowed: 0, flash: 0, biteTimer: 0.6, chewing: false });
-        this.spawnTimer = Math.max(1, 2.3 - this.wave * 0.15);
-        if (this.spawnIndex >= this.spawnTotal) this.spawning = false;
-      }
-    }
-    for (const u of this.units) {
-      u.flash = Math.max(0, u.flash - dt); u.timer = Math.max(0, u.timer - dt);
-      if (u.kind === 'charger') { if (u.timer <= 0) { this.drop(u.row, u.col + 0.5, 25 + (u.level - 1) * 15); u.timer = 8 - (u.level - 1); } continue; }
-      if (u.kind === 'wall' || u.timer > 0 || !this.zombies.some(z => z.hp > 0 && z.row === u.row && z.x > u.col + 0.3)) continue;
-      const frost = u.kind === 'frost';
-      const damage = Math.round(this.config.bladeDamage * (frost ? 0.65 : 1) * (1 + (u.level - 1) * 0.5));
-      const count = this.config.doubleShot ? 2 : 1;
-      for (let i = 0; i < count; i++) this.blades.push({ id: this.nextId++, row: u.row, x: u.col + 0.95 - i * 0.3, damage, frost });
-      this.metrics.shots += count; u.flash = 0.12; u.timer = UNIT_INFO[u.kind].cooldown / ((this.config.overdrive ? 1.4 : 1) * (1 + (u.level - 1) * 0.15));
-      this.cue('shoot', u.row, u.col + 0.85);
-    }
+    for (const u of this.units) this.operate(u, dt);
     for (const blade of this.blades) {
-      const old = blade.x; blade.x += dt * 5.2;
-      const victim = this.zombies.filter(z => z.hp > 0 && z.row === blade.row && z.x + 0.2 >= old && z.x - 0.2 <= blade.x).sort((a, b) => a.x - b.x)[0];
-      if (victim) {
-        victim.hp -= blade.damage; victim.flash = 0.12; blade.x = COLS + 2;
-        if (blade.frost) { victim.slowed = 3.5; this.metrics.slowed++; }
-        this.cue('hit', victim.row, victim.x, `−${blade.damage}`);
-        if (victim.hp <= 0) this.defeat(victim);
-      }
+      const old = blade.x; blade.x += dt * BLADE_SPEED;
+      const victim = this.zombies.filter(z => z.hp > 0 && z.row === blade.row && z.x + .3 >= old && z.x - .3 <= blade.x).sort((a, b) => a.x - b.x)[0];
+      if (victim) { this.hurt(victim, blade.damage); if (blade.frost) victim.slowed = 4; blade.x = COLS + 5; this.cue('hit', victim.row, victim.x); }
     }
-    this.blades = this.blades.filter(b => b.x < COLS + 0.8);
+    this.blades = this.blades.filter(b => b.x < COLS + 1);
     for (const z of this.zombies) {
-      if (this.config.zombieType === 'none') continue;
       if (z.hp <= 0) continue;
+      const info = ZOMBIE_INFO[z.kind], slow = z.slowed > 0 ? .5 : 1;
       z.slowed = Math.max(0, z.slowed - dt); z.flash = Math.max(0, z.flash - dt);
-      const target = this.units.filter(u => u.hp > 0 && u.row === z.row && u.col + 0.5 <= z.x + 0.25 && z.x - u.col - 0.5 < 0.65).sort((a, b) => b.col - a.col)[0];
-      z.chewing = Boolean(target);
+      const target = this.units.filter(u => u.hp > 0 && u.kind !== 'mine' && u.row === z.row && u.col + .5 <= z.x - .05 && u.col + .5 >= z.x - .62).sort((a, b) => b.col - a.col)[0];
+      z.eating = Boolean(target);
       if (target) {
-        z.biteTimer -= dt;
-        if (z.biteTimer <= 0) { target.hp -= ZOMBIE_INFO[z.kind].bite; target.flash = 0.18; z.biteTimer = 0.8; this.cue('hit', target.row, target.col + 0.5);
-          if (target.hp <= 0) { this.cue('breach', target.row, target.col + 0.5, 'TOOL LOST'); this.announce('breach', `${UNIT_INFO[target.kind].name} destroyed in lane ${target.row + 1}.`); }
-        }
-      } else z.x -= ZOMBIE_INFO[z.kind].speed * this.config.zombieSpeed / 3 * (z.slowed > 0 ? 0.45 : 1) * dt;
-      const sweep = this.sweepers[z.row];
-      if (z.x < 0.25 && !sweep.used) { sweep.used = true; sweep.active = true; sweep.x = -0.35; this.cue('sweep', z.row, 0, 'EMERGENCY SWEEPER'); this.announce('sweep', `Lane ${z.row + 1} emergency sweeper activated!`); }
-      if (z.x < -0.6 && !sweep.active) { z.hp = 0; this.lives = Math.max(0, this.lives - 1); this.cue('breach', z.row, 0, '−1 INTEGRITY'); this.announce('breach', `Workshop breached! ${this.lives} integrity remaining.`); if (this.lives === 0) { this.phase = 'gameover'; break; } }
+        if (z.kind === 'brute') { z.smash += dt * slow; if (z.smash >= 1.8) { target.hp = 0; z.smash = 0; this.cue('breach', target.row, target.col + .5, 'SMASH!'); this.announce('breach', `A brute smashed your ${UNIT_INFO[target.kind].name}.`); } }
+        else { target.hp -= info.bite * slow * dt; target.flash = .12; if (target.hp <= 0) this.announce('breach', `${UNIT_INFO[target.kind].name} lost in lane ${target.row + 1}.`); }
+      } else { z.smash = 0; z.x -= info.speed * speedScale * slow * dt; }
+      const sweep = this.sweepers.find(s => s.row === z.row);
+      if (sweep?.state === 'ready' && z.x < .2) { sweep.state = 'running'; sweep.x = -.35; this.cue('sweep', z.row, 0); this.show('LANE SWEEPER!'); this.announce('sweep', `Lane ${z.row + 1} sweeper launched! It only works once.`); }
+      if (z.x < -.55 && sweep?.state !== 'running') { this.phase = 'gameover'; this.cue('breach', z.row, 0); this.show('THE ZOMBIES GOT IN!'); this.announce('breach', 'A zombie reached the workshop. Retry the level with stronger lanes.'); return; }
     }
-    if (this.phase === 'gameover') { this.zombies = this.zombies.filter(z => z.hp > 0); this.units = this.units.filter(u => u.hp > 0); return; }
     for (const sweep of this.sweepers) {
-      if (!sweep.active) continue;
-      sweep.x += 5 * dt;
-      for (const z of this.zombies) if (z.hp > 0 && z.row === sweep.row && z.x < sweep.x + 0.4) { z.hp = 0; this.defeat(z); }
-      if (sweep.x > COLS + 0.8) sweep.active = false;
+      if (sweep.state !== 'running') continue;
+      sweep.x += 4.5 * dt;
+      for (const z of this.zombies) if (z.hp > 0 && z.row === sweep.row && z.x < sweep.x + .35) this.hurt(z, 1e6);
+      if (sweep.x > COLS + .8) sweep.state = 'used';
     }
     this.units = this.units.filter(u => u.hp > 0); this.zombies = this.zombies.filter(z => z.hp > 0);
-    if (!this.spawning && !this.zombies.length && this.wave > 0 && this.countdown <= 0 && this.phase === 'playing') {
-      if (this.wave >= WAVES) { this.phase = 'cleared'; this.metrics.clears++; this.score += this.lives * 100; this.cue('clear', 2, 4.5, 'WORKSHOP SAVED'); this.announce('clear', 'Three waves defeated. The workshop survives!'); this.saveCheckpoint(WAVES + 1); }
-      else { this.countdown = 12; this.power += 75; this.cue('charge', 2, 4.5, 'WAVE CLEAR +75'); this.announce('charge', 'Wave saved! +75 power. Repair and reinforce.'); this.saveCheckpoint(this.wave + 1); }
-    }
+    if (this.wave >= stage.waves.length && !this.queue.length && !this.zombies.length) this.win();
   }
-  private drop(row: number, x: number, value: number): void { if (this.batteries.length < 20) this.batteries.push({ id: this.nextId++, row, x, value, age: 0 }); }
-  private defeat(z: Zombie): void { this.score += 50; this.metrics.kills++; this.cue('kill', z.row, z.x, '+50'); }
-  private fail(row: number, col: number, text: string): false { this.cue('error', row, col + 0.5, text); this.announce('error', text); return false; }
+  private operate(u: Defender, dt: number): void {
+    u.flash = Math.max(0, u.flash - dt); u.timer = Math.max(0, u.timer - dt);
+    if (u.kind === 'charger') { if (u.timer <= 0) { this.drop(u.row, u.col + .5, .01, 25, false); u.timer = CHARGER_INTERVAL; this.cue('charge', u.row, u.col + .5); } return; }
+    if (u.kind === 'wall') return;
+    if (u.kind === 'mine') {
+      u.armed = Math.min(1, u.armed + dt / MINE_ARM);
+      if (u.armed >= 1 && this.zombies.some(z => z.hp > 0 && z.row === u.row && Math.abs(z.x - u.col - .5) < .55)) {
+        for (const z of this.zombies) if (z.hp > 0 && z.row === u.row && Math.abs(z.x - u.col - .5) < 1) this.hurt(z, MINE_DAMAGE);
+        u.hp = 0; this.cue('boom', u.row, u.col + .5, 'BOOM!');
+      }
+      return;
+    }
+    if (u.kind === 'chainsaw') {
+      u.busy = Math.max(0, u.busy - dt); if (u.busy > 0) return;
+      const victim = this.zombies.filter(z => z.hp > 0 && z.row === u.row && z.x > u.col + .3 && z.x < u.col + 1.75).sort((a, b) => a.x - b.x)[0];
+      if (victim) { this.hurt(victim, victim.kind === 'brute' ? 1000 : 1e6); u.busy = CHAINSAW_REST; u.flash = .3; this.cue('chomp', u.row, victim.x, 'RIIIP!'); }
+      return;
+    }
+    if (u.timer > 0 || !this.zombies.some(z => z.hp > 0 && z.row === u.row && z.x > u.col + .3 && z.x < COLS + .2)) return;
+    const count = (u.kind === 'twin' ? 2 : 1) * (this.config.doubleShot ? 2 : 1), frost = u.kind === 'frost';
+    for (let i = 0; i < count; i++) this.blades.push({ id: this.nextId++, row: u.row, x: u.col + .8 - i * .28, damage: this.config.bladeDamage, frost });
+    this.metrics.shots += count; u.flash = .14; u.timer = SAW_INTERVAL / (this.config.overdrive ? 1.4 : 1); this.cue('shoot', u.row, u.col + .8);
+  }
+  private hurt(z: Zombie, damage: number): void {
+    if (z.hp <= 0) return;
+    z.hp -= damage; z.flash = .12;
+    if (z.hp <= 0) { const points = ZOMBIE_INFO[z.kind].points; this.score += points; this.metrics.kills++; this.cue('kill', z.row, z.x, `+${points}`); }
+  }
+  private win(): void {
+    const sweepers = this.sweepers.filter(s => s.state === 'ready').length, bonus = 500 + sweepers * 100;
+    this.score += bonus; this.metrics.clears++; this.phase = 'cleared'; this.cue('clear', 2, 4.5, `+${bonus}`);
+    this.show('YARD SECURED!'); this.announce('clear', this.stage.reward ? `Level clear! New tool unlocked: ${UNIT_INFO[this.stage.reward].name}.` : 'Level clear! The workshop survives another shift.');
+    this.saveCheckpoint(this.level + 1);
+  }
+  private drop(row: number, x: number, y: number, value: number, sky: boolean): void { if (this.batteries.length < 24) this.batteries.push({ id: this.nextId++, row, x, y, value, age: 0, sky }); }
+  private fail(row: number, col: number, text: string): false { this.cue('error', row, col + .5); this.announce('error', text); return false; }
   private announce(kind: YardEvent, text: string): void { this.notice = text; this.noticeKind = kind; this.noticeId++; }
+  private show(text: string): void { this.banner = text; this.bannerId++; }
   private cue(kind: YardEvent, row: number, x: number, text?: string): void { this.feedback.push({ kind, row, x, text }); this.events.push(kind); this.feedback = this.feedback.slice(-80); this.events = this.events.slice(-80); }
+  snapshot(): YardSnapshot {
+    const stage = this.stage, total = this.totalZombies;
+    let count = 0; const flags = stage.waves.map(w => { count += w.zombies.length; return w.huge ? count / total : -1; }).filter(f => f >= 0);
+    return {
+      phase: this.phase, config: { ...this.config }, power: this.power, score: this.score, level: this.level, levelName: yardLevelName(this.level), tip: stage.tip,
+      wave: this.wave, waves: stage.waves.length, progress: total ? this.spawned / total : 0, flags,
+      cards: stage.cards.map(kind => ({ kind, cost: UNIT_INFO[kind].cost, ready: this.cardReady(kind), affordable: this.power >= UNIT_INFO[kind].cost })),
+      banner: this.banner, bannerId: this.bannerId, reward: stage.reward ?? null, night: Boolean(stage.night), lanes: stage.lanes,
+      metrics: { ...this.metrics, ruleTraces: [...this.metrics.ruleTraces] }, messages: [...this.messages], notice: this.notice, noticeKind: this.noticeKind, noticeId: this.noticeId,
+      sweepersLeft: this.sweepers.filter(s => s.state === 'ready').length,
+    };
+  }
   private evaluate(): void {
     if (!this.program) return;
-    const runtime = { score: this.score, power: this.power, wave: this.wave, kills: this.metrics.kills, lives: this.lives, placed: this.metrics.placed };
+    const runtime = { score: this.score, power: this.power, wave: this.wave, kills: this.metrics.kills, placed: this.metrics.placed, level: this.level };
     const { config, frame } = evaluateGameScript(this.program, this.base, runtime, yardSchema); this.config = config;
     for (const trace of frame.traces) {
-      if (!this.metrics.ruleTraces.includes(trace.text)) this.metrics.ruleTraces.push(trace.text);
+      if (!this.metrics.ruleTraces.includes(trace.text)) this.metrics.ruleTraces = [...this.metrics.ruleTraces, trace.text].slice(-200);
       if (this.activeRules.has(trace.ruleId)) continue;
       this.messages = [`RULE LIVE · ${trace.text}`, ...this.messages].slice(0, 3);
       for (const write of trace.writes) {
@@ -276,3 +256,4 @@ export class YardRun {
     this.activeRules = new Set(frame.activeRuleIds);
   }
 }
+export { YARD_LEVELS };

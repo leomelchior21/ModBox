@@ -1,95 +1,70 @@
-.lab[data-game-id="makitas-vs-zombies"] .stage-frame { border-color:#5d9d85; background:#0a2720; box-shadow:0 0 30px #37c7a51c; }
-.yard-stage { container-type:size; display:flex; flex-direction:column; gap:8px; padding:12px; background:linear-gradient(#16392dee,#09231af5),url('/art/makitas/yard.webp') center/cover; font-family:var(--font-mono); --yard-glow:#64e7d5; }
-.yard__hud { position:relative; z-index:2; display:flex; align-items:center; gap:14px; min-height:60px; flex-shrink:0; }
-.yard__brand { display:flex; gap:10px; align-items:center; flex:1; min-width:0; }
-.yard__brandIcon { font-size:36px; color:var(--yard-glow); text-shadow:0 0 18px #64e7d545; }
-.yard__brand div { min-width:0; }
-.yard__brand small { display:block; font-size:10px; letter-spacing:.08em; color:#c6dabb; margin-bottom:5px; }
-.yard__brand strong { display:block; color:#fff2ce; font-size:clamp(16px,2.5cqw,23px); white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
-.yard__power { display:flex; align-items:center; gap:8px; color:#ffe28b; background:linear-gradient(135deg,#415537,#203d2c); border:1px solid #c9c87980; border-radius:10px; padding:7px 12px; box-shadow:0 4px 12px #0003; }
-.yard__power > span { font:bold 32px Georgia,serif; }
-.yard__power strong { display:block; font:bold 28px/1.1 var(--font-mono); font-variant-numeric:tabular-nums; }
-.yard__power small { display:block; color:#e3dda6; font-size:10px; margin-top:3px; }
-.yard__integrity { text-align:right; }
-.yard__integrity span { display:flex; gap:3px; color:#ffb391; font-size:22px; }
-.yard__heart--lost { color:#486650; }
-.yard__integrity small { display:block; color:#d7e1c9; font-size:11px; margin-top:4px; white-space:nowrap; }
-.yard__waveTrack { position:relative; z-index:2; display:flex; align-items:center; gap:10px; min-height:32px; flex-shrink:0; padding:0 6px; color:#d3ddbd; }
-.yard__waveTrack > span { font-size:10px; letter-spacing:.1em; }
-.yard__waveTrack i { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; font-style:normal; font-size:11px; border-top:3px solid #78945e66; padding-top:5px; color:#b6cba8; white-space:nowrap; }
-.yard__waveTrack i b { display:inline-grid; place-items:center; width:21px; height:21px; border:1px solid #889c6e99; border-radius:50%; font-size:11px; }
-.yard__waveTrack .yard__wave--active { border-color:#e6c779; color:#ffe8a5; }
-.yard__waveTrack > small { color:#ffe2a1; font-size:11px; white-space:nowrap; }
-.yard__command { display:flex; gap:8px; align-items:center; flex-shrink:0; min-height:44px; }
-.yard__fieldActions { display:flex; align-items:center; gap:8px; flex:1; min-width:0; font-size:11px; color:#c4d4b3; }
-.yard__fieldActions > span:first-child { display:none; }
-.yard__danger { color:#ffca9c; font-size:11px; }
-.yard__fieldActions button,.yard__tactics button { min-height:44px; padding:8px 10px; color:#f4dea1; background:#2c452ef0; border:1px solid #c2b07280; border-radius:6px; font:700 11px var(--font-mono); cursor:pointer; white-space:nowrap; }
-.yard__tactics { display:flex; gap:6px; }
-.yard__tactics .yard__surge { color:#bdfff1; border-color:#73ddba; background:linear-gradient(#286851,#1d483a); }
-.yard__tactics button:disabled { opacity:.45; cursor:default; }
-.yard__battlefield { position:relative; flex:1; min-height:100px; overflow:hidden; border:1px solid #769d6559; border-radius:10px; box-shadow:inset 0 0 25px #0005,0 5px 20px #0003; }
-.yard-stage .stage__canvas { position:absolute; inset:0; filter:none; }
-.yard__grid { position:absolute; z-index:2; left:6.666667%; top:5%; width:86.666667%; height:90%; display:flex; flex-direction:column; }
-.yard__grid > div { display:grid; grid-template-columns:repeat(9,minmax(0,1fr)); flex:1; min-height:0; }
-.yard__grid button { display:block; background:transparent; border:0; padding:0; min-width:0; cursor:crosshair; touch-action:manipulation; border-radius:3px; }
-.yard__grid button:focus-visible { outline:3px solid var(--yard-glow); outline-offset:-4px; background:#83e0ba18; }
-.yard__drops { position:absolute; z-index:3; inset:0; pointer-events:none; }
-.yard__battery { position:absolute; transform:translate(-50%,-50%); pointer-events:auto; display:flex; align-items:center; gap:3px; min-width:44px; min-height:44px; padding:3px 6px; border:1px solid #fff1a8; border-radius:8px; background:linear-gradient(#ffe589,#c69e42); color:#233324; box-shadow:0 0 18px #ffd97180,0 3px 6px #0005; cursor:pointer; animation:yard-battery-glow 1.5s ease-in-out infinite; }
-.yard__battery span { font:bold 26px Georgia,serif; }.yard__battery b { font:bold 12px var(--font-mono); }
-.yard__notice { position:relative; z-index:3; display:flex; align-items:center; gap:8px; min-height:38px; flex-shrink:0; font-size:12px; }
-.yard__notice > span { flex:1; min-width:0; color:#e0e9c8; line-height:1.4; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
-.yard__notice--error > span,.yard__notice--breach > span { color:#ffbc99; }
-.yard__notice--wave > span { color:#ffe496; font-weight:bold; }
-.yard__notice button { min-height:44px; flex-shrink:0; border:1px solid #b4c16c70; border-radius:6px; background:#183c2fe8; color:#f9dc89; font:700 11px var(--font-mono); padding:7px 10px; cursor:pointer; }
-.yard__notice button:disabled { opacity:.4; cursor:default; }
-.yard__tools { position:relative; z-index:3; height:70px; flex-shrink:0; display:flex; gap:7px; }
-.yard__tool { position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-width:0; overflow:hidden; border:1px solid #8baa7080; border-radius:8px; background:linear-gradient(135deg,#365a40,#122f23); padding:4px; color:#e4edca; cursor:pointer; box-shadow:0 3px 8px #0003; }
-.yard__tool--selected { border-color:var(--yard-glow); background:linear-gradient(135deg,#487450,#1f5140); box-shadow:0 0 15px #59d6b52c,inset 0 -3px var(--yard-glow); color:#fff9dc; }
-.yard__tool--poor { opacity:.6; }.yard__tool--poor.yard__tool--selected { opacity:.9; }
-.yard__toolSprite { display:block; position:absolute; left:-5%; top:0; width:60%; height:100%; overflow:hidden; opacity:.65; pointer-events:none; }
-.yard__toolCopy { position:relative; align-self:flex-end; display:flex; flex-direction:column; gap:6px; text-align:right; min-width:0; text-shadow:0 1px 3px #061d14; }.yard__toolCopy b { font-size:11px; }.yard__toolCopy small { font-size:14px; color:#ffe395; }
-.yard__tool kbd { position:absolute; top:4px; right:5px; font-size:9px; color:#c2d8b3; }
-.yard__utility { display:flex; flex-direction:column; gap:5px; width:17%; flex-shrink:0; }.yard__utility button { flex:1; padding:2px; border:1px solid #90a87680; border-radius:6px; background:#183d2fee; color:#deebc7; font:700 10px var(--font-mono); cursor:pointer; }.yard__utility .yard__utility--selected { border-color:var(--yard-glow); color:var(--yard-glow); }
-.yard__tool:disabled { opacity:.4; cursor:not-allowed; }
-.yard__footer { display:flex; gap:8px; justify-content:space-between; color:#b9ceab; font-size:10px; min-height:15px; flex-shrink:0; }
-.yard__footer span:last-child { display:none; }
-.lab .yard__overlay { z-index:4; padding:6%; background:linear-gradient(90deg,#061e19f0 0%,#0a241edc 50%,#14291b55),url('/art/makitas/cover.webp') center/cover; align-items:center; justify-content:flex-start; }
-.yard__panel { width:88%; max-width:520px; text-align:left; display:flex; flex-direction:column; align-items:flex-start; gap:16px; padding:2%; }
-.yard__eyebrow { color:#d3e7c4; font-size:12px; letter-spacing:.08em; line-height:1.5; }
-.yard__tagline { color:#e8d8a0; font-size:10px; letter-spacing:.05em; }
-.yard__panel h1 { margin:0; color:#8ce3c8; font:900 clamp(34px,8cqw,80px)/.98 Impact,'Arial Black',sans-serif; letter-spacing:.015em; text-shadow:0 4px #07382b,0 6px 20px #0008; }
-.yard__panel h1 span { display:block; color:#ece4b3; font-size:.63em; margin-top:8px; }.yard__panel h1 em { font-style:normal; color:#e8e8a5; }
-.yard__panel p { margin:0; color:#e4e7cf; max-width:390px; font-size:14px; line-height:1.7; text-wrap:pretty; }
-.yard__introSteps { display:flex; flex-wrap:wrap; gap:20px; color:#d4dfc5; font-size:11px; padding-top:5px; }.yard__introSteps b { display:block; color:#f4db8c; font-size:1.5em; margin-bottom:5px; }
-.lab .yard__enter { color:#092d26; border:1px solid #b6f5c7; border-radius:7px; background:linear-gradient(135deg,#bcf1ba,#61c9a6); padding:14px 20px; min-height:48px; font:800 13px var(--font-mono); letter-spacing:.045em; box-shadow:0 5px 20px #0005; cursor:pointer; }
-.lab .yard__enter:hover { filter:brightness(1.12); }.yard__panel > small { color:#cfdfbc; font-size:11px; line-height:1.6; }
-.yard__results { display:flex; gap:30px; padding:10px 0; }.yard__results small { color:#d5dfbd; font-size:12px; }.yard__results b { display:block; color:#ffdc99; font-size:30px; margin-top:5px; }
-.lab .yard__overlay--paused { background:linear-gradient(#06271bed,#0a281eed); backdrop-filter:blur(3px); }.yard__overlay--paused .yard__tagline { display:none; }
-.yard-stage:has(.stage__missionBack),.yard-stage.stage--missionReady { padding-bottom:48px; }
-.yard-stage .stage__missionBack { z-index:5; top:auto; bottom:8px; left:12px; transform:none; background:#173c2fed; border-color:#97c7a06b; min-height:32px; font-size:11px; }
-.yard-stage .stage__missionNext { z-index:5; right:12px; bottom:8px; }.yard-stage .mission__next--ready { min-height:32px; padding:7px 10px; font-size:11px; }
-.yard__battleBanner { position:absolute; z-index:3; top:37%; left:8%; right:8%; text-align:center; padding:16px 8px; border-block:2px solid #f3d483aa; background:linear-gradient(90deg,transparent,#0b2819ed 20%,#0b2819ed 80%,transparent); color:#ffe4a2; font:900 clamp(20px,4cqw,38px) Impact,sans-serif; letter-spacing:.08em; pointer-events:none; animation:yard-banner 2.4s both; }
-.yard__debug { position:fixed; z-index:20; right:12px; bottom:12px; width:300px; max-height:35vh; overflow:auto; background:#051d16ed; color:#c9e7b6; font-size:9px; padding:12px; pointer-events:none; }
-.yard-stage button:focus-visible { outline:2px solid #eaffc7; outline-offset:2px; }
-@keyframes yard-battery-glow { 50% { box-shadow:0 0 23px #ffe27ab3,0 3px 6px #0005; } }
-@keyframes yard-banner { 0% { opacity:0; transform:translateY(8px); } 12%,78% { opacity:1; transform:translateY(0); } 100% { opacity:0; } }
-@container(max-width:490px) { .yard__brandIcon { display:none; }.yard__hud { gap:8px; }.yard__power { padding:6px 8px; }.yard__brand small { font-size:10px; letter-spacing:0; }.yard__power small { font-size:9px; }.yard__waveTrack > span { display:none; }.yard__waveTrack { gap:6px; }.yard__toolCopy b { font-size:10px; }.yard__utility { width:16%; }.yard__utility button span { display:none; }.yard__utility { flex-direction:row; }.yard__utility button { font-size:20px; }.yard__tactics button,.yard__fieldActions button { padding:6px; font-size:10px; }.yard__notice { font-size:11px; }.yard__integrity span { font-size:18px; } }
-@container(max-height:480px) { .yard__hud { min-height:44px; }.yard__brand small { margin-bottom:2px; }.yard__power { padding-block:3px; }.yard__power strong { font-size:23px; }.yard__power > span { font-size:24px; }.yard__tools { height:54px; }.yard__waveTrack { min-height:27px; }.yard__footer { display:none; }.yard__panel { gap:10px; }.yard__introSteps,.yard__tagline { display:none; }.yard__panel p { font-size:12px; line-height:1.5; }.yard__panel h1 { font-size:clamp(28px,7cqw,50px); } }
-@media(max-width:600px) { .yard-stage { gap:4px; padding:7px; }.yard__hud { min-height:40px; }.yard__power small { display:none; }.yard__power strong { font-size:22px; }.yard__integrity small { font-size:10px; }.yard__brand strong { font-size:14px; }.yard__command { min-height:36px; }.yard__tactics button,.yard__fieldActions button { min-height:36px; }.yard__waveTrack { min-height:24px; }.yard__waveTrack i { font-size:10px; }.yard__waveTrack i b { width:16px; height:16px; font-size:10px; }.yard__waveTrack > small { font-size:10px; }.yard__notice { min-height:32px; }.yard__notice button { min-height:36px; }.yard__tools { height:50px; gap:4px; }.yard__toolCopy { gap:2px; }.yard__toolCopy small { font-size:12px; }.yard__tool kbd { display:none; }.yard__footer { display:none; }.yard-stage:has(.stage__missionBack),.yard-stage.stage--missionReady { padding-bottom:43px; } }
-@media(prefers-reduced-motion:reduce) { .yard__battery,.yard__battleBanner { animation:none; }.yard-stage * { transition:none; } }
+.lab[data-game-id="makitas-vs-zombies"] .stage-frame { border-color:#3b7f5a; background:#132a1d; }
+/* The stage is the lawn; every HUD element floats over it. */
+.lab .mvz { position:absolute; inset:0; overflow:hidden; isolation:isolate; background:#1d3a24; font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif; container-type:size; user-select:none; -webkit-user-select:none; }
+.mvz__canvas { position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+.mvz__grid { position:absolute; inset:0; z-index:1; }
+.mvz__grid > div { display:contents; }
+.mvz__grid button { position:absolute; padding:0; border:0; background:transparent; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.mvz__grid button:disabled { cursor:default; pointer-events:none; }
+.mvz__grid button:focus-visible { outline:3px solid #fff7b0; outline-offset:-4px; }
+.mvz__drops { position:absolute; inset:0; z-index:3; pointer-events:none; }
+.mvz__battery { position:absolute; width:clamp(52px,8cqw,72px); height:clamp(52px,8cqw,72px); transform:translate(-50%,-50%); border:0; border-radius:50%; background:radial-gradient(circle,#fff7a83d 0 45%,transparent 46%); pointer-events:auto; cursor:pointer; touch-action:manipulation; animation:mvz-pulse 1.1s ease-in-out infinite; -webkit-tap-highlight-color:transparent; }
+.mvz__battery:focus-visible { outline:3px solid #fff7b0; }
+@keyframes mvz-pulse { 50% { box-shadow:0 0 0 6px #fff59a44; } }
 
-/* A full world with its tactical dock floating over the lower edge. */
-.lab .yard-stage { display:block; padding:0; overflow:hidden; isolation:isolate; }
-.lab .yard__battlefield { position:absolute; inset:0; width:100%; height:100%; min-height:0; border:0; border-radius:0; }
-.lab .yard__grid { inset:0; width:100%; height:100%; display:block; }
-.lab .yard__grid > div { display:contents; }.lab .yard__grid button { position:absolute; }
-.lab .yard__hud { position:absolute; top:12px; left:12px; right:12px; min-height:0; padding:10px 12px; border:1px solid #ffffff40; border-radius:12px; background:#142d3dc9; backdrop-filter:blur(10px); box-shadow:0 4px 14px #0002; }
-.lab .yard__brandIcon { display:none; }.lab .yard__brand small { font:700 8px Arial,sans-serif; }.lab .yard__brand strong { font:800 14px Arial,sans-serif; }.lab .yard__power { padding:4px 8px; border:0; background:#ffffff18; box-shadow:none; border-radius:7px; }.lab .yard__power strong { font:900 21px Arial,sans-serif; }.lab .yard__power small { font:700 7px Arial,sans-serif; }.lab .yard__power > span { font-size:22px; }.lab .yard__integrity span { font-size:16px; }.lab .yard__integrity small { font:700 9px Arial,sans-serif; }
-.lab .yard__waveTrack { position:absolute; top:83px; left:15px; right:15px; min-height:0; padding:0; max-width:360px; gap:8px; filter:drop-shadow(0 1px 3px #000); }.lab .yard__waveTrack > span { display:none; }.lab .yard__waveTrack i { font:800 8px Arial,sans-serif; padding-top:4px; color:white; }.lab .yard__waveTrack i b { width:15px; height:15px; font-size:8px; }.lab .yard__waveTrack small { font:800 9px Arial,sans-serif; color:#fff; }
-.lab .yard__command { position:absolute; z-index:3; top:127px; right:12px; left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:5px; min-height:0; }.lab .yard__danger { display:none; }.lab .yard__fieldActions button,.lab .yard__tactics button { min-height:32px; padding:6px 8px; font:800 9px Arial,sans-serif; border:1px solid #fff4; background:#142d3dc9; border-radius:9px; }
-.lab .yard__tools { position:absolute; z-index:3; bottom:53px; left:50%; transform:translateX(-50%); width:calc(100% - 28px); max-width:520px; height:57px; padding:5px; gap:5px; border:1px solid #fff5; border-radius:12px; background:#142d3da8; backdrop-filter:blur(10px); }.lab .yard__tool { border-radius:8px; background:#263c4fa6; }.lab .yard__toolCopy b { font:800 8px Arial,sans-serif; }.lab .yard__toolCopy small { font:800 11px Arial,sans-serif; }.lab .yard__utility button { font:800 8px Arial,sans-serif; }.lab .yard__notice { position:absolute; bottom:117px; left:12px; right:12px; min-height:0; gap:7px; }.lab .yard__notice > span { padding:6px 10px; border-radius:8px; background:#142d3dbb; color:#fff; font:600 10px/1.4 Arial,sans-serif; }.lab .yard__notice button { min-height:32px; padding:5px 8px; font:800 9px Arial,sans-serif; background:#142d3dcc; }
-.lab .yard__footer { position:absolute; bottom:17px; left:14px; max-width:55%; font:700 8px/1.4 Arial,sans-serif; color:#fff; text-shadow:0 1px 3px #000; }
-.lab .yard-stage > .play-mode { position:absolute; z-index:5; bottom:12px; right:12px; max-width:43%; }.lab .yard-stage > .play-mode > span { display:none; }.lab .yard-stage > .play-mode button { min-height:30px; padding:6px 9px; border-radius:8px; font:700 9px Arial,sans-serif; background:#142d3dcc; color:#fff; }
-.lab .yard__overlay { z-index:4; }.lab .yard__overlay--paused { background:#07162bbd; backdrop-filter:blur(5px); }
-.yard__graphics { position:absolute; z-index:10; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:25px; gap:14px; text-align:center; background:#132a3cf5; color:#fff; font:14px/1.6 Arial,sans-serif; }.yard__graphics button { border:1px solid #91eada; border-radius:8px; background:#91eada; color:#153040; padding:12px 18px; min-height:44px; font-weight:800; cursor:pointer; }
+/* Seed bank: power counter, tool cards and the shovel, on a wooden plank. */
+.mvz__bank { position:absolute; z-index:4; top:clamp(6px,1.4cqh,12px); left:clamp(6px,1.4cqw,12px); display:flex; align-items:stretch; gap:clamp(3px,.6cqw,6px); padding:clamp(4px,.7cqw,7px); max-width:calc(100% - 20px); border:3px solid #3a2311; border-radius:14px; background:linear-gradient(#9a6237,#6e4020); box-shadow:inset 0 2px 0 #ffffff33,0 6px 16px #0006; }
+.mvz__power { display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:3px; min-width:clamp(48px,7cqw,64px); padding:4px; border-radius:9px; background:#2c1a0d; color:#fff; }
+.mvz__power span { display:grid; place-items:center; width:clamp(28px,4.5cqw,38px); aspect-ratio:1; border-radius:50%; background:radial-gradient(circle at 35% 30%,#3fe0de,#0a8f92); color:#fff36e; font:900 clamp(16px,2.6cqw,22px)/1 system-ui,sans-serif; box-shadow:0 0 12px #3fe0de88; }
+.mvz__power strong { min-width:100%; padding:2px 4px; border-radius:6px; background:#f7ecd0; color:#2c1a0d; text-align:center; font:900 clamp(12px,1.9cqw,16px)/1.1 system-ui,sans-serif; font-variant-numeric:tabular-nums; animation:mvz-pop .3s ease; }
+@keyframes mvz-pop { from { transform:scale(1.25); } }
+.mvz__card { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:clamp(46px,7.4cqw,70px); min-height:clamp(58px,10cqh,86px); padding:0 0 3px; overflow:hidden; border:2px solid #2e4a1f; border-radius:9px; background:linear-gradient(#fdf6dc,#e9d9a8); cursor:pointer; touch-action:manipulation; box-shadow:0 3px 0 #2c1a0d,inset 0 -18px 0 #c9e9a9; transition:transform .1s ease; -webkit-tap-highlight-color:transparent; }
+.mvz__card img { position:absolute; inset:2px 2px auto; width:calc(100% - 4px); aspect-ratio:1; object-fit:contain; pointer-events:none; filter:drop-shadow(0 2px 2px #0004); }
+.mvz__card > b { margin:auto; color:#0a6f72; font:900 10px system-ui,sans-serif; }
+.mvz__cost { position:relative; z-index:1; color:#1c2a10; font:900 clamp(11px,1.7cqw,14px)/1 system-ui,sans-serif; }
+.mvz__cooldown { position:absolute; inset:0 0 auto; z-index:2; background:#0d1a08b0; pointer-events:none; }
+.mvz__card kbd { position:absolute; top:3px; left:4px; z-index:3; color:#4e6a33; font:800 9px system-ui,sans-serif; }
+.mvz__card--off img { filter:grayscale(.7) brightness(.85); }.mvz__card--off { background:linear-gradient(#e4ddc7,#c8bf9f); }
+.mvz__card--selected { transform:translateY(-4px); border-color:#ffd73a; box-shadow:0 0 0 3px #ffd73a,0 6px 12px #0006; }
+.mvz__card:active { transform:translateY(1px); }
+.mvz__shovel { justify-content:center; background:linear-gradient(#7d5737,#5b3a20); border-color:#2c1a0d; box-shadow:0 3px 0 #2c1a0d; }
+.mvz__shovel svg { width:58%; fill:#e9edf2; filter:drop-shadow(0 2px 0 #0006); }.mvz__shovel kbd { color:#f3dfc2; }
+
+/* Level meter with flag waves, bottom right like the classic. */
+.mvz__progress { position:absolute; z-index:4; right:clamp(6px,1.4cqw,14px); bottom:clamp(44px,8cqh,56px); width:min(300px,46cqw); padding:7px 12px 9px; border:2px solid #2c1a0d; border-radius:12px; background:#2c1a0dd9; color:#f7ecd0; box-shadow:0 4px 12px #0005; pointer-events:none; }
+.mvz__progress > span { display:block; margin-bottom:6px; font:900 10px/1 system-ui,sans-serif; letter-spacing:.08em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mvz__track { position:relative; height:12px; border-radius:7px; background:#5b3a20; box-shadow:inset 0 2px 3px #0006; }
+.mvz__track > i { position:absolute; inset:0 auto 0 0; border-radius:7px; background:linear-gradient(#a3e36b,#5fae2f); transition:width .4s ease; }
+.mvz__track > b { position:absolute; top:-9px; width:3px; height:20px; transform:translateX(-50%); background:#ddd; }
+.mvz__track > b::after { content:''; position:absolute; top:0; left:3px; width:12px; height:9px; background:#c73428; clip-path:polygon(0 0,100% 50%,0 100%); }
+.mvz__track > b.mvz__flag--up::after { background:#ffd73a; }
+.mvz__track > em { position:absolute; top:50%; width:20px; height:20px; transform:translate(-50%,-50%); border:2px solid #2c1a0d; border-radius:50%; background:radial-gradient(circle at 35% 40%,#1b1b1b 0 2px,transparent 3px),radial-gradient(circle at 65% 40%,#1b1b1b 0 2px,transparent 3px),#97b585; }
+
+.mvz__banner { position:absolute; z-index:5; left:0; right:0; top:38%; text-align:center; color:#ffe14a; font:900 clamp(24px,6cqw,56px)/1 'Arial Black',system-ui,sans-serif; letter-spacing:.02em; -webkit-text-stroke:3px #5a1608; paint-order:stroke fill; text-shadow:0 5px 0 #5a1608; pointer-events:none; animation:mvz-banner 2.6s ease both; }
+.mvz__banner:empty { display:none; }
+@keyframes mvz-banner { 0% { opacity:0; transform:scale(2.2); } 12% { opacity:1; transform:scale(1); } 80% { opacity:1; transform:scale(1); } 100% { opacity:0; transform:scale(.96); } }
+.mvz__notice { position:absolute; z-index:4; left:clamp(6px,1.4cqw,14px); bottom:clamp(44px,8cqh,56px); max-width:min(46cqw,420px); pointer-events:none; }
+.mvz__notice span { display:block; padding:7px 12px; border-radius:10px; background:#10213cc2; color:#fff; font:600 12px/1.35 system-ui,sans-serif; animation:mvz-in .25s ease; }
+.mvz__notice--error span,.mvz__notice--breach span { background:#7a1c12d9; }
+@keyframes mvz-in { from { opacity:0; transform:translateY(6px); } }
+
+/* Start and pause screens share the clean start layout used across MODBOX. */
+.mvz__overlay { position:absolute; inset:0; z-index:6; display:flex; align-items:flex-end; padding:clamp(18px,5cqw,56px); background:linear-gradient(0deg,#07101ef2 0%,#07101eb3 36%,#07101e22 74%),url('/art/makitas/cover.webp') center/cover; }
+.mvz__overlay--paused { align-items:center; justify-content:center; background:#07101ec4; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+.mvz .start { display:flex; flex-direction:column; align-items:flex-start; gap:clamp(10px,2.2cqh,16px); max-width:min(560px,100%); }
+.mvz__overlay--paused .start { align-items:center; text-align:center; }
+.mvz .start__logo { width:min(400px,74cqw); filter:drop-shadow(0 8px 22px #0008); }.mvz__overlay--paused .start__logo { width:min(240px,50cqw); }
+.mvz .start__goal { margin:0; color:#fff; font:900 clamp(17px,3.2cqw,28px)/1.15 system-ui,-apple-system,'Segoe UI',Arial,sans-serif; text-shadow:0 2px 14px #000a; }
+.lab .mvz .start__play { display:inline-flex; align-items:center; gap:12px; min-height:60px; padding:0 34px 0 26px; border:0; border-radius:999px; background:#fff; color:#0f1d33; font:900 clamp(16px,2.4cqw,20px)/1 system-ui,sans-serif; letter-spacing:.07em; box-shadow:0 10px 28px #0007,inset 0 -4px 0 #00000022; cursor:pointer; transition:transform .12s ease; touch-action:manipulation; }
+.lab .mvz .start__play:hover { transform:translateY(-1px) scale(1.03); }.lab .mvz .start__play:active { transform:scale(.97); }
+.mvz .start__play svg { width:22px; height:22px; fill:currentColor; }
+.mvz .start__keys { list-style:none; display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 0; padding:0; }
+.mvz .start__keys li { display:flex; align-items:center; gap:8px; min-height:38px; padding:5px 13px 5px 6px; border:1px solid #ffffff2e; border-radius:999px; background:#0a1426b8; color:#eef4ff; font:700 12px/1.2 system-ui,sans-serif; }
+.mvz .start__keys kbd { display:grid; place-items:center; min-width:28px; height:28px; padding:0 8px; border-radius:8px; background:#fff; color:#0f1d33; font:900 12px/1 system-ui,sans-serif; white-space:nowrap; }
+.lab .mvz > .play-mode { position:absolute; z-index:7; bottom:10px; right:12px; max-width:43%; }.lab .mvz > .play-mode > span { display:none; }
+.lab .mvz > .play-mode button { min-height:32px; padding:6px 10px; border-radius:9px; font:700 10px system-ui,sans-serif; background:#10213ccc; color:#fff; }
+.yard__graphics { position:absolute; z-index:10; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:25px; gap:14px; text-align:center; background:#132a3cf5; color:#fff; font:14px/1.6 system-ui,sans-serif; }
+.yard__graphics button { border:1px solid #91eada; border-radius:8px; background:#91eada; color:#153040; padding:12px 18px; min-height:44px; font-weight:800; cursor:pointer; }
+.yard__debug { position:fixed; z-index:20; right:12px; bottom:12px; width:300px; max-height:35vh; overflow:auto; background:#051d16ed; color:#c9e7b6; font-size:9px; padding:12px; pointer-events:none; }
+@container(max-width:560px) { .mvz__progress { width:44cqw; padding:5px 8px; }.mvz__progress > span { font-size:8px; }.mvz__notice { display:none; } }
+@media(prefers-reduced-motion:reduce) { .mvz *,.mvz__banner { animation:none !important; transition:none !important; } }

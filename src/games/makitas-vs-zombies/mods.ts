@@ -3,43 +3,35 @@ import { createModSchema } from '../../interpreter/core/schema';
 
 export interface YardConfig {
   worldTheme: string; characterStyle: string; weather: string;
-  background: string; ground: string; decorations: boolean; toolbox: string; zombieType: string;
-  toolColor: string; workshopName: string; bladeDamage: number; chargeRate: number;
-  autoCollect: boolean; doubleShot: boolean; overdrive: boolean; barricadeHealth: number;
-  zombieSpeed: number; startingPower: number;
+  workshopName: string; bladeDamage: number; chargeRate: number; autoCollect: boolean;
+  doubleShot: boolean; overdrive: boolean; wallHealth: number; zombieSpeed: number; startingPower: number; quickHands: boolean;
 }
 export const YARD_DEFAULTS: YardConfig = {
   worldTheme: 'classic', characterStyle: 'original', weather: 'clear',
-  background: 'sunset', ground: 'grass', decorations: true, toolbox: 'full', zombieType: 'worker',
-  toolColor: 'teal', workshopName: 'The Last Workshop', bladeDamage: 25, chargeRate: 5,
-  autoCollect: false, doubleShot: false, overdrive: false, barricadeHealth: 450,
-  zombieSpeed: 3, startingPower: 350,
+  workshopName: 'The Last Workshop', bladeDamage: 20, chargeRate: 5, autoCollect: false,
+  doubleShot: false, overdrive: false, wallHealth: 1600, zombieSpeed: 3, startingPower: 200, quickHands: false,
 };
 export const YARD_MODS: readonly ModDefinition<keyof YardConfig>[] = [
-  { id: 'worldTheme', name: 'worldTheme', type: 'string', label: 'WORLD BUILDER', blurb: 'Rebuild the workshop in snowy mountains, a lava wasteland or a neon city. Live scenery, materials and lighting.', example: 'string worldTheme = "neon";', values: ['classic', 'alpine', 'volcanic', 'neon'], defaultValue: 'classic', glyph: '◈', unlockAt: 0 },
-  { id: 'characterStyle', name: 'characterStyle', type: 'string', label: 'MACHINE LAB', blurb: 'Rebuild your defenders as robots, space machines or armored industrial turrets.', example: 'string characterStyle = "robot";', values: ['original', 'robot', 'astronaut', 'armored'], defaultValue: 'original', glyph: '♟', unlockAt: 0 },
+  { id: 'worldTheme', name: 'worldTheme', type: 'string', label: 'WORLD BUILDER', blurb: 'Rebuild the yard in snowy mountains, a lava wasteland or a neon city. Live scenery, materials and lighting.', example: 'string worldTheme = "neon";', values: ['classic', 'alpine', 'volcanic', 'neon'], defaultValue: 'classic', glyph: '◈', unlockAt: 0 },
+  { id: 'characterStyle', name: 'characterStyle', type: 'string', label: 'MACHINE LAB', blurb: 'Rebuild your tools as robots, space machines or armored industrial turrets.', example: 'string characterStyle = "robot";', values: ['original', 'robot', 'astronaut', 'armored'], defaultValue: 'original', glyph: '♟', unlockAt: 0 },
   { id: 'weather', name: 'weather', type: 'string', label: 'ATMOSPHERE', blurb: 'Add snow, rain or glowing embers to your battlefield.', example: 'string weather = "embers";', values: ['clear', 'snow', 'rain', 'embers'], defaultValue: 'clear', glyph: '☁', unlockAt: 0 },
-  { id: 'background', name: 'background', type: 'string', label: 'BUILD SCENERY', blurb: 'Add the workshop backdrop at sunset or under the night sky.', example: 'string background = "sunset";', values: ['none', 'sunset', 'night'], defaultValue: 'sunset', glyph: '◈', unlockAt: 0 },
-  { id: 'ground', name: 'ground', type: 'string', label: 'BUILD THE YARD', blurb: 'Lay out five lanes of grass or concrete for your machines.', example: 'string ground = "grass";', values: ['none', 'grass', 'concrete'], defaultValue: 'grass', glyph: '▦', unlockAt: 1 },
-  { id: 'decorations', name: 'decorations', type: 'bool', label: 'WORKSHOP PROPS', blurb: 'Add fence posts, crates and workshop lights around the yard.', example: 'bool decorations = true;', defaultValue: true, glyph: '✦', unlockAt: 1 },
-  { id: 'toolbox', name: 'toolbox', type: 'string', label: 'ADD MACHINES', blurb: 'Saws adds saw turrets and chargers. Full also adds barricades and frost saws.', example: 'string toolbox = "saws";', values: ['none', 'saws', 'full'], defaultValue: 'full', glyph: '⚒', unlockAt: 2 },
-  { id: 'zombieType', name: 'zombieType', type: 'string', label: 'ADD ZOMBIES', blurb: 'Choose workers, hardhats, sprinters, brutes or a mixed invasion. None holds the invasion.', example: 'string zombieType = "worker";', values: ['none', 'worker', 'hardhat', 'sprinter', 'brute', 'mixed'], defaultValue: 'worker', glyph: '☠', unlockAt: 3 },
-  { id: 'toolColor', name: 'toolColor', type: 'string', label: 'TOOL COLOR', blurb: 'Choose the glow of your saws and spinning blades.', example: 'string toolColor = "amber";', values: ['teal', 'amber', 'violet', 'lime'], defaultValue: 'teal', glyph: '◈', unlockAt: 2 },
-  { id: 'workshopName', name: 'workshopName', type: 'string', label: 'WORKSHOP NAME', blurb: 'Give your last line of defense a name.', example: 'string workshopName = "Saw Society";', maxLength: 22, defaultValue: 'The Last Workshop', glyph: '⚑', unlockAt: 7 },
-  { id: 'bladeDamage', name: 'bladeDamage', type: 'int', label: 'BLADE DAMAGE', blurb: 'Damage dealt by each circular saw disc.', example: 'int bladeDamage = 25;', limits: { min: 15, max: 60 }, range: '15–60', defaultValue: 25, glyph: '✹', unlockAt: 4 },
-  { id: 'chargeRate', name: 'chargeRate', type: 'int', label: 'POWER SUPPLY', blurb: 'Every six seconds the sky drops chargeRate × 5 battery power.', example: 'int chargeRate = 7;', limits: { min: 2, max: 12 }, range: '2–12', defaultValue: 5, glyph: 'ϟ', unlockAt: 5 },
-  { id: 'autoCollect', name: 'autoCollect', type: 'bool', label: 'AUTO COLLECT', blurb: 'Automatically bank every battery drop.', example: 'bool autoCollect = true;', defaultValue: false, glyph: '↯', unlockAt: 5 },
-  { id: 'doubleShot', name: 'doubleShot', type: 'bool', label: 'TWIN BLADES', blurb: 'Set true or use a kill-streak rule to fire two discs per shot.', example: 'bool doubleShot = false;', defaultValue: false, glyph: '»', unlockAt: 6 },
-  { id: 'overdrive', name: 'overdrive', type: 'bool', label: 'OVERDRIVE', blurb: 'Set true or use a wave rule to fire forty percent faster.', example: 'bool overdrive = false;', defaultValue: false, glyph: '⚡', unlockAt: 6 },
-  { id: 'barricadeHealth', name: 'barricadeHealth', type: 'int', label: 'BARRICADE ARMOR', blurb: 'Extra health for newly deployed timber barricades.', example: 'int barricadeHealth = 600;', limits: { min: 250, max: 1000 }, range: '250–1000', defaultValue: 450, glyph: '▥', unlockAt: 7 },
-  { id: 'zombieSpeed', name: 'zombieSpeed', type: 'int', label: 'ZOMBIE SPEED', blurb: 'Tune the pace of the invasion.', example: 'int zombieSpeed = 3;', limits: { min: 1, max: 6 }, range: '1–6', defaultValue: 3, glyph: '≋', unlockAt: 7 },
-  { id: 'startingPower', name: 'startingPower', type: 'int', label: 'STARTING BATTERY', blurb: 'Power bank when a new defense begins. Restart to apply.', example: 'int startingPower = 450;', limits: { min: 250, max: 800 }, range: '250–800', defaultValue: 350, glyph: '+', unlockAt: 7 },
+  { id: 'workshopName', name: 'workshopName', type: 'string', label: 'WORKSHOP NAME', blurb: 'Give your last line of defense a name. It appears on the workshop sign.', example: 'string workshopName = "Saw Society";', maxLength: 22, defaultValue: 'The Last Workshop', glyph: '⚑', unlockAt: 0 },
+  { id: 'bladeDamage', name: 'bladeDamage', type: 'int', label: 'BLADE DAMAGE', blurb: 'Damage of every saw blade. A worker zombie has 190 health.', example: 'int bladeDamage = 20 + 10;', limits: { min: 10, max: 60 }, range: '10–60', defaultValue: 20, glyph: '✹', unlockAt: 0 },
+  { id: 'chargeRate', name: 'chargeRate', type: 'int', label: 'POWER SUPPLY', blurb: 'Each falling battery is worth chargeRate × 5 power.', example: 'int chargeRate = 7;', limits: { min: 2, max: 12 }, range: '2–12', defaultValue: 5, glyph: 'ϟ', unlockAt: 0 },
+  { id: 'autoCollect', name: 'autoCollect', type: 'bool', label: 'AUTO COLLECT', blurb: 'Batteries bank themselves the moment they appear.', example: 'bool autoCollect = true;', defaultValue: false, glyph: '↯', unlockAt: 0 },
+  { id: 'doubleShot', name: 'doubleShot', type: 'bool', label: 'TWIN BLADES', blurb: 'Every saw fires two blades per shot. Switch it on with a rule.', example: 'bool doubleShot = false;', defaultValue: false, glyph: '»', unlockAt: 0 },
+  { id: 'overdrive', name: 'overdrive', type: 'bool', label: 'OVERDRIVE', blurb: 'Saws fire forty percent faster.', example: 'bool overdrive = false;', defaultValue: false, glyph: '⚡', unlockAt: 0 },
+  { id: 'wallHealth', name: 'wallHealth', type: 'int', label: 'STEEL TOOLBOX', blurb: 'Health of each new toolbox wall.', example: 'int wallHealth = 2400;', limits: { min: 800, max: 4000 }, range: '800–4000', defaultValue: 1600, glyph: '▥', unlockAt: 0 },
+  { id: 'zombieSpeed', name: 'zombieSpeed', type: 'int', label: 'ZOMBIE SPEED', blurb: 'Tune the pace of the invasion. 3 is normal.', example: 'int zombieSpeed = 2;', limits: { min: 1, max: 6 }, range: '1–6', defaultValue: 3, glyph: '≋', unlockAt: 0 },
+  { id: 'startingPower', name: 'startingPower', type: 'int', label: 'STARTING BATTERY', blurb: 'Power when a level begins. Retry the level to apply.', example: 'int startingPower = 300;', limits: { min: 50, max: 600 }, range: '50–600', defaultValue: 200, glyph: '+', unlockAt: 0 },
+  { id: 'quickHands', name: 'quickHands', type: 'bool', label: 'QUICK HANDS', blurb: 'Tool cards recharge twice as fast.', example: 'bool quickHands = true;', defaultValue: false, glyph: '⟳', unlockAt: 0 },
 ];
-export const YARD_RUNTIME_LABELS = { score: 'zombies defeated × 50', power: 'battery power available', wave: 'current invasion wave', kills: 'zombies defeated', lives: 'workshop integrity', placed: 'defenders deployed' };
+export const YARD_RUNTIME_LABELS = { score: 'points this run', power: 'battery power available', wave: 'current zombie wave', kills: 'zombies defeated', placed: 'tools placed', level: 'current level' };
 export const yardSchema = createModSchema(YARD_MODS, Object.keys(YARD_RUNTIME_LABELS));
+/** Rule snippets open with the declarations they assign; the editor adds only missing ones. */
 export const YARD_TOOLS: readonly CodeToolDefinition[] = [
-  { id: 'yard-log', name: 'WriteLine', label: 'WORKSHOP RADIO', type: 'write', blurb: 'Broadcast a message from your workshop.', example: 'Console.WriteLine("Workshop ready");', glyph: '⌁', unlockAt: 7 },
-  { id: 'yard-math', name: 'damageMath', label: 'SHARPEN THE MATH', type: 'int', blurb: 'Add ten points of blade damage.', example: 'bladeDamage = bladeDamage + 10;', glyph: '+', unlockAt: 4 },
-  { id: 'yard-kills', name: 'killRule', label: 'KILL STREAK', type: 'condition', blurb: 'Activate twin blades after three defeats.', example: 'if (kills >= 3)\n{\n    doubleShot = true;\n}', glyph: '?', unlockAt: 6 },
-  { id: 'yard-wave', name: 'waveRule', label: 'WAVE RESPONSE', type: 'condition', blurb: 'Engage overdrive from wave two.', example: 'if (wave >= 2)\n{\n    overdrive = true;\n}', glyph: '≥', unlockAt: 6 },
+  { id: 'yard-log', name: 'WriteLine', label: 'WORKSHOP RADIO', type: 'write', blurb: 'Broadcast a message from your workshop.', example: 'Console.WriteLine("Workshop ready");', glyph: '⌁', unlockAt: 0 },
+  { id: 'yard-math', name: 'damageMath', label: 'SHARPEN THE MATH', type: 'int', blurb: 'Add ten points of blade damage.', example: 'int bladeDamage = 20;\nbladeDamage = bladeDamage + 10;', glyph: '+', unlockAt: 0 },
+  { id: 'yard-kills', name: 'killRule', label: 'KILL STREAK', type: 'condition', blurb: 'Activate twin blades after three defeats.', example: 'bool doubleShot = false;\nif (kills >= 3)\n{\n    doubleShot = true;\n}', glyph: '?', unlockAt: 0 },
+  { id: 'yard-wave', name: 'waveRule', label: 'WAVE RESPONSE', type: 'condition', blurb: 'Engage overdrive from wave two.', example: 'bool overdrive = false;\nif (wave >= 2)\n{\n    overdrive = true;\n}', glyph: '≥', unlockAt: 0 },
 ];

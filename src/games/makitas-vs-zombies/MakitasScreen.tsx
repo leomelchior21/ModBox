@@ -14,18 +14,18 @@ import { useDebouncedValue, useMediaQuery } from '../../utils/hooks';
 import { useGameCode } from '../useGameCode';
 import type { GameScreenProps } from '../types';
 import { PlayModeNav } from '../PlayModeNav';
+import { ResultOverlay } from '../premium-kit/ResultCard';
 import { YARD_MODS, YARD_RUNTIME_LABELS, YARD_TOOLS, yardSchema, type YardConfig } from './mods';
 import { YARD_MISSIONS, YARD_STARTER, getYardMission, yardGuidance, yardMissionPassed } from './missions';
-import { COLS, ROWS, UNIT_INFO, YardRun, type YardTool, type UnitKind } from './run';
-import { TOOL_COLORS, VIEW, SPRITE_ROWS } from './render';
+import { COLS, ROWS, UNIT_INFO, YardRun, type UnitKind } from './run';
+import { YARD_LEVELS, yardLevelName } from './levels';
 import { YardView } from './view';
-import { YardEffects } from './effects';
 import { YardSound } from './sound';
 import './makitas.css';
 
 const COACH_TARGETS = { 'yard-log': /(?:Console\.WriteLine|print)/, 'yard-math': /^\s*bladeDamage\s*=/, 'yard-kills': /^\s*if.*\bkills\b/, 'yard-wave': /^\s*if.*\bwave\b/ };
-const TOOLS: YardTool[] = ['saw', 'charger', 'wall', 'frost', 'upgrade', 'recycle'];
 const interactionOpen = () => Boolean(document.querySelector('.mod-options,.topbar__more[open],.modal'));
+type Tool = UnitKind | 'shovel' | null;
 
 export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps): JSX.Element {
   const progress = useProgress(), language = progress.activeLanguage;
@@ -36,112 +36,108 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
   }, [gameId, mission.id, mission.kind, mission.order, language]);
   const { code, onChange } = useGameCode(gameId, mission.id, language, starter), debounced = useDebouncedValue(code, 220);
   const program = useMemo(() => parseGameScript<YardConfig>(debounced, language, yardSchema), [debounced, language]);
-  const unlocked = YARD_MODS, liveProgram = program;
-  const run = useMemo(() => new YardRun(useProgress.getState().getGameProgress(gameId).checkpoint), [gameId]), effects = useMemo(() => new YardEffects(), []), sound = useMemo(() => new YardSound(), []);
-  const [snapshot, setSnapshot] = useState(() => run.snapshot());
-  const [drops, setDrops] = useState(() => [...run.batteries]);
-  const [focused, setFocused] = useState(false), [libraryOpen, setLibraryOpen] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false), [dismissed, setDismissed] = useState('');
-  const [selected, setSelected] = useState<YardTool>('saw'), [activeCell, setActiveCell] = useState({ row: 2, col: 0 });
-  const [speed, setSpeed] = useState(1);
+  const run = useMemo(() => new YardRun(useProgress.getState().getGameProgress(gameId).checkpoint), [gameId]), sound = useMemo(() => new YardSound(), []);
+  const [snapshot, setSnapshot] = useState(() => run.snapshot()), [drops, setDrops] = useState<number[]>([]);
+  const [focused, setFocused] = useState(false), [libraryOpen, setLibraryOpen] = useState(false), [settingsOpen, setSettingsOpen] = useState(false), [collapsed, setCollapsed] = useState(false), [dismissed, setDismissed] = useState('');
+  const [tool, setTool] = useState<Tool>(null), [hover, setHover] = useState<{ row: number; col: number } | null>(null), [icons, setIcons] = useState<Partial<Record<UnitKind, string>>>({});
   const [graphicsFailed, setGraphicsFailed] = useState(false), [graphicsAttempt, setGraphicsAttempt] = useState(0);
-  const speedRef = useRef(speed); speedRef.current = speed;
-  const [hover, setHover] = useState<{ row: number; col: number } | null>(null);
-  const canvas = useRef<HTMLCanvasElement>(null), editor = useRef<EditorView | null>(null), stage = useRef<HTMLDivElement>(null);
-  const world = useRef<YardView | null>(null);
+  const canvas = useRef<HTMLCanvasElement>(null), editor = useRef<EditorView | null>(null), stage = useRef<HTMLDivElement>(null), world = useRef<YardView | null>(null);
   const blocked = useRef(false); blocked.current = focused || libraryOpen || settingsOpen || graphicsFailed;
-  const visual = useRef({ hover, selected }); visual.current = { hover, selected };
+  const visual = useRef({ hover, tool }); visual.current = { hover, tool };
   const touch = useMediaQuery('(any-pointer: coarse)'), reduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const diagnostic = program.diagnostics.find(d => d.severity === 'error');
-  const passed = yardMissionPassed(mission, liveProgram, snapshot) || progress.completed.includes(mission.id);
+  const passed = yardMissionPassed(mission, program, snapshot) || progress.completed.includes(mission.id);
   const next = YARD_MISSIONS[mission.order + 1], previous = YARD_MISSIONS[mission.order - 1];
-  const guidance = yardGuidance(mission, liveProgram, snapshot, passed), showCoach = !diagnostic && dismissed !== `${mission.id}:${guidance.message}`;
+  const guidance = yardGuidance(mission, program, snapshot, passed), showCoach = !diagnostic && dismissed !== `${mission.id}:${guidance.message}`;
   const editorTarget = Boolean(guidance.targetId && program.symbols.some(s => s.mod === guidance.targetId));
   const savedRevision = useRef(0);
   const update = useCallback(() => {
-    setSnapshot(run.snapshot()); setDrops([...run.batteries]);
-    if (run.checkpointRevision !== savedRevision.current) {
-      savedRevision.current = run.checkpointRevision;
-      useProgress.getState().setGameCheckpoint(gameId, run.checkpoint);
-    }
+    setSnapshot(run.snapshot()); setDrops(run.batteries.map(b => b.id));
+    if (run.checkpointRevision !== savedRevision.current) { savedRevision.current = run.checkpointRevision; useProgress.getState().setGameCheckpoint(gameId, run.checkpoint); }
   }, [run, gameId]);
-  const focusGame = useCallback(() => { (document.activeElement as HTMLElement | null)?.blur?.(); canvas.current?.focus({ preventScroll: true }); setFocused(false); sound.unlock(); }, [sound]);
-  const launch = useCallback(() => { sound.unlock(); run.launch(); update(); focusGame(); }, [run, sound, update, focusGame]);
+  const engage = useCallback(() => { (document.activeElement as HTMLElement | null)?.closest?.('.cm-editor') && (document.activeElement as HTMLElement).blur(); setFocused(false); sound.unlock(); }, [sound]);
+  const act = (move: () => void) => { if (libraryOpen || settingsOpen || interactionOpen()) return; engage(); move(); update(); };
   const insert = useCallback((snippet: string, mode?: ModInsertMode) => applyModToEditor(editor.current, snippet, mode, language), [language]);
   const dismiss = () => setDismissed(`${mission.id}:${guidance.message}`);
-  const engage = () => { setFocused(false); sound.unlock(); };
-  const actOnCell = (row: number, col: number) => { if (libraryOpen || settingsOpen || interactionOpen()) return; engage(); run.interact(selected, row, col); setActiveCell({ row, col }); update(); };
+  const choose = (next: Tool) => { engage(); setTool(current => current === next ? null : next); };
+  const tapTile = (row: number, col: number) => act(() => {
+    if (tool === 'shovel') { if (run.shovel(row, col)) setTool(null); return; }
+    if (tool) { if (run.place(tool, row, col)) setTool(null); return; }
+    run.notice = 'Pick a tool card first, then tap a tile.'; run.noticeId++;
+  });
 
   useEffect(() => {
     const store = useProgress.getState(); store.setMission(mission.id);
     if (store.getGameProgress(gameId).codes[codeKey(language, mission.id)] === undefined) store.setGameCode(gameId, codeKey(language, mission.id), code);
   }, [gameId, language, mission.id]);
-  useEffect(() => { run.setProgram(liveProgram); update(); }, [run, liveProgram, update]);
+  useEffect(() => { run.setProgram(program); update(); }, [run, program, update]);
+  // Saves from the previous yard-builder version used mods that no longer exist; start those fresh.
+  useEffect(() => { if (/^\s*(?:string\s+|var\s+)?(?:toolbox|zombieType|toolColor|background)\b/m.test(code)) onChange(starter); }, []);
   useEffect(() => { sound.muted = !progress.settings.sound; }, [sound, progress.settings.sound]);
   useEffect(() => { if (passed && mission.kind !== 'sandbox' && !progress.completed.includes(mission.id)) useProgress.getState().completeMission(mission.id, mission.kind === 'final'); }, [passed, mission, progress.completed]);
   useEffect(() => { if (guidance.targetId) setCollapsed(false); }, [guidance.targetId]);
   useEffect(() => { if (snapshot.score > useProgress.getState().bestScore) useProgress.getState().setBestScore(snapshot.score); }, [snapshot.score]);
   useEffect(() => {
     const element = canvas.current; if (!element) return;
-    let view: YardView | undefined; try { view = new YardView(element, run); world.current = view; setGraphicsFailed(false); } catch { setGraphicsFailed(true); }
+    let view: YardView | undefined;
+    try { view = new YardView(element, run); world.current = view; setGraphicsFailed(false); } catch { setGraphicsFailed(true); }
     const contextLost = (event: Event) => { event.preventDefault(); run.pause(); setGraphicsFailed(true); update(); };
     element.addEventListener('webglcontextlost', contextLost);
-    let alive = true, raf = 0, last = performance.now(), reported = 0, revision = run.revision;
+    let alive = true, raf = 0, last = performance.now(), reported = 0;
     const resize = () => { const rect = element.getBoundingClientRect(); view?.resize(Math.max(1, rect.width), Math.max(1, rect.height), Math.min(window.devicePixelRatio || 1, 2)); };
     resize(); const observer = new ResizeObserver(resize); observer.observe(element);
+    if (view) { try { const art: Partial<Record<UnitKind, string>> = {}; for (const kind of Object.keys(UNIT_INFO) as UnitKind[]) art[kind] = view.icon(kind); setIcons(art); } catch { /* Cards fall back to text. */ } }
     const draw = (now: number) => {
       if (!alive) return;
-      const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)), before = run.phase; last = now;
+      const dt = Math.max(0, Math.min(.1, (now - last) / 1000)), before = run.phase; last = now;
       const held = blocked.current || interactionOpen() || document.hidden || run.phase === 'paused';
-      if (revision !== run.revision) { effects.reset(); revision = run.revision; }
-      if (!held) { run.step(dt * speedRef.current); effects.step(dt * speedRef.current); }
-      const cues = run.feedback.splice(0); effects.consume(cues, TOOL_COLORS[run.config.toolColor] ?? TOOL_COLORS.teal, reduced);
-      // Coalesce sounds from a large fight into one cue per event per frame.
+      if (!held) run.step(dt);
+      const cues = run.feedback.splice(0);
       for (const event of new Set(run.events.splice(0))) sound.play(event);
       if (view) {
-        view.highlight(visual.current.hover?.row ?? -1, visual.current.hover?.col ?? 0);
-        view.render(dt * speedRef.current, held, reduced, view.feedback(cues));
+        const { hover: h, tool: t } = visual.current;
+        view.preview(run.phase === 'playing' ? t : null, h?.row ?? -1, h?.col ?? 0, Boolean(h && t && (t === 'shovel' ? run.units.some(u => u.row === h.row && u.col === h.col) : run.canPlace(t, h.row, h.col))));
+        view.render(dt, held, reduced, view.feedback(cues));
         stage.current?.querySelectorAll<HTMLButtonElement>('[data-cell]').forEach(button => { const [row, col] = button.dataset.cell!.split(':').map(Number); Object.assign(button.style, view!.cell(row, col)); });
-        stage.current?.querySelectorAll<HTMLButtonElement>('[data-battery]').forEach(button => { const drop = run.batteries.find(b => b.id === Number(button.dataset.battery)); if (drop) { const p = view!.point(drop.x, drop.row + .5); button.style.left = `${p.x * 100}%`; button.style.top = `${p.y * 100}%`; } });
+        stage.current?.querySelectorAll<HTMLButtonElement>('[data-battery]').forEach(button => { const p = view!.batteryPoint(Number(button.dataset.battery)); if (p) { button.style.left = `${p.x * 100}%`; button.style.top = `${p.y * 100}%`; } });
       }
       if (now - reported > 100 || before !== run.phase) { update(); reported = now; }
       raf = requestAnimationFrame(draw);
     };
     draw(last);
     return () => { alive = false; cancelAnimationFrame(raf); observer.disconnect(); element.removeEventListener('webglcontextlost', contextLost); world.current = null; view?.dispose(); };
-  }, [run, effects, sound, reduced, update, graphicsAttempt]);
+  }, [run, sound, reduced, update, graphicsAttempt]);
   useEffect(() => () => sound.destroy(), [sound]);
   useEffect(() => {
     const typing = () => Boolean((document.activeElement as HTMLElement | null)?.closest('input,textarea,select,[contenteditable="true"],.cm-editor'));
     const keydown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || blocked.current || interactionOpen() || typing()) return;
-      const tool = Number(e.key); if (tool >= 1 && tool <= 6) { e.preventDefault(); setSelected(TOOLS[tool - 1]); }
-      if (e.code === 'KeyS') { e.preventDefault(); sound.unlock(); run.surge(); update(); }
-      if (e.code === 'KeyB') { e.preventDefault(); sound.unlock(); run.collectAll(); update(); }
+      const index = Number(e.key) - 1, cards = run.stage.cards;
+      if (index >= 0 && index < cards.length) { e.preventDefault(); choose(cards[index]); }
+      if (e.code === 'KeyS') { e.preventDefault(); choose('shovel'); }
+      if (e.code === 'Escape') setTool(null);
+      if (e.code === 'KeyB') { e.preventDefault(); run.collectAll(); update(); }
       if (e.code === 'KeyP') { e.preventDefault(); run.phase === 'paused' ? run.resume() : run.pause(); update(); }
-      if (e.code === 'Enter' && run.phase === 'launch' && document.activeElement?.tagName !== 'BUTTON') launch();
+      if (e.code === 'Enter' && run.phase === 'launch' && document.activeElement?.tagName !== 'BUTTON') { sound.unlock(); run.launch(); update(); }
     };
     const blur = () => { run.pause(); update(); }, hidden = () => { if (document.hidden) blur(); };
     window.addEventListener('keydown', keydown); window.addEventListener('blur', blur); document.addEventListener('visibilitychange', hidden);
     return () => { window.removeEventListener('keydown', keydown); window.removeEventListener('blur', blur); document.removeEventListener('visibilitychange', hidden); };
-  }, [run, sound, update, launch]);
+  }, [run, sound, update]);
   const go = (target: typeof mission) => {
     const store = useProgress.getState(); if (store.codes[codeKey(language, target.id)] === undefined) store.setGameCode(gameId, codeKey(language, target.id), code);
     store.setMission(target.id); navigate({ name: 'lab', gameId, missionId: target.id, debug: debugFlag });
   };
-  const mods = useMemo(() => unlocked.map(m => localizeMod(m, language)), [unlocked, language]);
+  const mods = useMemo(() => YARD_MODS.map(m => localizeMod(m, language)), [language]);
   const tools = useMemo(() => YARD_TOOLS.map(t => localizeTool(t, language)), [language]);
-  const playing = snapshot.phase === 'playing';
-  const keyCell = (e: React.KeyboardEvent, row: number, col: number) => {
-    const delta = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key]; if (!delta) return;
-    e.preventDefault(); const target = { row: Math.max(0, Math.min(ROWS - 1, row + delta[0])), col: Math.max(0, Math.min(COLS - 1, col + delta[1])) };
-    setActiveCell(target); stage.current?.querySelector<HTMLButtonElement>(`[data-cell="${target.row}:${target.col}"]`)?.focus();
-  };
+  const playing = snapshot.phase === 'playing', ended = snapshot.phase === 'cleared' || snapshot.phase === 'gameover';
+  const footnote = mission.kind === 'sandbox' ? 'FREE PLAY · EVERY MOD IS READY TO TRY' : `OPTIONAL CHALLENGE ${mission.order + 1}/8 · ${mission.title}`;
+  const levelCount = Math.max(YARD_LEVELS.length, run.frontier);
 
   return <GameWorkspace gameId={gameId} gameTitle="MAKITAS VS ZOMBIES" touch={touch} coding={focused}
     header={<TopBar progressLabel="OPTIONAL CHALLENGES" gameName="MAKITAS VS ZOMBIES" missions={YARD_MISSIONS} completed={progress.completed} paused={snapshot.phase === 'paused'} sound={progress.settings.sound}
-      restartLabel="Retry saved wave" onHome={() => navigate({ name: 'landing' })} onRestart={launch}
-      onTogglePause={() => { run.phase === 'paused' ? run.resume() : run.pause(); update(); focusGame(); }} onResetCode={() => onChange(starter)}
+      restartLabel="Retry level" onHome={() => navigate({ name: 'landing' })} onRestart={() => act(() => run.launch())}
+      onTogglePause={() => act(() => { run.phase === 'paused' ? run.resume() : run.pause(); })} onResetCode={() => onChange(starter)}
       onResetFullGame={() => { if (window.confirm('Reset MAKITAS VS ZOMBIES? This clears its missions, code and high score.')) { useProgress.getState().resetCurrentGame(); navigate({ name: 'landing' }); } }}
       onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onSettings={() => setSettingsOpen(true)} onOpenLibrary={() => setLibraryOpen(true)}
       onFullscreen={() => { if (document.fullscreenElement) void document.exitFullscreen(); else void stage.current?.closest('.lab')?.requestFullscreen?.(); }} />}
@@ -149,59 +145,52 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
       onFocusChange: setFocused, onViewReady: view => { editor.current = view; }, coach: showCoach && guidance.targetId && editorTarget ? { key: guidance.message, message: guidance.message, targetId: guidance.targetId } : undefined,
       onDismissCoach: dismiss, ariaLabel: `${language} workshop defense code editor` }}
     editorToolbar={<><span className="lab__filename mono">{fileNameForLanguage(language)}</span><span className="lab__autosave">Auto-save <b>ON</b></span></>}
-    feedback={{ status: diagnostic ? 'error' : passed ? 'complete' : 'ready', diagnostic, ruleCount: liveProgram.rules.length, guidance }}
+    feedback={{ status: diagnostic ? 'error' : passed ? 'complete' : 'ready', diagnostic, ruleCount: program.rules.length, guidance }}
     modStrip={{ mods, tools, totalMods: YARD_MODS.length, collapsed, onToggleCollapsed: () => setCollapsed(v => !v), onInsert: insert, onOpenLibrary: () => setLibraryOpen(true), language,
       activeTargetId: guidance.targetId, coach: showCoach && guidance.targetId && !editorTarget ? guidance : undefined, onDismissCoach: dismiss }}
-    library={{ open: libraryOpen, onClose: () => { setLibraryOpen(false); focusGame(); }, onInsert: (snippet, mode) => { setLibraryOpen(false); insert(snippet, mode); } }} stageRef={stage}
-    stage={<div className={`stage yard-stage `} style={{ '--yard-glow': TOOL_COLORS[snapshot.config.toolColor] } as React.CSSProperties}>
-      <div className="yard__hud"><div className="yard__brand"><span className="yard__brandIcon">✹</span><div><small>NIGHT {String(snapshot.night).padStart(2, '0')} / WORKSHOP DEFENSE</small><strong>{snapshot.config.workshopName}</strong></div></div>
-        <div className="yard__power" key={`power-${Math.floor(snapshot.power / 25)}`}><span>ϟ</span><div><strong>{snapshot.power}</strong><small>BATTERY POWER</small></div></div>
-        <div className="yard__integrity" aria-label={`${snapshot.lives} workshop integrity`}><span>{[0, 1, 2].map(i => <b key={i} className={i >= snapshot.lives ? 'yard__heart--lost' : ''}>♥</b>)}</span><small>{String(snapshot.score).padStart(5, '0')} PTS</small></div>
+    library={{ open: libraryOpen, onClose: () => setLibraryOpen(false), onInsert: (snippet, mode) => { setLibraryOpen(false); insert(snippet, mode); } }} stageRef={stage}
+    stage={<div className={`stage mvz ${snapshot.night ? 'mvz--night' : ''}`}>
+      <canvas key={graphicsAttempt} ref={canvas} className="mvz__canvas" tabIndex={-1} aria-label="Five-lane workshop lawn" />
+      {playing ? <div className="mvz__grid" role="grid" aria-label="Lawn tiles. Pick a tool card, then tap a tile.">
+        {Array.from({ length: ROWS }, (_, row) => <div key={row} role="row">{Array.from({ length: COLS }, (_, col) => {
+          const unit = run.units.find(u => u.row === row && u.col === col), open = snapshot.lanes.includes(row);
+          return <button key={col} role="gridcell" data-cell={`${row}:${col}`} disabled={!open} aria-label={`Lane ${row + 1}, tile ${col + 1}: ${unit ? UNIT_INFO[unit.kind].name : open ? 'empty' : 'closed'}`}
+            onClick={() => tapTile(row, col)} onPointerEnter={() => setHover({ row, col })} onPointerLeave={() => setHover(null)} onFocus={() => setHover({ row, col })} onBlur={() => setHover(null)} />;
+        })}</div>)}
+      </div> : null}
+      {playing ? <div className="mvz__drops">{drops.map(id => <button key={id} data-battery={id} className="mvz__battery" aria-label="Collect battery power" onPointerDown={() => act(() => run.collect(id))} onClick={() => act(() => run.collect(id))} />)}</div> : null}
+      <div className="mvz__bank" aria-label="Tool cards">
+        <div className="mvz__power" key={`p-${Math.floor(snapshot.power / 25)}`}><span aria-hidden="true">ϟ</span><strong>{snapshot.power}</strong></div>
+        {snapshot.cards.map((card, index) => {
+          const ready = card.ready >= 1, usable = ready && card.affordable && playing;
+          return <button key={card.kind} className={`mvz__card ${tool === card.kind ? 'mvz__card--selected' : ''} ${usable ? '' : 'mvz__card--off'}`} aria-pressed={tool === card.kind}
+            aria-label={`${UNIT_INFO[card.kind].name}, ${card.cost} power${ready ? '' : ', recharging'}. ${UNIT_INFO[card.kind].detail}`} title={UNIT_INFO[card.kind].detail} onClick={() => choose(card.kind)}>
+            {icons[card.kind] ? <img src={icons[card.kind]} alt="" /> : <b>{UNIT_INFO[card.kind].short}</b>}
+            <span className="mvz__cost">{card.cost}</span>{!ready ? <i className="mvz__cooldown" style={{ height: `${(1 - card.ready) * 100}%` }} /> : null}{!touch ? <kbd>{index + 1}</kbd> : null}
+          </button>;
+        })}
+        <button className={`mvz__card mvz__shovel ${tool === 'shovel' ? 'mvz__card--selected' : ''}`} aria-pressed={tool === 'shovel'} aria-label="Shovel: remove a tool" onClick={() => choose('shovel')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 2.5 21.5 9.5 19 12l-2-2-6.6 6.6.9.9-3.5 3.5a2.5 2.5 0 0 1-3.5-3.5L7.8 14l.9.9L15.3 8.3l-2-2z" /></svg>{!touch ? <kbd>S</kbd> : null}</button>
       </div>
-      <div className="yard__waveTrack" aria-label={`Wave ${snapshot.wave} of 3`}><span>INVASION</span>{[1, 2, 3].map(w => <i key={w} className={snapshot.wave >= w ? 'yard__wave--active' : ''}><b>{w}</b>{w === 3 ? 'FOREMAN' : `WAVE ${w}`}</i>)}<small>{snapshot.spawning || snapshot.remaining ? `${snapshot.remaining} INCOMING` : !run.invasionReady ? 'BUILD MODE' : `NEXT IN ${snapshot.countdown}s`}</small></div>
-      <div className="yard__command">
-        <div className="yard__fieldActions"><span>{focused ? 'EDITING · DEFENSE HELD' : snapshot.config.overdrive ? '⚡ OVERDRIVE ACTIVE' : snapshot.config.doubleShot ? '» TWIN BLADES ACTIVE' : `⌁ ${snapshot.messages[0]}`}</span>
-          {run.invasionReady && !snapshot.spawning && snapshot.remaining === 0 && snapshot.wave < 3 ? <button onClick={() => { engage(); run.sendWave(); update(); }}>SEND WAVE {snapshot.wave + 1} →</button> : <span className="yard__danger">{snapshot.wave === 3 ? 'FINAL INVASION' : 'DEFEND EVERY LANE'}</span>}
-        </div>
-        <div className="yard__tactics"><button onClick={() => setSpeed(v => v === 1 ? 2 : 1)} aria-label={`Game speed ${speed} times. Switch speed.`}>{speed}× SPEED</button><button className="yard__surge" disabled={!playing || !run.invasionReady || snapshot.power < 75 || snapshot.surgeCooldown > 0 || !snapshot.remaining} onClick={() => { engage(); run.surge(); update(); }}>ϟ {snapshot.surgeCooldown ? `SURGE ${snapshot.surgeCooldown}s` : 'POWER SURGE · 75'}</button></div>
+      <div className="mvz__progress" aria-label={`Level ${snapshot.level}: ${Math.round(snapshot.progress * 100)} percent of zombies arrived`}>
+        <span>LEVEL {snapshot.level} · {snapshot.levelName.toUpperCase()}</span>
+        <div className="mvz__track"><i style={{ width: `${snapshot.progress * 100}%` }} />{snapshot.flags.map(f => <b key={f} style={{ left: `${f * 100}%` }} className={snapshot.progress >= f ? 'mvz__flag--up' : ''} />)}<em style={{ left: `${snapshot.progress * 100}%` }} /></div>
       </div>
-      <div className="yard__battlefield">
-        <canvas key={graphicsAttempt} ref={canvas} className="stage__canvas" tabIndex={-1} aria-label="Animated five-lane workshop battlefield" />
-        {playing ? <>
-        <div className="yard__grid" role="grid" aria-label="Defense lawn. Arrow keys choose a tile; Enter deploys the selected tool.">
-          {Array.from({ length: ROWS }, (_, row) => <div key={row} role="row">{Array.from({ length: COLS }, (_, col) => {
-            const u = run.units.find(unit => unit.row === row && unit.col === col);
-            return <button key={col} role="gridcell" data-cell={`${row}:${col}`} tabIndex={activeCell.row === row && activeCell.col === col ? 0 : -1}
-              aria-label={`Lane ${row + 1}, tile ${col + 1}: ${u ? `${UNIT_INFO[u.kind].name}, level ${u.level}, ${Math.ceil(u.hp)} health${selected === 'upgrade' ? `, upgrade costs ${run.upgradeCost(u)}` : ''}` : 'empty'}`}
-              onClick={() => actOnCell(row, col)} onPointerEnter={() => setHover({ row, col })} onPointerLeave={() => setHover(null)} onFocus={() => { setHover({ row, col }); setFocused(false); }} onBlur={() => setHover(null)} onKeyDown={e => keyCell(e, row, col)} />;
-          })}</div>)}
-        </div>
-        <div className="yard__drops">{drops.map(b => <button key={b.id} data-battery={b.id} className="yard__battery" aria-label={`Collect ${b.value} battery power`} style={{ left: `${(VIEW.x + b.x * VIEW.cw) / VIEW.width * 100}%`, top: `${(VIEW.y + (b.row + 0.5) * VIEW.ch) / VIEW.height * 100}%` }} onClick={() => { engage(); run.collect(b.id); update(); }}><span>ϟ</span><b>{b.value}</b></button>)}</div>
-        </> : null}
-        {effects.bannerAge < 2.4 && playing ? <div className="yard__battleBanner" key={`${effects.banner}-${run.wave}`}>{effects.banner}</div> : null}
-      </div>
-      {playing ? <>
-        <div className={`yard__notice yard__notice--${snapshot.noticeKind}`} role="status" aria-live="polite"><span key={snapshot.noticeId}>{snapshot.notice}</span><button disabled={!snapshot.batteries} onClick={() => { engage(); run.collectAll(); update(); }}>ϟ COLLECT {snapshot.batteries || ''}</button></div>
-        <div className="yard__tools" aria-label="Defender tools">{(Object.keys(UNIT_INFO) as UnitKind[]).map((kind, index) => <button key={kind} disabled={!run.toolAvailable(kind)} className={`yard__tool ${selected === kind ? 'yard__tool--selected' : ''} ${snapshot.power < UNIT_INFO[kind].cost ? 'yard__tool--poor' : ''}`} aria-pressed={selected === kind} aria-label={`Select ${UNIT_INFO[kind].name}, ${UNIT_INFO[kind].cost} power. ${UNIT_INFO[kind].detail}`} onClick={() => { engage(); setSelected(kind); }}>
-          <svg className="yard__toolSprite" viewBox={`0 ${SPRITE_ROWS[index] * 1000} 250 ${(SPRITE_ROWS[index + 1] - SPRITE_ROWS[index]) * 1000}`} aria-hidden="true"><defs><clipPath id={`yard-icon-${kind}`}><rect x="0" y={SPRITE_ROWS[index] * 1000} width="250" height={(SPRITE_ROWS[index + 1] - SPRITE_ROWS[index]) * 1000} /></clipPath></defs><image clipPath={`url(#yard-icon-${kind})`} href="/art/makitas/machines-zombies-v2.png" width="1000" height="1000" /></svg><span className="yard__toolCopy"><b>{kind === 'saw' ? 'SAW' : kind === 'charger' ? 'CHARGER' : kind === 'wall' ? 'BARRIER' : 'FROST'}</b><small>{run.toolAvailable(kind) ? `ϟ ${UNIT_INFO[kind].cost}` : 'ADD MACHINES'}</small></span><kbd>{index + 1}</kbd></button>)}
-          <div className="yard__utility"><button aria-label="Select upgrade tool, 90 or 150 power" aria-pressed={selected === 'upgrade'} className={selected === 'upgrade' ? 'yard__utility--selected' : ''} onClick={() => { engage(); setSelected('upgrade'); }} title="Upgrade a defender: 90 / 150 power (5)">↑ <span>UPGRADE</span></button><button aria-label="Select recycle tool, 50 percent refund" aria-pressed={selected === 'recycle'} className={selected === 'recycle' ? 'yard__utility--selected' : ''} onClick={() => { engage(); setSelected('recycle'); }} title="Recycle a defender for a 50% refund (6)">↶ <span>RECYCLE</span></button></div>
-        </div>
-        <div className="yard__footer"><span>{selected === 'upgrade' ? 'TAP A DEFENDER · 90 / 150 POWER' : selected === 'recycle' ? 'TAP A DEFENDER · 50% REFUND' : UNIT_INFO[selected].detail.toUpperCase()}</span><span>{touch ? 'SELECT TOOL → TAP TILE' : '1–6 TOOLS · B COLLECT · P PAUSE'}</span></div>
-      </> : <div className={`overlay yard__overlay yard__overlay--${snapshot.phase}`}>
-        <div className="yard__panel"><span className="yard__eyebrow">{mission.kind === 'sandbox' ? 'BASIC DEFENSE · EVERY MOD IS READY TO TRY' : `OPTIONAL CHALLENGE ${mission.order + 1}/8 · ${mission.title}`}</span>
-          <span className="yard__tagline">BATTERIES INCLUDED. MERCY SOLD SEPARATELY.</span>
-          <h1>{snapshot.phase === 'launch' ? <>MAKITAS<span>VS <em>ZOMBIES</em></span></> : snapshot.phase === 'paused' ? 'TOOLS DOWN' : snapshot.phase === 'cleared' ? 'YARD SECURED' : 'WORKSHOP LOST'}</h1>
-          <p>{snapshot.phase === 'launch' ? 'Your yard and toolbox are ready. Deploy defenders, collect batteries and hold off three waves. Try any mod to change how the battle feels.' : snapshot.phase === 'paused' ? 'Your defense is on hold. The zombies can wait.' : snapshot.phase === 'cleared' ? 'Three waves. One workshop. Still standing. A tougher night is waiting.' : 'The invasion got through. Add chargers, cover every lane, and protect your saws with barricades.'}</p>
-          {snapshot.phase === 'cleared' || snapshot.phase === 'gameover' ? <div className="yard__results"><div><small>SCORE</small><b>{snapshot.score}</b></div><div><small>DEFEATED</small><b>{snapshot.metrics.kills}</b></div><div><small>WAVES</small><b>{snapshot.wave}/3</b></div></div> : snapshot.phase === 'launch' ? <div className="yard__introSteps"><span><b>01</b> CHARGE UP</span><span><b>02</b> DEPLOY SAWS</span><span><b>03</b> HOLD THE LINE</span></div> : null}
-          <button className="btn yard__enter" onClick={() => { sound.unlock(); if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch(); update(); focusGame(); }}>{snapshot.phase === 'paused' ? 'RESUME DEFENSE →' : snapshot.phase === 'cleared' ? 'NEXT NIGHT →' : snapshot.phase === 'gameover' ? 'RETRY SAVED WAVE →' : run.checkpoint ? 'CONTINUE SAVED WAVE →' : 'PLAY BASIC DEFENSE →'}</button>
-          <small>{snapshot.phase === 'launch' ? `Start with ${snapshot.config.startingPower} power · 5 emergency sweepers · 3 waves` : 'Deploy saws in every lane. Build chargers. Save 75 power for a surge.'}</small>
-          {snapshot.phase === 'launch' ? <button className="play-mode__intro" onClick={() => go(YARD_MISSIONS[mission.kind === 'sandbox' ? 0 : 8])}>{mission.kind === 'sandbox' ? 'TRY OPTIONAL CHALLENGES' : 'SWITCH TO FREE PLAY'}</button> : null}
-        </div>
-      </div>}
+      {playing ? <div className="mvz__banner" key={snapshot.bannerId} aria-live="polite">{snapshot.banner}</div> : null}
+      {playing ? <div className={`mvz__notice mvz__notice--${snapshot.noticeKind}`} role="status"><span key={snapshot.noticeId}>{focused ? 'EDITING · DEFENSE HELD' : snapshot.config.overdrive ? '⚡ OVERDRIVE ACTIVE' : snapshot.config.doubleShot ? '» TWIN BLADES ACTIVE' : snapshot.notice}</span></div> : null}
+      {ended ? <ResultOverlay key={`${run.revision}-${snapshot.phase}`} snapshot={world.current?.snapshot() ?? null} footnote={footnote}
+        card={snapshot.phase === 'cleared' ? { win: true, headline: `${snapshot.score.toLocaleString()} PTS`, caption: snapshot.levelName, detail: snapshot.reward ? `New tool unlocked · ${UNIT_INFO[snapshot.reward].name}` : `${snapshot.metrics.kills} zombies stopped` } : { win: false, caption: 'Brains... I mean, tools!', detail: 'A zombie reached the workshop' }}
+        stages={Array.from({ length: levelCount }, (_, i) => i + 1).map(level => ({ level, name: yardLevelName(level), state: level < run.frontier || level === run.level && snapshot.phase === 'cleared' ? 'done' : level === run.frontier ? 'current' : 'locked' }))}
+        onHome={() => navigate({ name: 'landing' })} onPrimary={() => act(() => snapshot.phase === 'cleared' ? run.advance() : run.launch())} onPick={level => act(() => run.playLevel(level))} /> : null}
+      {snapshot.phase === 'launch' || snapshot.phase === 'paused' ? <div className={`mvz__overlay mvz__overlay--${snapshot.phase}`}><div className="start">
+        <img className="start__logo" src="/art/makitas/logo.svg" alt="MAKITAS VS ZOMBIES" />
+        <h1 className="start__goal">{snapshot.phase === 'paused' ? 'PAUSED' : 'Stop the zombies before they reach your workshop.'}</h1>
+        <button className="btn yard__enter start__play" onClick={() => act(() => { snapshot.phase === 'paused' ? run.resume() : run.launch(); })}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" /></svg>{snapshot.phase === 'paused' ? 'RESUME' : run.checkpoint && run.level > 1 ? `CONTINUE · LEVEL ${run.level}` : 'PLAY'}</button>
+        <ul className="start__keys">{(touch ? [['Tap', 'a card'], ['Tap', 'a tile to build'], ['Tap', 'batteries for power']] : [['1–7', 'pick a tool'], ['Click', 'a tile to build'], ['Click', 'batteries for power'], ['S', 'shovel']]).map(([keys, text]) => <li key={text}><kbd>{keys}</kbd>{text}</li>)}</ul>
+      </div></div> : null}
       {graphicsFailed ? <div className="yard__graphics" role="alert"><strong>Let’s get your 3D workshop running.</strong><p>Reload the scene to restore its graphics.</p><button onClick={() => setGraphicsAttempt(v => v + 1)}>RELOAD SCENE</button></div> : null}
       <PlayModeNav exploring={mission.kind === 'sandbox'} nextClassName="mission__next--ready" onExplore={() => go(YARD_MISSIONS[8])} onGuide={() => go(YARD_MISSIONS[0])} onPrevious={previous ? () => go(previous) : undefined} onNext={next ? () => go(next) : undefined} />
     </div>}
     overlays={<><SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} bestScore={progress.bestScore} completedCount={progress.completed.length}
       onRename={name => useProgress.getState().setStudentName(name)} onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onToggleDebug={() => useProgress.getState().setSetting('debug', !progress.settings.debug)} onResetProgress={() => { useProgress.getState().resetProgress(); navigate({ name: 'landing' }); }} />
-      {debugFlag || progress.settings.debug ? <pre className="yard__debug" aria-label="Workshop debug state">{JSON.stringify({ ...snapshot, ignored: Object.keys(program.config).filter(k => !unlocked.some(m => m.id === k)) }, null, 2)}</pre> : null}</>} />;
+      {debugFlag || progress.settings.debug ? <pre className="yard__debug" aria-label="Workshop debug state">{JSON.stringify({ ...snapshot, cards: undefined }, null, 2)}</pre> : null}</>} />;
 }

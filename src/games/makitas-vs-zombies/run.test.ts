@@ -1,139 +1,102 @@
 import { describe, expect, it } from 'vitest';
 import { parseGameScript } from '../../interpreter/gameScript';
 import { formatCodeForLanguage } from '../../interpreter/languageSyntax';
-import { YARD_DEFAULTS, YARD_MODS, yardSchema, type YardConfig } from './mods';
-import { YardRun, ZOMBIE_INFO, type Zombie, type ZombieKind } from './run';
+import { YARD_DEFAULTS, YARD_MODS, YARD_TOOLS, yardSchema, type YardConfig } from './mods';
+import { YardRun, readYardCheckpoint, UNIT_INFO, ZOMBIE_INFO, type Zombie, type ZombieKind } from './run';
+import { YARD_LEVELS } from './levels';
 import { YARD_MISSIONS, YARD_REMIX, YARD_STARTER, yardMissionPassed } from './missions';
-import { YardEffects } from './effects';
 
-const parse = (s: string) => parseGameScript<YardConfig>('string ground = "grass"; string toolbox = "full"; string zombieType = "mixed";\n' + s, 'csharp', yardSchema);
-function builtRun() { const r = new YardRun(); r.setProgram(parse('')); return r; }
-const advance = (run: YardRun, seconds: number) => { for (let i = 0; i < seconds * 60; i++) run.step(1 / 60); };
-const zombie = (kind: ZombieKind = 'worker', row = 2, x = 5): Zombie => ({ id: 999, kind, row, x, hp: ZOMBIE_INFO[kind].hp, maxHp: ZOMBIE_INFO[kind].hp, slowed: 0, flash: 0, biteTimer: 0.1, chewing: false });
+const parse = (s: string) => parseGameScript<YardConfig>(s, 'csharp', yardSchema);
+const advance = (run: YardRun, seconds: number) => { for (let i = 0; i < seconds * 60 && run.phase === 'playing'; i++) run.step(1 / 60); };
+const zombie = (kind: ZombieKind = 'worker', row = 2, x = 6): Zombie => ({ id: 900 + Math.round(x * 10) + row, kind, row, x, hp: ZOMBIE_INFO[kind].hp, maxHp: ZOMBIE_INFO[kind].hp, slowed: 0, flash: 0, eating: false, smash: 0 });
+/** A fixed level with five open lanes and every tool, without scripted waves. */
+function sandbox(): YardRun { const run = new YardRun(); run.level = 8; run.launch(); run.power = 5000; run.cooldowns = {}; return run; }
 
-describe('workshop defense simulation', () => {
-  it('power surge damages and slows every live zombie, costs power once and holds its cooldown while paused', () => {
-    const r = builtRun(); r.launch(); r.power = 200;
-    expect(r.surge()).toBe(false); expect(r.power).toBe(200);
-    r.zombies = [zombie('worker', 0, 5), { ...zombie('brute', 4, 6), id: 1000 }, { ...zombie('worker', 2, 3), id: 1001, hp: 30 }];
-    expect(r.surge()).toBe(true); expect(r.power).toBe(125); expect(r.zombies[0].hp).toBe(20); expect(r.zombies[1].hp).toBe(315); expect(r.zombies[0].slowed).toBe(3); expect(r.metrics.kills).toBe(1);
-    expect(r.surge()).toBe(false); expect(r.power).toBe(125); expect(r.metrics.kills).toBe(1);
-    r.pause(); advance(r, 3); expect(r.surgeCooldown).toBe(24); expect(r.surge()).toBe(false);
-    r.resume(); advance(r, 1); expect(r.surgeCooldown).toBeCloseTo(23);
-    r.surgeCooldown = 0; r.power = 74; expect(r.surge()).toBe(false); expect(r.power).toBe(74);
-    r.launch(); expect(r.surgeCooldown).toBe(0);
+/** A competent student: collect everything, chargers first, saws in every lane, toolboxes and chainsaws for heavies. */
+function bot(run: YardRun) {
+  run.collectAll();
+  const lanes = run.stage.lanes, at = (kind: string, row: number) => run.units.filter(u => u.kind === kind && u.row === row).length;
+  const shooters = (row: number) => run.units.filter(u => u.row === row && ['saw', 'twin', 'frost'].includes(u.kind)).length, zs = (row: number) => run.zombies.filter(z => z.row === row);
+  const tryPlace = (kind: Parameters<YardRun['place']>[0], row: number, cols: number[]) => { for (const c of cols) if (run.canPlace(kind, row, c)) return run.place(kind, row, c); return false; };
+  const shooter = run.available('twin') && run.power >= 200 ? 'twin' : 'saw';
+  for (const row of lanes) if (zs(row).length && !shooters(row)) { tryPlace(shooter, row, [1, 2, 3]); return; }
+  for (const row of lanes) for (const z of zs(row)) {
+    if ((z.kind === 'brute' || z.kind === 'welder') && z.x < 8) { if (run.available('chainsaw')) tryPlace('chainsaw', row, [Math.max(4, Math.floor(z.x) - 2), 4, 5]); if (run.available('mine')) tryPlace('mine', row, [Math.floor(z.x) - 3]); }
+    if (z.x < 7 && run.available('wall') && !at('wall', row) && (z.kind !== 'worker' || zs(row).length > 1)) tryPlace('wall', row, [5, 6]);
+  }
+  const chargers = run.units.filter(u => u.kind === 'charger').length;
+  if (run.available('charger') && chargers < lanes.length * 2) { const row = [...lanes].sort((a, b) => at('charger', a) - at('charger', b))[0]; if (tryPlace('charger', row, [0, 1])) return; if (run.power < 150) return; }
+  const row = [...lanes].sort((a, b) => (shooters(a) - zs(a).length * .7) - (shooters(b) - zs(b).length * .7))[0];
+  if (shooters(row) < 4) tryPlace(run.available('frost') && shooters(row) === 2 && run.power >= 175 ? 'frost' : shooter, row, [2, 3, 1, 4]);
+}
+const playLevel = (run: YardRun) => { for (let t = 0; t < 60 * 400 && run.phase === 'playing'; t++) { if (t % 15 === 0) bot(run); run.step(1 / 60); } };
+
+describe('Makitas vs Zombies scripts', () => {
+  it.each(['python', 'swift', 'csharp'] as const)('starts with only the world mods and parses every mod, tool and remix in %s', language => {
+    const p = (s: string) => parseGameScript<YardConfig>(formatCodeForLanguage(s, language), language, yardSchema);
+    const starter = p(YARD_STARTER); expect(starter.ok).toBe(true); expect(Object.keys(starter.config)).toEqual(['worldTheme', 'characterStyle', 'weather']);
+    for (const source of [YARD_REMIX, ...YARD_MODS.map(m => m.example), ...YARD_TOOLS.map(t => `${YARD_STARTER}\n${t.example}`)]) { const program = p(source); expect(program.diagnostics.filter(d => d.severity === 'error'), source).toEqual([]); }
+    expect(YARD_MODS.some(m => m.id === ('toolColor' as string))).toBe(false);
   });
-  it('requires launch, charges for deployment and prevents invalid or occupied placement', () => {
-    const r = builtRun(); expect(r.interact('saw', 2, 0)).toBe(false); r.launch();
-    expect(r.interact('saw', 2, 0)).toBe(true); expect(r.power).toBe(250);
-    expect(r.interact('charger', 2, 0)).toBe(false); expect(r.power).toBe(250);
-    for (const [row, col] of [[-1,0],[5,0],[1,9],[0,0.5]]) expect(r.interact('saw', row, col)).toBe(false);
-    r.power = 20; expect(r.interact('saw', 0, 0)).toBe(false); expect(r.units).toHaveLength(1); expect(r.notice).toContain('Not enough');
-  });
-  it('upgrades health and damage, caps level, and refunds half the investment', () => {
-    const r = builtRun(); r.launch(); r.power = 1000; r.interact('saw', 2, 0); r.units[0].hp = 1;
-    expect(r.interact('upgrade', 2, 0)).toBe(true); expect(r.units[0].level).toBe(2); expect(r.units[0].hp).toBe(r.units[0].maxHp);
-    expect(r.interact('upgrade', 2, 0)).toBe(true); expect(r.interact('upgrade', 2, 0)).toBe(false);
-    const before = r.power; expect(r.interact('recycle', 2, 0)).toBe(true); expect(r.power - before).toBe(170); expect(r.units).toHaveLength(0);
-  });
-  it('stops zombies at defenders, deals bite damage, then resumes movement after destruction', () => {
-    const r = builtRun(); r.launch(); r.interact('wall', 2, 4); const z = zombie('worker', 2, 5.05); r.zombies = [z];
-    advance(r, 1); expect(z.x).toBe(5.05); expect(z.chewing).toBe(true); expect(r.units[0].hp).toBeLessThan(450);
-    r.units[0].hp = 1; advance(r, 1); expect(r.units).toHaveLength(0); advance(r, 1); expect(z.x).toBeLessThan(5.05);
-  });
-  it('shoots only into its lane and awards kills exactly once', () => {
-    const r = builtRun(); r.launch(); r.interact('saw', 2, 0); r.zombies = [zombie('worker', 1, 3)];
-    advance(r, 1); expect(r.metrics.shots).toBe(0);
-    r.zombies = [zombie('worker', 2, 3)]; advance(r, 5); expect(r.metrics.kills).toBe(1); expect(r.score).toBe(50); expect(r.zombies).toHaveLength(0);
-    advance(r, 1); expect(r.metrics.kills).toBe(1);
-  });
-  it('frost applies a real movement penalty and upgrades improve fire rate and damage', () => {
-    const r = builtRun(); r.launch(); r.power = 1000; r.interact('frost', 2, 0); r.interact('upgrade', 2, 0);
-    const z = zombie('brute', 2, 4); r.zombies = [z]; advance(r, 1.2); expect(z.slowed).toBeGreaterThan(0); expect(z.hp).toBeLessThan(360); expect(r.metrics.slowed).toBeGreaterThan(0);
-    const before = z.x; advance(r, 1); expect(before - z.x).toBeCloseTo(0.075 * 0.45, 3);
-  });
-  it('sky and chargers produce collectible power, collection is idempotent, and auto collection works', () => {
-    const r = builtRun(); r.launch(); r.interact('charger', 2, 0); advance(r, 5.2);
-    expect(r.batteries).toHaveLength(2); const id = r.batteries[0].id, before = r.power;
-    expect(r.collect(id)).toBe(true); expect(r.collect(id)).toBe(false); expect(r.power - before).toBe(25);
-    r.setProgram(parse('bool autoCollect = true;')); advance(r, 0.1); expect(r.batteries).toHaveLength(0); expect(r.metrics.collected).toBe(50);
-  });
-  it('bounded batteries expire, and paused simulation and actions do not advance', () => {
-    const r = builtRun(); r.launch(); r.batteries = [{ id: 123, row: 0, x: 2, value: 25, age: 21.99 }]; advance(r, .1); expect(r.batteries).toHaveLength(0);
-    r.pause(); const elapsed = r.elapsed, power = r.power; advance(r, 3); expect(r.elapsed).toBe(elapsed); expect(r.interact('saw', 0, 0)).toBe(false); expect(r.power).toBe(power); r.resume(); advance(r, 1); expect(r.elapsed).toBeGreaterThan(elapsed);
-  });
-  it('each emergency sweeper works once; subsequent breaches damage the workshop and end the run', () => {
-    const r = builtRun(); r.launch(); r.zombies = [zombie('worker', 2, .2)]; advance(r, .2);
-    expect(r.sweepers[2].used).toBe(true); expect(r.metrics.kills).toBe(1); expect(r.lives).toBe(3); advance(r, 3);
-    for (let i = 0; i < 3; i++) { r.zombies = [zombie('worker', 2, -.61)]; advance(r, .1); }
-    expect(r.lives).toBe(0); expect(r.phase).toBe('gameover'); const score = r.score; advance(r, 1); expect(r.score).toBe(score);
-    r.launch(); expect(r.lives).toBe(3); expect(r.metrics.kills).toBe(0); expect(r.sweepers.every(s => !s.used)).toBe(true);
-  });
-  it('progresses through three waves and produces a winnable default defense', () => {
-    const r = builtRun(); r.launch(); r.interact('saw', 2, 0); r.interact('saw', 0, 0); r.interact('saw', 4, 0); r.interact('charger', 2, 1);
-    for (let frame = 0; frame < 60 * 300 && r.phase === 'playing'; frame++) {
-      r.step(1 / 60); r.collectAll();
-      for (const row of [1,3]) if (!r.units.some(u => u.kind === 'saw' && u.row === row)) r.interact('saw', row, 0);
-      if (r.power >= 90) { const u = r.units.find(u => u.kind === 'saw' && u.level === 1); if (u) r.interact('upgrade', u.row, u.col); }
-    }
-    expect(r.phase).toBe('cleared'); expect(r.wave).toBe(3); expect(r.metrics.clears).toBe(1); expect(r.metrics.kills).toBe(27); expect(r.lives).toBe(3);
-    r.advance(); expect(r.night).toBe(2); expect(r.wave).toBe(0); expect(r.units).toHaveLength(0); expect(r.metrics.clears).toBe(1);
-  });
-  it('stops simultaneous breaches at zero integrity', () => {
-    const r=builtRun();r.launch();r.lives=1;r.sweepers.forEach(s=>{s.used=true;});
-    r.zombies=[{...zombie('worker',0,-1),id:1},{...zombie('worker',1,-1),id:2}];r.step(.1);
-    expect(r.phase).toBe('gameover');expect(r.lives).toBe(0);expect(r.zombies).toHaveLength(1);
-  });
-  it('prevents overlapping waves and spawns all enemy variants including the foreman', () => {
-    const r = builtRun(); r.launch(); expect(r.sendWave()).toBe(true); expect(r.sendWave()).toBe(false);
-    advance(r, 14); expect(r.zombies).toHaveLength(7); r.zombies = []; r.step(.1); expect(r.countdown).toBeGreaterThan(11);
-    r.sendWave(); advance(r, 20); expect(r.zombies.some(z => z.kind === 'hardhat')).toBe(true); expect(r.zombies.some(z => z.kind === 'sprinter')).toBe(true);
-    r.zombies=[]; r.step(.1); r.sendWave(); advance(r, 24); expect(r.zombies.some(z => z.kind === 'brute')).toBe(true);
-  });
-  it('keeps the last valid program and evaluates runtime rules without accumulating overrides', () => {
-    const r = builtRun(); r.setProgram(parse('int bladeDamage = 35;\nbool doubleShot = false;\nif (kills >= 3)\n{\n doubleShot = true;\n}')); r.launch();
-    expect(r.config.bladeDamage).toBe(35); r.setProgram(parse('int bladeDamage = ;')); expect(r.config.bladeDamage).toBe(35);
-    r.metrics.kills=3; r.step(.1); expect(r.config.doubleShot).toBe(true); expect(r.metrics.ruleTraces.length).toBe(1);
-    r.metrics.kills=0; r.step(.1); expect(r.config.doubleShot).toBe(false);
+  it('teaches eight missions whose targets exist and only pass on real play', () => {
+    expect(YARD_MISSIONS.filter(m => m.kind !== 'sandbox')).toHaveLength(8);
+    const run = new YardRun(); run.setProgram(parse(YARD_REMIX)); run.launch();
+    expect(yardMissionPassed(YARD_MISSIONS[0], parse(YARD_REMIX), run.snapshot())).toBe(true);
+    expect(yardMissionPassed(YARD_MISSIONS[3], parse(YARD_REMIX), run.snapshot())).toBe(false);
+    advance(run, 7); expect(yardMissionPassed(YARD_MISSIONS[3], parse(YARD_REMIX), run.snapshot())).toBe(true);
+    expect(yardMissionPassed(YARD_MISSIONS[4], parse(YARD_REMIX), run.snapshot())).toBe(false);
   });
 });
 
-describe('workshop scripts, mission gates and feedback', () => {
-  for (const language of ['csharp','python','swift'] as const) it(`parses starter, sandbox and live rules in ${language}`, () => {
-    for (const code of [YARD_STARTER,YARD_REMIX]) expect(parseGameScript<YardConfig>(formatCodeForLanguage(code,language),language,yardSchema).ok).toBe(true);
-    const r=builtRun(); r.setProgram(parseGameScript<YardConfig>(formatCodeForLanguage(YARD_REMIX,language),language,yardSchema)); r.launch(); r.metrics.kills=3; r.wave=2; r.step(.1);
-    expect(r.config.doubleShot).toBe(true); expect(r.config.overdrive).toBe(true);
+describe('Makitas vs Zombies lawn defense', () => {
+  it('enforces open lanes, costs, occupied tiles and card recharge, and digs tools up with the shovel', () => {
+    const run = new YardRun(); run.launch(); expect(run.stage.lanes).toEqual([2]); expect(run.power).toBe(YARD_DEFAULTS.startingPower);
+    expect(run.place('saw', 0, 1)).toBe(false); expect(run.place('charger', 2, 1)).toBe(false);
+    expect(run.place('saw', 2, 1)).toBe(true); expect(run.power).toBe(100);
+    expect(run.place('saw', 2, 2)).toBe(false); expect(run.notice).toContain('recharging');
+    advance(run, 8); expect(run.place('saw', 2, 1)).toBe(false); expect(run.notice).toContain('Tile taken');
+    expect(run.shovel(2, 1)).toBe(true); expect(run.units).toHaveLength(0); expect(run.shovel(2, 1)).toBe(false);
+    run.power = 10; advance(run, 8); expect(run.place('saw', 2, 1)).toBe(false); expect(run.notice).toContain('Not enough');
   });
-  it.each(['python', 'swift', 'csharp'] as const)('provides a finished basic yard and immediate upgrades in %s', language => {
-    const r = new YardRun(), basic = parseGameScript<YardConfig>(formatCodeForLanguage(YARD_STARTER, language), language, yardSchema);
-    r.setProgram(basic); r.launch();
-    expect(basic.config).toEqual(YARD_DEFAULTS); expect(Object.keys(basic.config)).toHaveLength(YARD_MODS.length);
-    expect(r.invasionReady).toBe(true); expect(r.toolAvailable('frost')).toBe(true); expect(r.toolAvailable('wall')).toBe(true);
-    expect(r.config.autoCollect).toBe(false); expect(r.config.doubleShot).toBe(false); expect(r.config.overdrive).toBe(false);
-    expect(r.interact('saw', 2, 0)).toBe(true); expect(r.sendWave()).toBe(true); advance(r, 1);
-    expect(r.zombies.length).toBeGreaterThan(0);
-    r.setProgram(parseGameScript<YardConfig>(formatCodeForLanguage(YARD_REMIX, language), language, yardSchema));
-    r.metrics.kills = 3; r.wave = 2; r.step(.1); expect(r.config.doubleShot).toBe(true); expect(r.config.overdrive).toBe(true);
+  it('fires blades, slows with frost, arms mines, cuts with chainsaws and lets brutes smash tools', () => {
+    const run = sandbox();
+    run.place('saw', 0, 1); run.zombies = [zombie('worker', 0, 6)]; advance(run, 1.6); expect(run.zombies[0].hp).toBeLessThan(190); expect(run.metrics.shots).toBeGreaterThan(0);
+    run.place('frost', 1, 1); run.zombies.push(zombie('worker', 1, 6)); advance(run, 1.6); expect(run.zombies.find(z => z.row === 1)!.slowed).toBeGreaterThan(0);
+    run.place('mine', 2, 4); run.zombies.push(zombie('hardhat', 2, 4.6)); advance(run, 2); expect(run.zombies.some(z => z.row === 2)).toBe(true);
+    run.units.find(u => u.kind === 'mine')!.armed = 1; advance(run, .2); expect(run.zombies.some(z => z.row === 2)).toBe(false); expect(run.units.some(u => u.kind === 'mine')).toBe(false);
+    run.place('chainsaw', 3, 3); run.zombies.push(zombie('welder', 3, 4.2)); advance(run, .2); expect(run.zombies.some(z => z.row === 3)).toBe(false); expect(run.units.find(u => u.kind === 'chainsaw')!.busy).toBeGreaterThan(15);
+    run.place('wall', 4, 4); run.zombies.push({ ...zombie('brute', 4, 5.05), id: 7777 }); advance(run, 2.2); expect(run.units.some(u => u.kind === 'wall' && u.row === 4)).toBe(false);
   });
-  it('requires real arithmetic, play actions and executed rules for mission completion', () => {
-    const r=builtRun(); r.launch(); expect(yardMissionPassed(YARD_MISSIONS[0],parse('string background = "night";'),r.snapshot())).toBe(true);
-    expect(yardMissionPassed(YARD_MISSIONS[4],parse('int bladeDamage = 35;'),r.snapshot())).toBe(false);
-    expect(yardMissionPassed(YARD_MISSIONS[4],parse('int bladeDamage = 25 + 10;'),r.snapshot())).toBe(true);
-    const p=parse('int chargeRate = 7; bool autoCollect = true;'); expect(yardMissionPassed(YARD_MISSIONS[5],p,r.snapshot())).toBe(false);
-    r.setProgram(p);r.interact('saw',2,0);advance(r,3.2);r.collectAll();expect(yardMissionPassed(YARD_MISSIONS[5],p,r.snapshot())).toBe(true);
-    const rule=parse('bool doubleShot = false;\nif (kills >= 3) { doubleShot = true; }');r.setProgram(rule);expect(yardMissionPassed(YARD_MISSIONS[6],rule,r.snapshot())).toBe(false);
-    r.metrics.kills=3;r.step(.1);expect(yardMissionPassed(YARD_MISSIONS[6],rule,r.snapshot())).toBe(true);
+  it('makes power from falling batteries and chargers, with auto collect, and none falls at night', () => {
+    const run = new YardRun(); run.level = 2; run.launch(); run.place('charger', 1, 0); const start = run.power;
+    advance(run, 7); expect(run.batteries.some(b => b.sky)).toBe(true); expect(run.batteries.some(b => !b.sky)).toBe(true);
+    run.collectAll(); expect(run.power).toBeGreaterThan(start); expect(run.metrics.collected).toBeGreaterThan(0);
+    run.setProgram(parse('bool autoCollect = true; int chargeRate = 10;')); advance(run, 7); expect(run.batteries).toHaveLength(0);
+    const night = new YardRun(); night.level = 7; night.launch(); expect(night.stage.night).toBe(true); advance(night, 15); expect(night.batteries).toHaveLength(0);
   });
-  it('bounds effects, respects reduced motion and expires all feedback', () => {
-    const fx=new YardEffects(); const cue={kind:'kill' as const,row:2,x:4,text:'+50'};
-    fx.consume(Array.from({length:100},()=>cue),'#64e7d5',false);expect(fx.particles.length).toBeLessThanOrEqual(200);expect(fx.floaters.length).toBeLessThanOrEqual(24);
-    fx.step(2);expect(fx.particles).toHaveLength(0);expect(fx.floaters).toHaveLength(0);
-    fx.consume([{...cue,kind:'breach'}],'#64e7d5',true);expect(fx.shake).toBe(0);expect(fx.particles).toHaveLength(0);expect(fx.floaters).toHaveLength(1);
+  it('launches each lane sweeper once, then lets a zombie that reaches the workshop end the level', () => {
+    const run = sandbox(); run.zombies = [zombie('worker', 2, .1), { ...zombie('worker', 2, 3), id: 4 }]; advance(run, 3);
+    expect(run.sweepers.find(s => s.row === 2)!.state).not.toBe('ready'); expect(run.zombies).toHaveLength(0); expect(run.metrics.kills).toBe(2);
+    run.zombies = [zombie('runner', 2, .3)]; advance(run, 4); expect(run.phase).toBe('gameover');
   });
-  it('requires the final mission to keep an executed runtime rule in the current script', () => {
-    const r=new YardRun(), p=parse(YARD_REMIX);r.setProgram(p);r.launch();r.metrics.kills=3;r.step(.1);r.metrics.clears=1;
-    expect(yardMissionPassed(YARD_MISSIONS[7],p,r.snapshot())).toBe(true);
-    const noRule=parse('string toolColor = "teal";\nstring workshopName = "Saw Society";\nint bladeDamage = 35;\nbool doubleShot = true;\nConsole.WriteLine(workshopName);');
-    expect(yardMissionPassed(YARD_MISSIONS[7],noRule,r.snapshot())).toBe(false);
+  it('applies blade, twin, overdrive, quick hands, wall health and zombie speed mods live', () => {
+    const run = sandbox(); run.setProgram(parse('int bladeDamage = 45; bool doubleShot = true; bool overdrive = true; bool quickHands = true; int wallHealth = 3000; int zombieSpeed = 1;'));
+    run.place('saw', 0, 1); run.zombies = [zombie('welder', 0, 7)]; advance(run, .25); expect(run.blades).toHaveLength(2); expect(run.blades[0].damage).toBe(45);
+    run.place('wall', 1, 3); expect(run.units.find(u => u.kind === 'wall')!.maxHp).toBe(3000); expect(run.cooldowns.wall).toBeCloseTo(UNIT_INFO.wall.recharge / 2);
+    const x = run.zombies[0].x; advance(run, 1); expect(x - run.zombies[0].x).toBeLessThan(ZOMBIE_INFO.welder.speed / 2);
+  });
+  it('clears every level with sensible play and opens a new tool after each early level', () => {
+    for (let level = 1; level <= YARD_LEVELS.length; level++) {
+      const run = new YardRun(); run.level = level; run.launch(); playLevel(run);
+      expect(run.phase, `level ${level} ${run.stage.name}`).toBe('cleared');
+    }
+    expect(YARD_LEVELS.slice(0, 6).map(l => l.reward)).toEqual(['charger', 'wall', 'mine', 'frost', 'chainsaw', 'twin']);
+  });
+  it('saves level progress, restores it, and replays earlier levels without losing the best level', () => {
+    const run = new YardRun(); run.launch(); playLevel(run); expect(run.phase).toBe('cleared');
+    const saved = JSON.parse(JSON.stringify(run.checkpoint)); expect(saved).toMatchObject({ version: 2, level: 2, best: 2 });
+    const restored = new YardRun(saved); restored.launch(); expect(restored.level).toBe(2); expect(restored.score).toBe(run.score); expect(restored.stage.cards).toContain('charger');
+    expect(restored.playLevel(3)).toBe(false); expect(restored.playLevel(1)).toBe(true); expect(restored.level).toBe(1); expect(restored.checkpoint?.best).toBe(2); expect(restored.frontier).toBe(2);
+    expect(readYardCheckpoint({ ...saved, version: 1 })).toBeNull(); expect(readYardCheckpoint({ ...saved, level: 0 })).toBeNull(); expect(readYardCheckpoint({ ...saved, metrics: {} })).toBeNull();
   });
 });
