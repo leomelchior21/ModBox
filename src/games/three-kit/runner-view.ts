@@ -3,45 +3,38 @@ import type { ArcadeCue } from '../premium-kit/core';
 import { RunnerRun, runnerFrame, LANE, type RunnerObstacle, type RunnerPickup } from './runner';
 import { World, instances, material, mesh, label, batchScenery } from './world';
 import { heroModel, chaserModel, pickupModel, haloTexture, runnerTextures, type Hero, type Chaser } from './runner-models';
+import { WorldWeather } from './weather';
+import { applyLook, weatherLight } from './looks';
+import { subwayWorld, templeWorld, type SubwayWorld, type TempleWorld } from './runner-worlds';
 
 type Transform = { x: number; y: number; z: number; sx: number; sy: number; sz: number; yaw: number };
-const SKIES = {
-  subway: { day: ['#2f86da', '#8fd0ff', '#e9f6ff', '#cfe9f7'], dusk: ['#36387e', '#ef8a6a', '#ffd9a2', '#e7a98c'], night: ['#070b24', '#232a66', '#4b3f80', '#252a50'] },
-  temple: { day: ['#58a9d4', '#b9dccd', '#d4e4c8', '#c2d8bf'], dusk: ['#45357a', '#ee8659', '#ffd28a', '#c58a6c'], night: ['#060f1d', '#17304a', '#355466', '#1a2c40'] },
-} as const;
-const TRAIN_LIVERIES = [['#e8473c', '#ffd23d'], ['#2f6fd6', '#ffffff'], ['#22a06b', '#f2f2f2'], ['#f08a24', '#2b2b2b'], ['#8a4bd6', '#ffd0f0']];
-
 export class RunnerView extends World<RunnerRun> {
   private course = new T.Group(); private hero: Hero; private chaser: Chaser; private cameraYaw = 0; private camPos = new T.Vector3(); private camReady = false;
   private hazards: { model: T.Group; obstacle: RunnerObstacle; flames: T.Mesh[] }[] = []; private pickups: { model: T.Group; pickup: RunnerPickup }[] = [];
   private turnSigns: { model: T.Object3D; at: number }[] = []; private torches: T.Mesh[] = [];
   private coins: T.InstancedMesh | null = null; private coinCount = 0; private dummy = new T.Object3D();
   private halo = haloTexture(); private tex = runnerTextures(false); private mood = ''; private sky: T.CanvasTexture | null = null;
-  private shot: string | null = null; private shotKey = '';
+  private shot: string | null = null; private shotKey = ''; private weather: WorldWeather; private worldKey = ''; private moons: T.Mesh[] = [];
   constructor(canvas: HTMLCanvasElement, run: RunnerRun) {
     super(canvas, run, run.theme === 'temple' ? '#a8ccb7' : '#cfe9f7');
     this.hero = heroModel(this.shapes, this.paint, run.theme === 'subway'); this.chaser = chaserModel(this.shapes, run.theme === 'subway');
-    this.scene.add(this.hero.root, this.chaser.root, this.course); this.remix.character(this.hero.figure);
+    this.scene.add(this.hero.root, this.chaser.root, this.course); this.remix.character(this.hero.figure); this.remix.ownWorld(true); this.weather = new WorldWeather(this.scene);
     (this.camera as T.PerspectiveCamera).far = 260; this.camera.updateProjectionMatrix(); this.floaterScale = .5;
   }
   private frame(distance: number, lateral = 0) { const p = runnerFrame(distance, this.run.theme, this.run.level); return { x: p.x + Math.cos(p.yaw) * lateral, z: p.z - Math.sin(p.yaw) * lateral, yaw: p.yaw }; }
   private place(root: T.Object3D, distance: number, lateral = 0, height = 0) { const p = this.frame(distance, lateral); root.position.set(p.x, height, p.z); root.rotation.y = p.yaw; }
-  /** Sky, fog and light for the stage mood, handed to the remix so the default theme keeps them. */
+  private get subway(): SubwayWorld { return subwayWorld(this.run.config.worldTheme); }
+  private get temple(): TempleWorld { return templeWorld(this.run.config.worldTheme); }
+  /** Sky, fog and light for the world and the stage mood. */
   private setMood() {
-    const run = this.run, mood = run.mood, key = `${run.theme}|${mood}`; if (key === this.mood) return; this.mood = key;
-    const [top, mid, bottom, fog] = SKIES[run.theme][mood], c = document.createElement('canvas'); c.width = 64; c.height = 512; const g = c.getContext('2d')!, gradient = g.createLinearGradient(0, 0, 0, 512);
-    gradient.addColorStop(0, top); gradient.addColorStop(.6, mid); gradient.addColorStop(1, bottom); g.fillStyle = gradient; g.fillRect(0, 0, 64, 512);
-    if (mood === 'night') for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(255,255,255,${.3 + (i % 5) * .14})`; g.fillRect((i * 37) % 64, (i * 53) % 300, 1, 1); }
-    this.sky?.dispose(); this.sky = new T.CanvasTexture(c); this.sky.colorSpace = T.SRGBColorSpace;
-    const temple = run.theme === 'temple', near = temple ? 12 : mood === 'night' ? 30 : 50; this.remix.setBase(this.sky, new T.Fog(fog, near, temple ? 80 : 190));
-    this.sun.color.set(mood === 'day' ? '#fff3dc' : mood === 'dusk' ? '#ffb27a' : '#9fb4ff'); this.sun.intensity = mood === 'day' ? 2.5 : mood === 'dusk' ? 2 : .8;
-    const hemi = this.scene.children.find(o => o instanceof T.HemisphereLight) as T.HemisphereLight | undefined; if (hemi) hemi.intensity = mood === 'night' ? .55 : 1.15;
-    this.tex.dispose(); this.tex = runnerTextures(mood === 'night');
+    const run = this.run, mood = run.mood, world = run.theme === 'temple' ? this.temple : this.subway, key = `${run.theme}|${mood}|${run.config.worldTheme}`; if (key === this.mood) return; this.mood = key;
+    this.sky?.dispose(); this.sky = applyLook(this.scene, this.sun, world.look[mood], this.weather);
+    this.tex.dispose(); this.tex = runnerTextures(mood === 'night' || (run.theme === 'subway' && this.subway.glowWindows));
   }
   protected rebuild(): void {
-    this.setMood();
+    this.setMood(); this.worldKey = this.run.config.worldTheme ?? 'classic';
     this.scene.remove(this.course); this.disposeStage(this.course); this.course = new T.Group(); this.scene.add(this.course);
-    this.hazards = []; this.pickups = []; this.turnSigns = []; this.torches = []; this.coins = null; this.cameraYaw = 0; this.camReady = false;
+    this.hazards = []; this.pickups = []; this.turnSigns = []; this.torches = []; this.moons = []; this.coins = null; this.cameraYaw = 0; this.camReady = false;
     if (this.run.theme === 'subway') this.buildSubway(); else this.buildTemple();
     for (const o of this.run.obstacles) this.buildObstacle(o);
     batchScenery(this.course);
@@ -60,23 +53,10 @@ export class RunnerView extends World<RunnerRun> {
       const x = lane * LANE; ballast.push({ x, y: -.12, z: -at, sx: 1.9, sy: .2, sz: 2.02, yaw: 0 }); ties.push({ x, y: .03, z: -at, sx: 1.6, sy: .1, sz: .26, yaw: 0 });
       for (const side of [-1, 1]) rails.push({ x: x + side * .5, y: .13, z: -at, sx: .07, sy: .12, sz: 2.02, yaw: 0 });
     }
-    const gravel = material('#ffffff', .95); gravel.map = this.tex.ballast; this.tex.ballast.repeat.set(2, 2);
-    instances(s.block, gravel, ballast, this.course); instances(s.block, material('#4a3a2e', .9), ties, this.course); instances(s.block, material('#c9d3dc', .25, .85), rails, this.course);
+    const w = this.subway, gravel = material(w.ballast, .95); gravel.map = this.tex.ballast; this.tex.ballast.repeat.set(2, 2);
+    instances(s.block, gravel, ballast, this.course); instances(s.block, material(w.ties, .9), ties, this.course); instances(s.block, material('#c9d3dc', .25, .85), rails, this.course);
     s.cube(this.course, material('#5c524a', .95), 0, -.3, mid, 7.2, .3, length, false);
-    // Walkways, graffiti walls and the city beyond.
-    const concrete = material('#b9b4ac', .9), wall = material('#ffffff', .85); const graffiti = this.tex.graffiti.clone(); graffiti.needsUpdate = true; graffiti.repeat.set(length / 14, 1); wall.map = graffiti;
-    for (const side of [-1, 1]) {
-      s.cube(this.course, concrete, side * 4.25, .15, mid, 1.2, .6, length, false); s.cube(this.course, wall, side * 5.2, 1.4, mid, .5, 3.4, length, false);
-      s.cube(this.course, material('#8f8a82', .9), side * 5.2, 3.16, mid, .7, .14, length, false);
-    }
-    const buildingColors = ['#f2a65a', '#6fb7e9', '#ef6f6c', '#9ad17a', '#c792ea', '#f6d365'], classes = buildingColors.map((color, i) => {
-      const m = material(color, .8); const facade = this.tex.facade.clone(); facade.needsUpdate = true; facade.repeat.set(2 + i % 2, 3 + i % 3); m.map = facade;
-      if (night) { m.emissiveMap = facade; m.emissive.set('#ffffff'); m.emissiveIntensity = .55; } return { m, w: 7 + i % 2 * 3, h: 10 + (i % 3) * 7 };
-    });
-    for (let at = start; at < end; at += 9) for (const side of [-1, 1]) {
-      const k = classes[Math.abs(Math.floor(at / 9) * 7 + side * 3) % classes.length], x = side * (9.5 + (Math.abs(at) % 3)); s.cube(this.course, k.m, x, k.h / 2 - .3, -at, k.w, k.h, 8.6, false);
-      if (Math.abs(at) % 27 < 9) { s.cube(this.course, material('#7b8794', .6, .4), x, k.h + .6, -at, 1.6, 1.2, 1.6, false); }
-    }
+    this.subwaySides(start, end, length, mid, night);
     // Overhead line gantries, a footbridge now and then, and stations at both ends.
     const steel = material('#59626e', .5, .6), wire = material('#2a2e35', .6);
     for (let at = 10; at < end; at += 24) { for (const side of [-1, 1]) s.cube(this.course, steel, side * 4.9, 3.2, -at, .25, 6.4, .25, false); s.cube(this.course, steel, 0, 6.3, -at, 10, .22, .22, false); }
@@ -89,6 +69,71 @@ export class RunnerView extends World<RunnerRun> {
       const station = new T.Group(); station.position.set(0, 0, -at); this.course.add(station); const roof = material('#2f3a4f', .6, .3);
       for (const side of [-1, 1]) { s.cube(station, material('#d9d2c6', .8), side * 4.25, .55, 0, 1.3, .3, 16, false); for (const z of [-6, 0, 6]) s.cube(station, steel, side * 4.6, 2.6, z, .2, 4.4, .2, false); }
       s.cube(station, roof, 0, 4.9, 0, 10.4, .3, 16, false); const sign = label(text, '#ffffff', '#2f6fd6ee'); sign.sprite.scale.set(5, 1.56, 1); sign.sprite.position.set(0, 4.1, 7.9); station.add(sign.sprite);
+    }
+  }
+  /** Walkways, walls and the world beyond the tracks, built for the chosen subway world. */
+  private subwaySides(start: number, end: number, length: number, mid: number, night: boolean) {
+    const s = this.shapes, w = this.subway, c = this.course;
+    const concrete = material(w.walls === 'ice' ? '#e8f4fc' : w.walls === 'rock' ? '#8a4a30' : w.walls === 'fence' ? '#efe2c0' : '#b9b4ac', .9);
+    for (const side of [-1, 1]) s.cube(c, concrete, side * 4.25, .15, mid, 1.2, .6, length, false);
+    if (w.walls === 'graffiti' || w.walls === 'neon') {
+      const wall = material(w.wall, .85); if (w.walls === 'graffiti') { const graffiti = this.tex.graffiti.clone(); graffiti.needsUpdate = true; graffiti.repeat.set(length / 14, 1); wall.map = graffiti; }
+      for (const side of [-1, 1]) { s.cube(c, wall, side * 5.2, 1.4, mid, .5, 3.4, length, false); s.cube(c, material(w.trim, .9), side * 5.2, 3.16, mid, .7, .14, length, false); }
+      if (w.walls === 'neon') for (const [y, color] of [[2.5, '#ff4fd8'], [.9, '#38e8ff']] as const) for (const side of [-1, 1]) { const strip = mesh(s.block, new T.MeshBasicMaterial({ color, toneMapped: false }), c, side * 4.93, y, mid, false); strip.scale.set(.04, .07, length); }
+    } else if (w.walls === 'fence') {
+      const posts: Transform[] = [], rails: Transform[] = [];
+      for (let at = start; at < end; at += 2.5) for (const side of [-1, 1]) posts.push({ x: side * 4.85, y: .6, z: -at, sx: .1, sy: 1.2, sz: .1, yaw: 0 });
+      instances(s.block, material('#ffffff', .6), posts, c); for (const side of [-1, 1]) for (const y of [.75, 1.15]) rails.push({ x: side * 4.85, y, z: mid, sx: .06, sy: .06, sz: length, yaw: 0 }); instances(s.block, material(w.trim, .5), rails, c);
+    } else if (w.walls === 'ice') {
+      const ice = new T.MeshStandardMaterial({ color: w.wall, roughness: .08, metalness: .1, transparent: true, opacity: .78 });
+      for (const side of [-1, 1]) s.cube(c, ice, side * 5.2, 1.2, mid, .6, 2.6, length, false);
+      const icicles: Transform[] = []; for (let at = start; at < end; at += 1.3) for (const side of [-1, 1]) icicles.push({ x: side * 4.88, y: 2.2, z: -at, sx: .12, sy: .5 + (Math.abs(at * 7) % 5) * .1, sz: .12, yaw: 0 });
+      instances(new T.ConeGeometry(1, 1, 5).rotateX(Math.PI), material('#e8f8ff', .1), icicles, c);
+    } else {
+      const rocks: Transform[] = []; for (let at = start; at < end; at += 2.2) for (const side of [-1, 1]) for (let k = 0; k < 3; k++) rocks.push({ x: side * (5.4 + k * .4), y: .6 + k * 1.3, z: -at - k * .7, sx: 1.4 - k * .2, sy: 1.3, sz: 1.5, yaw: at + k });
+      instances(new T.DodecahedronGeometry(1, 0), material(w.wall, .95), rocks, c);
+    }
+    const ground = (color: string, x: number) => s.cube(c, material(color, .95), x, -.32, mid, 40, .3, length + 40, false);
+    if (w.skyline === 'city' || w.skyline === 'tokyo') {
+      const classes = w.buildings.map((color, i) => {
+        const m = material(color, .8); const facade = this.tex.facade.clone(); facade.needsUpdate = true; facade.repeat.set(2 + i % 2, 3 + i % 3); m.map = facade;
+        if (night || w.glowWindows) { m.emissiveMap = facade; m.emissive.set(w.skyline === 'tokyo' ? '#ffd0f4' : '#ffffff'); m.emissiveIntensity = .55; } return { m, w: 7 + i % 2 * 3, h: (w.skyline === 'tokyo' ? 16 : 10) + (i % 3) * 7 };
+      });
+      const neon = ['#ff4fd8', '#38e8ff', '#ffd23f', '#7dff9a'];
+      for (let at = start; at < end; at += 9) for (const side of [-1, 1]) {
+        const k = classes[Math.abs(Math.floor(at / 9) * 7 + side * 3) % classes.length], x = side * (9.5 + (Math.abs(at) % 3)); s.cube(c, k.m, x, k.h / 2 - .3, -at, k.w, k.h, 8.6, false);
+        if (w.skyline === 'tokyo') { const sign = mesh(s.block, new T.MeshBasicMaterial({ color: neon[Math.abs(Math.floor(at)) % 4], toneMapped: false }), c, x - side * (k.w / 2 + .1), 4 + Math.abs(at) % 5, -at + 2, false); sign.scale.set(.15, 3 + Math.abs(at) % 3, 1); }
+        else if (Math.abs(at) % 27 < 9) s.cube(c, material('#7b8794', .6, .4), x, k.h + .6, -at, 1.6, 1.2, 1.6, false);
+      }
+      if (w.skyline === 'tokyo') {
+        // Cherry blossoms along the walkways and paper lanterns strung over the tracks.
+        const trunks: Transform[] = [], blossoms: Transform[] = [], lanterns: Transform[] = [];
+        for (let at = start + 4; at < end; at += 11) for (const side of [-1, 1]) { trunks.push({ x: side * 6.6, y: 1.4, z: -at, sx: .16, sy: 2.8, sz: .16, yaw: 0 }); for (let k = 0; k < 3; k++) blossoms.push({ x: side * 6.6 + (k - 1) * .6, y: 3.1 + (k % 2) * .4, z: -at + (k - 1) * .4, sx: 1, sy: .8, sz: 1, yaw: 0 }); }
+        for (let at = start + 10; at < end; at += 24) for (let i = 0; i < 7; i++) lanterns.push({ x: -3.6 + i * 1.2, y: 5.5 - Math.sin(i / 6 * Math.PI) * .5, z: -at, sx: .22, sy: .3, sz: .22, yaw: 0 });
+        instances(s.cylinder, material('#5a3a3a', .9), trunks, c); instances(new T.IcosahedronGeometry(1, 1), material('#ffb7d5', .8), blossoms, c); instances(new T.SphereGeometry(1, 10, 8), new T.MeshBasicMaterial({ color: '#ff5a4a', toneMapped: false }), lanterns, c);
+      }
+    } else if (w.skyline === 'beach') {
+      const sea = new T.Mesh(new T.PlaneGeometry(120, length + 60), new T.MeshStandardMaterial({ color: '#1fb3d6', roughness: .15, metalness: .3 })); sea.rotation.x = -Math.PI / 2; sea.position.set(-66, -.4, mid); c.add(sea);
+      const sand = ground('#f2dfae', 24); sand.receiveShadow = true; s.cube(c, material('#f2dfae', .95), -9, -.35, mid, 9, .3, length + 40, false);
+      const trunks: Transform[] = [], fronds: Transform[] = [], houses: Transform[] = [];
+      for (let at = start; at < end; at += 7) { const side = Math.floor(at / 7) % 2 ? 1 : -1, x = side * (7.5 + Math.abs(at) % 3); trunks.push({ x, y: 2.2, z: -at, sx: .2, sy: 4.4, sz: .2, yaw: 0 }); for (let k = 0; k < 6; k++) fronds.push({ x: x + Math.cos(k * 1.05) * .9, y: 4.4, z: -at + Math.sin(k * 1.05) * .9, sx: .9, sy: .08, sz: .3, yaw: -k * 1.05 }); }
+      for (let at = start; at < end; at += 10) houses.push({ x: 14 + Math.abs(at) % 4, y: 1.8, z: -at, sx: 5, sy: 3.6, sz: 6, yaw: 0 });
+      instances(s.cylinder, material('#9a7a52', .9), trunks, c); instances(s.block, material('#3aa860', .8), fronds, c);
+      w.buildings.forEach((color, i) => instances(s.block, material(color, .85), houses.filter((_, k) => k % w.buildings.length === i), c));
+    } else if (w.skyline === 'arctic') {
+      for (const side of [-1, 1]) ground('#f4f8fc', side * 25);
+      const pines: Transform[] = [], caps: Transform[] = [], peaks: Transform[] = [];
+      for (let at = start; at < end; at += 5) for (const side of [-1, 1]) { const x = side * (8 + Math.abs(at * 3) % 7); pines.push({ x, y: 1.8, z: -at, sx: 1.4, sy: 3.6, sz: 1.4, yaw: 0 }); caps.push({ x, y: 3.3, z: -at, sx: .7, sy: 1, sz: .7, yaw: 0 }); }
+      for (let at = start; at < end; at += 30) for (const side of [-1, 1]) peaks.push({ x: side * (40 + Math.abs(at) % 20), y: 8, z: -at, sx: 18, sy: 22, sz: 18, yaw: at });
+      instances(new T.ConeGeometry(1, 1, 7), material('#2f6b55', .85), pines, c); instances(new T.ConeGeometry(1, 1, 7), material('#ffffff', .7), caps, c); instances(new T.ConeGeometry(1, 1, 6), material('#e8f2fa', .6), peaks, c);
+    } else {
+      for (const side of [-1, 1]) ground('#c2683f', side * 25);
+      const domes: Transform[] = [], rocks: Transform[] = [];
+      for (let at = start; at < end; at += 16) for (const side of [-1, 1]) domes.push({ x: side * (12 + Math.abs(at) % 6), y: 0, z: -at, sx: 4, sy: 4, sz: 4, yaw: 0 });
+      for (let at = start; at < end; at += 4) for (const side of [-1, 1]) rocks.push({ x: side * (8 + Math.abs(at * 5) % 14), y: .2, z: -at, sx: .7 + Math.abs(at) % 3 * .4, sy: .6, sz: .9, yaw: at });
+      instances(new T.SphereGeometry(1, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), new T.MeshStandardMaterial({ color: '#cfe8ff', roughness: .05, metalness: .2, transparent: true, opacity: .55 }), domes, c);
+      instances(new T.DodecahedronGeometry(1, 0), material('#8a3a24', .95), rocks, c);
+      const moons = new T.MeshBasicMaterial({ color: '#f1d6c0', fog: false }); for (const [x, y, r] of [[-60, 55, 6], [40, 70, 3.5]]) { const moon = mesh(new T.SphereGeometry(r, 16, 12), moons, c, x, y, -this.run.distance - 160, false); this.moons.push(moon); }
     }
   }
   private buildTemple() {
@@ -104,41 +149,28 @@ export class RunnerView extends World<RunnerRun> {
     }
     // Corners get a square landing so the causeway turns cleanly.
     for (const t of run.turns) { const f = this.frame(t.at); tiles.push({ x: f.x, y: -.18, z: f.z, sx: 7.4, sy: .34, sz: 7.4, yaw: f.yaw }); walls.push({ x: f.x, y: -1, z: f.z, sx: 8, sy: 1.6, sz: 8, yaw: f.yaw }); piers.push({ x: f.x, y: -16, z: f.z, sx: 3, sy: 30, sz: 3, yaw: f.yaw }); }
-    const floor = material('#ffffff', .85); floor.map = this.tex.stone; const curb = material('#d9cfb8', .85); curb.map = this.tex.stone;
+    const w = this.temple, floor = material(w.floor, .85); floor.map = this.tex.stone; const curb = material(w.curb, .85); curb.map = this.tex.stone;
     const wallGeometry = new T.BoxGeometry(1, 1, 1), uv = wallGeometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * 14);
-    const wallMat = material(night ? '#5d6670' : '#9a9282', .95); wallMat.map = this.tex.wall;
+    const wallMat = material(new T.Color(w.wall).multiplyScalar(night ? .65 : 1).getHexString().replace(/^/, '#'), .95); wallMat.map = this.tex.wall;
     instances(s.block, floor, tiles, this.course); instances(s.block, curb, curbs, this.course, true); instances(s.block, wallMat, walls, this.course); instances(wallGeometry, wallMat, piers, this.course);
-    // The abyss: a jungle canopy far below and drifting mist.
-    const canopy: Transform[] = [], leaves = material(night ? '#1e3a2e' : '#2f6b45', .9);
-    for (let at = -30; at < run.goal + 60; at += 7) for (const side of [-1, 1]) for (let k = 0; k < 2; k++) {
-      const p = this.frame(at, side * (14 + k * 14 + (at * 7 % 9))), r = 5 + (at * 3 % 4); canopy.push({ x: p.x, y: -26 + k * 3, z: p.z, sx: r, sy: r * .7, sz: r, yaw: 0 });
-    }
-    instances(new T.SphereGeometry(1, 10, 8), leaves, canopy, this.course);
-    for (let i = 0; i < 26; i++) { const p = this.frame(i * (run.goal / 26), (i % 2 ? -1 : 1) * (9 + i % 4 * 4)), mist = new T.Sprite(new T.SpriteMaterial({ map: this.halo, color: night ? '#5b7a8c' : '#e8f4ee', transparent: true, opacity: .35, depthWrite: false })); mist.scale.set(26, 9, 1); mist.position.set(p.x, -8 - i % 3 * 4, p.z); this.course.add(mist); }
+    this.templeAbyss(night);
     // Pillars with fire bowls, vines over the edge, and stepped temples on the horizon.
-    const stone = material('#bfb194', .85), flame = new T.MeshBasicMaterial({ color: '#ffb340' });
+    const stone = material(w.pillar, .85), flame = new T.MeshBasicMaterial({ color: w.flame });
     for (let at = 6; at < run.goal + 20; at += 18) {
       if (run.turns.some(t => Math.abs(t.at - at) < 6)) continue;
       for (const side of [-1, 1]) {
         const p = this.frame(at, side * 4.3), pillar = new T.Group(); pillar.position.set(p.x, 0, p.z); pillar.rotation.y = p.yaw; this.course.add(pillar);
-        s.cube(pillar, stone, 0, 1.4, 0, .7, 2.8, .7); s.cube(pillar, material('#d8c9a4', .8), 0, 2.9, 0, .95, .25, .95); s.tube(pillar, material('#5a4636', .7, .3), 0, 3.15, 0, .3, .25);
+        s.cube(pillar, stone, 0, 1.4, 0, .7, 2.8, .7); s.cube(pillar, material(w.cap, .8), 0, 2.9, 0, .95, .25, .95); s.tube(pillar, material('#5a4636', .7, .3), 0, 3.15, 0, .3, .25);
         const fire = mesh(new T.ConeGeometry(.24, .7, 8), flame, pillar, 0, 3.6, 0, false); fire.userData.dynamic = true; this.torches.push(fire);
-        const glow = new T.Sprite(new T.SpriteMaterial({ map: this.halo, color: '#ff9a3c', blending: T.AdditiveBlending, transparent: true, depthWrite: false })); glow.scale.setScalar(night ? 3.2 : 1.8); glow.position.y = 3.6; pillar.add(glow);
-        for (let v = 0; v < 3; v++) { const vine = s.tube(pillar, material('#3f7a3a', .8), (v - 1) * .5, -1.4 - v * .5, side * .1, .05, 3 + v, false); vine.position.x += side * .1; }
+        const glow = new T.Sprite(new T.SpriteMaterial({ map: this.halo, color: w.flame, blending: T.AdditiveBlending, transparent: true, depthWrite: false })); glow.scale.setScalar(night ? 3.2 : 1.8); glow.position.y = 3.6; pillar.add(glow);
+        if (w.abyss === 'canopy') for (let v = 0; v < 3; v++) { const vine = s.tube(pillar, material('#3f7a3a', .8), (v - 1) * .5, -1.4 - v * .5, side * .1, .05, 3 + v, false); vine.position.x += side * .1; }
       }
     }
-    // Stepped temples far out in the haze: unfogged silhouettes a shade darker than the mist.
-    const haze = new T.Color(SKIES.temple[run.mood][3]).multiplyScalar(night ? .7 : .78), silhouette = new T.MeshBasicMaterial({ color: haze, fog: false });
-    const centre = this.frame(run.goal / 2);
-    for (let i = 0; i < 9; i++) {
-      const angle = i / 9 * Math.PI * 2 + .3, r = 190 + (i % 3) * 30, temple = new T.Group(); temple.position.set(centre.x + Math.cos(angle) * r, -30, centre.z + Math.sin(angle) * r); temple.scale.setScalar(1.6 + i % 3 * .4); this.course.add(temple);
-      for (let k = 0; k < 6; k++) mesh(s.block, silhouette, temple, 0, k * 3, 0, false).scale.set(24 - k * 3.6, 3, 24 - k * 3.6);
-      mesh(s.block, silhouette, temple, 0, 19.5, 0, false).scale.set(4, 4, 4);
-    }
+    this.templeHorizon(night);
     // Corners: a glowing arrow, an arch and the direction.
     for (const t of run.turns) {
       const f = this.frame(t.at), gate = new T.Group(); gate.position.set(f.x, 0, f.z); gate.rotation.y = f.yaw; this.course.add(gate);
-      for (const side of [-1, 1]) s.cube(gate, stone, side * 3.9, 2.4, 3.6, 1, 4.8, 1); s.cube(gate, material('#d8c9a4', .8), 0, 5, 3.6, 8.8, .9, 1.2);
+      for (const side of [-1, 1]) s.cube(gate, stone, side * 3.9, 2.4, 3.6, 1, 4.8, 1); s.cube(gate, material(w.cap, .8), 0, 5, 3.6, 8.8, .9, 1.2);
       const sign = label(t.direction > 0 ? 'TURN →' : '← TURN', '#fff2b0', '#7a4a1ccc'); sign.sprite.scale.set(4.6, 1.44, 1); sign.sprite.position.set(0, 6.3, 3.6); gate.add(sign.sprite); this.turnSigns.push({ model: sign.sprite, at: t.at });
       const arrow = new T.Shape([new T.Vector2(-.5, -1.6), new T.Vector2(.5, -1.6), new T.Vector2(.5, .2), new T.Vector2(1.2, .2), new T.Vector2(0, 1.6), new T.Vector2(-1.2, .2), new T.Vector2(-.5, .2)]);
       const glyph = mesh(new T.ShapeGeometry(arrow), new T.MeshBasicMaterial({ color: '#ffd76a', transparent: true, opacity: .85 }), gate, 0, .02, 0, false); glyph.rotation.x = -Math.PI / 2; glyph.rotation.z = -t.direction * Math.PI / 2; glyph.userData.dynamic = true;
@@ -147,6 +179,33 @@ export class RunnerView extends World<RunnerRun> {
     for (const side of [-1, 1]) s.cube(finish, stone, side * 3.6, 3.5, 0, 1.4, 7, 1.6); s.cube(finish, material('#d8c9a4', .8), 0, 7.4, 0, 9, 1.2, 2);
     const idol = s.ball(finish, gold, 0, 9, 0, .7); idol.scale.y = 1.3; const banner = label('TEMPLE REACHED', '#fff2ae', '#5a3a14dd'); banner.sprite.position.set(0, 5.2, .9); banner.sprite.scale.set(5, 1.56, 1); finish.add(banner.sprite);
     const entry = new T.Group(); this.place(entry, 12); this.course.add(entry); for (const side of [-1, 1]) s.cube(entry, stone, side * 3.9, 2.4, 0, 1, 4.8, 1); s.cube(entry, material('#d8c9a4', .8), 0, 5, 0, 8.8, .9, 1.2);
+  }
+  /** What lies far below the causeway: jungle, dunes, glacier, a lava sea or clouds. */
+  private templeAbyss(night: boolean) {
+    const run = this.run, w = this.temple, c = this.course, shapes: Transform[] = [];
+    for (let at = -30; at < run.goal + 60; at += 7) for (const side of [-1, 1]) for (let k = 0; k < 2; k++) {
+      const p = this.frame(at, side * (14 + k * 14 + (at * 7 % 9))), r = 5 + (at * 3 % 4); shapes.push({ x: p.x, y: -26 + k * 3, z: p.z, sx: r, sy: w.abyss === 'dunes' ? r * .35 : w.abyss === 'glacier' ? r * 1.6 : r * .7, sz: r, yaw: at });
+    }
+    const color = new T.Color(w.abyssColor).multiplyScalar(night ? .55 : 1);
+    if (w.abyss === 'glacier') instances(new T.ConeGeometry(1, 1, 6), material(`#${color.getHexString()}`, .5), shapes.map(t => ({ ...t, y: t.y + 4 })), c);
+    else if (w.abyss === 'lava') {
+      instances(new T.DodecahedronGeometry(1, 0), material('#2a1a18', .95), shapes.map(t => ({ ...t, sy: t.sy * .5, y: t.y + 2 })), c);
+      const centre = this.frame(run.goal / 2), sea = new T.Mesh(new T.PlaneGeometry(600, 600), new T.MeshBasicMaterial({ color: '#ff5a1c', toneMapped: false })); sea.rotation.x = -Math.PI / 2; sea.position.set(centre.x, -24, centre.z); c.add(sea);
+    } else if (w.abyss === 'clouds') instances(new T.SphereGeometry(1, 12, 8), new T.MeshStandardMaterial({ color, roughness: 1, emissive: '#ffffff', emissiveIntensity: night ? .05 : .25 }), shapes, c);
+    else instances(new T.SphereGeometry(1, 10, 8), material(`#${color.getHexString()}`, .9), shapes, c);
+    for (let i = 0; i < 26; i++) { const p = this.frame(i * (run.goal / 26), (i % 2 ? -1 : 1) * (9 + i % 4 * 4)), mist = new T.Sprite(new T.SpriteMaterial({ map: this.halo, color: night ? new T.Color(w.mist).multiplyScalar(.45) : w.mist, transparent: true, opacity: w.abyss === 'lava' ? .25 : .35, depthWrite: false, ...(w.abyss === 'lava' ? { blending: T.AdditiveBlending } : {}) })); mist.scale.set(26, 9, 1); mist.position.set(p.x, -8 - i % 3 * 4, p.z); c.add(mist); }
+  }
+  /** Far silhouettes in the haze: stepped temples, pyramids, ice peaks, volcanoes or floating islands. */
+  private templeHorizon(night: boolean) {
+    const run = this.run, w = this.temple, s = this.shapes, haze = new T.Color(w.look[run.mood].fog[0]).multiplyScalar(night ? .7 : .78), silhouette = new T.MeshBasicMaterial({ color: haze, fog: false }), centre = this.frame(run.goal / 2);
+    for (let i = 0; i < 9; i++) {
+      const angle = i / 9 * Math.PI * 2 + .3, r = 190 + (i % 3) * 30, g = new T.Group(); g.position.set(centre.x + Math.cos(angle) * r, -30, centre.z + Math.sin(angle) * r); g.scale.setScalar(1.6 + i % 3 * .4); this.course.add(g);
+      if (w.horizon === 'temples') { for (let k = 0; k < 6; k++) mesh(s.block, silhouette, g, 0, k * 3, 0, false).scale.set(24 - k * 3.6, 3, 24 - k * 3.6); mesh(s.block, silhouette, g, 0, 19.5, 0, false).scale.set(4, 4, 4); }
+      else if (w.horizon === 'pyramids') { const pyramid = mesh(new T.ConeGeometry(18, 26, 4), silhouette, g, 0, 13, 0, false); pyramid.rotation.y = Math.PI / 4; }
+      else if (w.horizon === 'peaks') mesh(new T.ConeGeometry(16, 40, 6), silhouette, g, 0, 20, 0, false);
+      else if (w.horizon === 'volcanoes') { mesh(new T.CylinderGeometry(5, 18, 28, 8), silhouette, g, 0, 14, 0, false); const glow = new T.Sprite(new T.SpriteMaterial({ map: this.halo, color: '#ff6a24', blending: T.AdditiveBlending, transparent: true, depthWrite: false, fog: false })); glow.scale.setScalar(26); glow.position.y = 30; g.add(glow); }
+      else { const rock = mesh(new T.ConeGeometry(12, 18, 7), silhouette, g, 0, 30, 0, false); rock.rotation.x = Math.PI; mesh(new T.CylinderGeometry(12, 12, 2, 7), new T.MeshBasicMaterial({ color: new T.Color('#7ec86a').lerp(haze, .5), fog: false }), g, 0, 40, 0, false); }
+    }
   }
   private buildObstacle(o: RunnerObstacle) {
     const s = this.shapes, model = new T.Group(), flames: T.Mesh[] = []; this.place(model, o.at, o.lane * LANE); this.course.add(model);
@@ -185,7 +244,7 @@ export class RunnerView extends World<RunnerRun> {
     this.hazards.push({ model, obstacle: o, flames });
   }
   private train(model: T.Group, o: RunnerObstacle) {
-    const s = this.shapes, [body, stripe] = TRAIN_LIVERIES[o.id % TRAIN_LIVERIES.length], paint = material(body, .45, .2), glass = material('#1d2b3c', .15, .5), roofMat = material('#c9ced6', .5, .4);
+    const s = this.shapes, liveries = this.subway.liveries, [body, stripe] = liveries[o.id % liveries.length], paint = material(body, .45, .2), glass = material('#1d2b3c', .15, .5), roofMat = material('#c9ced6', .5, .4);
     const L = o.length, z = (v: number) => -v, front = 0;
     s.cube(model, paint, 0, 1.45, z(L / 2), 1.9, 2.4, L); s.cube(model, material(stripe, .5), 0, .78, z(L / 2), 1.92, .22, L - .1);
     const roof = s.tube(model, roofMat, 0, 2.62, z(L / 2), .95, L - .2); roof.rotation.x = Math.PI / 2; roof.scale.z = .95 * .28;
@@ -205,6 +264,9 @@ export class RunnerView extends World<RunnerRun> {
     }
   }
   protected update(dt: number, reduced: boolean): void {
+    // A new world theme rebuilds the course around the runner without touching the run itself.
+    if ((this.run.config.worldTheme ?? 'classic') !== this.worldKey) { this.mood = ''; this.rebuild(); }
+    this.weather.update(dt, this.run.config.weather ?? 'clear', this.origin, this.run.config.weather === 'storm' ? 1.5 : 0, reduced); weatherLight(this.scene, this.sun, this.weather); for (const moon of this.moons) moon.position.z = this.origin.z - 160;
     const run = this.run, f = runnerFrame(run.distance, run.theme, run.level), lateral = run.x, time = reduced ? 0 : run.elapsed;
     const p = new T.Vector3(f.x + Math.cos(f.yaw) * lateral, run.y, f.z - Math.sin(f.yaw) * lateral);
     const h = this.hero; h.root.position.copy(p); h.root.rotation.y = f.yaw; this.origin.copy(p).y += 1;
@@ -250,5 +312,5 @@ export class RunnerView extends World<RunnerRun> {
     if ((run.phase === 'cleared' || run.phase === 'gameover') && key !== this.shotKey) { this.shotKey = key; try { this.shot = this.canvas.toDataURL('image/jpeg', .84); } catch { this.shot = null; } }
   }
   snapshot(): string | null { return this.shot; }
-  dispose(): void { this.halo.dispose(); this.tex.dispose(); this.sky?.dispose(); super.dispose(); }
+  dispose(): void { this.weather.dispose(); this.halo.dispose(); this.tex.dispose(); this.sky?.dispose(); super.dispose(); }
 }

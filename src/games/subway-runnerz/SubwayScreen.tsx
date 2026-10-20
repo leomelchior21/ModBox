@@ -1,4 +1,5 @@
 import type { GameScreenProps } from '../types';
+import { runnerInvites } from '../three-kit/runner-invites';
 import { PremiumScreen, type PremiumGameSpec } from '../premium-kit/PremiumScreen';
 import { subwayCatalog } from './catalog';
 import { RunnerRun, SUBWAY_STAGES, runnerStageName } from '../three-kit/runner';
@@ -15,6 +16,7 @@ export const subwaySpec: PremiumGameSpec<RunnerRun> = {
   objective: run => ({ label: `LINE ${run.level} · ${run.stageName.toUpperCase()} · ${run.goal}m`, value: run.distance, max: run.goal }),
   hints: [{ keys: '← →', label: 'switch tracks' }, { keys: '↑ ↓', label: 'jump and slide' }],
   touchHints: [{ keys: 'Swipe', label: 'left, right, up or down' }],
+  invites: runnerInvites,
   result: run => run.phase === 'cleared'
     ? { win: true, headline: `${run.score.toLocaleString()}`, caption: run.stageName, detail: `${run.coins} coins · ${run.lives} chance${run.lives === 1 ? '' : 's'} left` }
     : { win: false, caption: 'Caught!', detail: `${Math.floor(run.distance)} of ${run.goal}m · ${run.coins} coins` },

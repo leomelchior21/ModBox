@@ -94,10 +94,23 @@ export class SceneRemix {
   private buildActor(a: Actor, style: string) {
     const root = a.variant, chrome = mat(style === 'armored' ? '#35384e' : '#e4ecf2', .6), dark = mat('#19273e', .35), glow = mat(style === 'armored' ? '#ffb654' : '#52e5ed', .2, style === 'armored' ? '#ff8a37' : '#22cbd9');
     if (a.kind === 'person') {
-      box(root, chrome, 0, 1.08, 0, .74, .7, .43); box(root, glow, 0, 1.15, -.24, .35, .16, .05);
-      if (style === 'astronaut') { ball(root, chrome, 0, 1.76, 0, .39); const visor = ball(root, mat('#203453', .7), 0, 1.77, -.2, .3); visor.scale.set(1, .7, .6); box(root, dark, 0, 1.09, .32, .55, .67, .32); }
-      else { box(root, chrome, 0, 1.78, 0, .6, .5, .47); box(root, dark, 0, 1.8, -.25, .52, .18, .06); box(root, glow, 0, 1.8, -.29, .4, .05, .02); if (style === 'robot') box(root, glow, .19, 2.18, 0, .05, .4, .05); else for (const x of [-.36, .36]) { const horn = new T.Mesh(new T.ConeGeometry(.12, .45, 5), glow); horn.position.set(x, 2, 0); root.add(horn); } }
-      for (const side of [-1, 1]) { const leg = new T.Group(); leg.position.set(side * .21, .72, 0); root.add(leg); leg.userData.limb = side; box(leg, dark, 0, -.24, 0, .26, .55, .28); box(leg, chrome, 0, -.58, -.07, .3, .18, .42); const arm = new T.Group(); arm.position.set(side * .5, 1.35, 0); root.add(arm); arm.userData.limb = -side; ball(arm, chrome, 0, -.05, 0, .2); box(arm, chrome, 0, -.32, 0, .24, .48, .25); }
+      // One rig, many outfits: body colours plus a headpiece and accessories per style.
+      const outfits: Record<string, { body: string; trim: string; skin: string; head: 'helmet' | 'bubble' | 'box' | 'hood' | 'visor' | 'wraps' }> = {
+        robot: { body: '#e4ecf2', trim: '#52e5ed', skin: '#e4ecf2', head: 'box' }, astronaut: { body: '#f3f5fa', trim: '#ff8a3d', skin: '#f3f5fa', head: 'bubble' },
+        armored: { body: '#35384e', trim: '#ffb654', skin: '#35384e', head: 'box' }, skater: { body: '#ff5a8a', trim: '#2fe0c8', skin: '#f2c7a5', head: 'helmet' },
+        ninja: { body: '#1b1d29', trim: '#e3202f', skin: '#1b1d29', head: 'hood' }, knight: { body: '#b9c2cf', trim: '#2d6be0', skin: '#b9c2cf', head: 'visor' },
+        mummy: { body: '#e8dcc0', trim: '#c8b48e', skin: '#e8dcc0', head: 'wraps' },
+      };
+      const o = outfits[style] ?? outfits.robot, suit = mat(o.body, style === 'robot' || style === 'knight' || style === 'armored' ? .6 : 0), trimMat = mat(o.trim, .2, style === 'robot' || style === 'armored' ? o.trim : undefined), skinMat = mat(o.skin);
+      box(root, suit, 0, 1.08, 0, .74, .7, .43); box(root, trimMat, 0, 1.15, -.24, .35, .16, .05);
+      if (o.head === 'bubble') { ball(root, suit, 0, 1.76, 0, .39); const visor = ball(root, mat('#203453', .7), 0, 1.77, -.2, .3); visor.scale.set(1, .7, .6); box(root, dark, 0, 1.09, .32, .55, .67, .32); }
+      else if (o.head === 'helmet') { ball(root, skinMat, 0, 1.74, 0, .3); const shell = ball(root, trimMat, 0, 1.84, .02, .33); shell.scale.set(1, .7, 1.05); box(root, dark, 0, 1.36, .28, .5, .55, .14); }
+      else if (o.head === 'hood') { ball(root, suit, 0, 1.76, 0, .33); box(root, skinMat, 0, 1.78, -.27, .42, .1, .06); box(root, mat('#f2c7a5'), 0, 1.78, -.29, .36, .07, .03); const tail = box(root, trimMat, .1, 1.72, .38, .1, .08, .55); tail.rotation.x = -.5; box(root, trimMat, 0, 1.92, 0, .7, .08, .7); }
+      else if (o.head === 'visor') { box(root, suit, 0, 1.78, 0, .55, .55, .5); box(root, dark, 0, 1.8, -.26, .45, .07, .03); const plume = box(root, trimMat, 0, 2.15, .05, .08, .3, .45); plume.rotation.x = .2; box(root, trimMat, 0, 1.1, -.24, .5, .5, .04); }
+      else if (o.head === 'wraps') { ball(root, suit, 0, 1.76, 0, .33); for (let k = 0; k < 4; k++) { const band = box(root, trimMat, 0, 1.6 + k * .1, 0, .67, .035, .67); band.rotation.y = k * .3; } for (const side of [-1, 1]) ball(root, mat('#ffd23f', .2, '#ff9a1f'), side * .12, 1.78, -.3, .05); }
+      else { box(root, suit, 0, 1.78, 0, .6, .5, .47); box(root, dark, 0, 1.8, -.25, .52, .18, .06); box(root, trimMat, 0, 1.8, -.29, .4, .05, .02); if (style === 'robot') box(root, trimMat, .19, 2.18, 0, .05, .4, .05); else for (const x of [-.36, .36]) { const horn = new T.Mesh(new T.ConeGeometry(.12, .45, 5), trimMat); horn.position.set(x, 2, 0); root.add(horn); } }
+      if (style === 'skater') { const board = box(root, mat('#2a2a35'), 0, .05, 0, .3, .05, 1.1); board.position.y = .03; for (const z of [-.38, .38]) for (const x of [-.12, .12]) ball(root, trimMat, x, .0, z, .05); }
+      for (const side of [-1, 1]) { const leg = new T.Group(); leg.position.set(side * .21, .72, 0); root.add(leg); leg.userData.limb = side; box(leg, style === 'skater' ? dark : suit, 0, -.24, 0, .26, .55, .28); box(leg, style === 'ninja' ? suit : trimMat, 0, -.58, -.07, .3, .18, .42); const arm = new T.Group(); arm.position.set(side * .5, 1.35, 0); root.add(arm); arm.userData.limb = -side; ball(arm, suit, 0, -.05, 0, .2); box(arm, style === 'mummy' ? trimMat : suit, 0, -.32, 0, .24, .48, .25); }
     } else if (a.kind === 'vehicle') {
       box(root, dark, 0, -.05, 0, 3.4, .3, 1.85); box(root, chrome, -.1, .45, 0, 3.25, .75, 1.9); box(root, dark, -.35, 1.07, 0, 1.7, .65, 1.75); box(root, glow, .4, 1.07, 0, .08, .39, 1.79); for (const z of [-.78, .78]) { box(root, glow, 1.59, .55, z, .08, .2, .22); box(root, chrome, -.4, 1.5, z, 1.3, .16, .17); } if (style === 'robot') for (const z of [-.5, .5]) box(root, glow, -1.8, .25, z, .5, .3, .3);
     } else if (a.kind === 'vacuum') {

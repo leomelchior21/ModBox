@@ -12,6 +12,8 @@ import { subwayCatalog } from '../subway-runnerz/catalog';
 import { teamCatalog } from '../team-counters/catalog';
 import { monsterCatalog } from '../monster-strider/catalog';
 import { roombaCatalog } from '../roomba-run/catalog';
+import { SUBWAY_WORLDS, TEMPLE_WORLDS, RUNNER_WEATHER } from './runner-worlds';
+import { runnerInvites } from './runner-invites';
 import type { ArcadeConfig, ArcadeRun } from '../premium-kit/core';
 
 const games = [
@@ -108,6 +110,22 @@ describe('3D runner routes and collision rules', () => {
     run.setProgram(parseGameScript<ArcadeConfig>('bool coinMagnet = true;\nbool relicShield = false;\nif (distance >= 100) { relicShield = true; }', 'csharp', templeCatalog.schema)); run.step(.01); expect(run.coins).toBe(1); expect(run.metrics.assisted).toBe(1);
     run.distance = 100; run.step(.01); expect(run.config.overdrive).toBe(true);
     run.pointer('down', 500, 300, 1); run.pointer('up', 700, 300, 2); expect(run.lane).toBe(0); run.pointer('move', 700, 300, 1); expect(run.lane).toBe(1);
+  });
+});
+
+describe('runner worlds, weather and coaching', () => {
+  it('floats jumps in low gravity and plays the weather', () => {
+    const peak = (theme: 'subway' | 'temple', world: string) => { const run = new RunnerRun(theme); run.launch(); run.config.worldTheme = world; run.action('primary'); let top = 0; for (let i = 0; i < 120; i++) { run.step(1 / 60); top = Math.max(top, run.y); } return top; };
+    expect(peak('subway', 'mars')).toBeGreaterThan(peak('subway', 'classic') * 1.4); expect(peak('temple', 'sky')).toBeGreaterThan(peak('temple', 'classic') * 1.25);
+    const run = new RunnerRun('subway'); run.launch(); const base = run.speed; run.config.weather = 'snow'; expect(run.speed).toBeLessThan(base); run.config.weather = 'rain'; run.action('down'); expect(run.slide).toBeGreaterThan(.9);
+    for (const [catalog, worlds] of [[subwayCatalog, SUBWAY_WORLDS], [templeCatalog, TEMPLE_WORLDS]] as const) { expect(Object.keys(worlds)).toEqual(catalog.mods.find(m => m.id === 'worldTheme')!.values); for (const w of catalog.mods.find(m => m.id === 'weather')!.values!) expect(RUNNER_WEATHER[w], w).toBeDefined(); }
+  });
+  it('coaches from what tripped the runner, in code that parses', () => {
+    const run = new RunnerRun('temple'); run.launch(); run.crashes.turn = 2;
+    expect(runnerInvites(run, 'lose')[0].code).toBe('bool relicShield = true;'); expect(runnerInvites(run, 'struggle')[0].code).toBe('bool relicShield = true;');
+    const subway = new RunnerRun('subway'); subway.launch(); subway.crashes.train = 3; expect(runnerInvites(subway, 'lose')[0].code).toBe('bool hoverboard = true;');
+    expect(runnerInvites(subway, 'win')[0].code).toBe('string worldTheme = "tokyo";');
+    for (const r of [run, subway]) for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of runnerInvites(r, moment)) expect(parseGameScript<ArcadeConfig>(invite.code, 'csharp', r.schema).ok, invite.code).toBe(true);
   });
 });
 

@@ -1,4 +1,5 @@
 import type { GameScreenProps } from '../types';
+import { runnerInvites } from '../three-kit/runner-invites';
 import { PremiumScreen, type PremiumGameSpec } from '../premium-kit/PremiumScreen';
 import { templeCatalog } from './catalog';
 import { RunnerRun, TEMPLE_STAGES, runnerStageName } from '../three-kit/runner';
@@ -15,6 +16,7 @@ export const templeSpec: PremiumGameSpec<RunnerRun> = {
   objective: run => ({ label: `STAGE ${run.level} · ${run.stageName.toUpperCase()} · ${run.goal}m`, value: run.distance, max: run.goal }),
   hints: [{ keys: '← →', label: 'turn and change lanes' }, { keys: '↑ ↓', label: 'jump and slide' }],
   touchHints: [{ keys: 'Swipe', label: 'to turn, jump and slide' }],
+  invites: runnerInvites,
   result: run => run.phase === 'cleared'
     ? { win: true, headline: `${run.score.toLocaleString()}`, caption: run.stageName, detail: `${run.coins} coins · ${run.lives} charm${run.lives === 1 ? '' : 's'} left` }
     : { win: false, caption: 'The monkeys got you!', detail: `${Math.floor(run.distance)} of ${run.goal}m · ${run.coins} coins` },

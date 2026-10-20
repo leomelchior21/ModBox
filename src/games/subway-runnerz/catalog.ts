@@ -9,6 +9,11 @@ export const subwayCatalog = createArcadeCatalog({
   overdrive: { name: 'hoverboard', label: 'BOARD CULTURE', blurb: 'Enable BOARD / E: surf a glowing board and absorb one crash.' },
   lives: { name: 'chances', label: 'SECOND WIND', min: 1, max: 8 },
   final: 'Reach the station. Dodge trains, climb ramps onto their roofs and follow the coin trails.',
+  remix: {
+    worldTheme: { label: 'METRO LINE', blurb: 'Run another line: "tokyo" neon nights with cherry blossoms, the "beach" line by the sea, the "arctic" express or the "mars" colony, where jumps float in low gravity.', values: ['classic', 'tokyo', 'beach', 'arctic', 'mars'] },
+    characterStyle: { label: 'RUNNER STYLE', blurb: 'Become a "skater" with a board, a "ninja", a "robot" or an "astronaut".', values: ['original', 'skater', 'ninja', 'robot', 'astronaut'] },
+    weather: { label: 'CITY WEATHER', blurb: 'Rain makes slides longer and lanes slippery, snow slows the run, fog hides what is coming and a storm brings lightning.', values: ['clear', 'rain', 'snow', 'fog', 'storm'] },
+  },
   runtime: { distance: 'meters travelled', coins: 'coins collected this stage', streak: 'coin chain since your last crash' },
   extraTools: [{ id: 'subway-chain', name: 'coinRule', label: 'EARN YOUR BOARD', type: 'condition', blurb: 'Collect ten coins to make a hoverboard available.', example: 'if (coins >= 10)\n{\n    hoverboard = true;\n}', glyph: '?', unlockAt: 0 }],
 });

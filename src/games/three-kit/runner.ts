@@ -1,6 +1,7 @@
 import { ArcadeRun, clamp, type ArcadeAction } from '../premium-kit/core';
 import { templeCatalog } from '../temple-race/catalog';
 import { subwayCatalog } from '../subway-runnerz/catalog';
+import { RUNNER_WEATHER, subwayWorld, templeWorld } from './runner-worlds';
 
 export type RunnerTheme = 'temple' | 'subway';
 export type ObstacleVariant = 'barrier' | 'cone' | 'bar' | 'sign' | 'root' | 'fire' | 'vine' | 'log' | 'pit' | 'parked' | 'oncoming';
@@ -91,6 +92,8 @@ export function runnerCourse(theme: RunnerTheme, level: number) {
 
 /** Independent simulation shared by the two runners, with different routes and hazards. */
 export class RunnerRun extends ArcadeRun {
+  /** What tripped the runner this stage, so the coach can suggest the right mod. */
+  crashes: Record<'train' | 'hurdle' | 'arch' | 'gap' | 'turn', number> = { train: 0, hurdle: 0, arch: 0, gap: 0, turn: 0 };
   distance = 0; lane = 0; x = 0; y = 0; vy = 0; slide = 0; coins = 0; chain = 0;
   invulnerable = 0; shield = 0; shieldCooldown = 0; airborne = false; roof = 0; chase = 0;
   obstacles: RunnerObstacle[] = []; tokens: RunnerCoin[] = []; turns: RunnerTurn[] = []; pickups: RunnerPickup[] = [];
@@ -105,10 +108,15 @@ export class RunnerRun extends ArcadeRun {
   get mood() { return runnerMood(this.theme, this.level); }
   get nextTurn() { return this.turns.find(t => !t.passed); }
   get multiplier() { return this.powers.double > 0 ? 2 : 1; }
-  get speed() { return this.config.speed * (1 + Math.min(.3, (this.level - 1) * .035)) * (this.powers.sprint > 0 ? 1.6 : 1); }
+  get speed() { return this.config.speed * (1 + Math.min(.3, (this.level - 1) * .035)) * (this.powers.sprint > 0 ? 1.6 : 1) * this.weather.speed; }
+  /** How the chosen weather plays (speed, slide length, lane grip). */
+  get weather() { return RUNNER_WEATHER[this.config.weather ?? 'clear'] ?? RUNNER_WEATHER.clear; }
+  /** Gravity for the world: Mars and the Sky Temple make every jump float. */
+  get gravity() { return this.config.gravity * (this.theme === 'temple' ? templeWorld(this.config.worldTheme) : subwayWorld(this.config.worldTheme)).gravity; }
   protected setup(): void {
     const c = runnerCourse(this.theme, this.level); this.obstacles = c.obstacles; this.tokens = c.coins; this.turns = c.turns; this.pickups = c.pickups;
     this.distance = 0; this.lane = 0; this.x = 0; this.y = 0; this.vy = 0; this.slide = 0; this.coins = 0; this.chain = 0; this.chase = .8;
+    this.crashes = { train: 0, hurdle: 0, arch: 0, gap: 0, turn: 0 };
     this.invulnerable = 1; this.shield = 0; this.shieldCooldown = 0; this.roof = 0; this.airborne = false; this.gesture = null; this.powers = { magnet: 0, double: 0, jetpack: 0, sprint: 0 };
     this.notice = `${this.stageName.toUpperCase()} · ${this.theme === 'temple' ? 'Follow the gold. Swipe to turn at the corners, jump roots and gaps, slide under vines.' : 'Switch tracks, jump barriers, slide under bars and ride the ramps onto the train roofs.'}`;
   }
@@ -124,7 +132,7 @@ export class RunnerRun extends ArcadeRun {
     if ((action === 'primary' || action === 'up') && this.y <= this.roof + .04 && this.vy <= .01 && this.powers.jetpack <= 0) {
       this.vy = this.config.power; this.slide = 0; this.airborne = true; this.metrics.actions++; this.cue('launch', 0, 0);
     }
-    if (action === 'down') { this.slide = .75; if (this.vy > -8 && this.y > this.roof && this.powers.jetpack <= 0) this.vy = -14; this.metrics.actions++; }
+    if (action === 'down') { this.slide = this.weather.slide; if (this.vy > -8 && this.y > this.roof && this.powers.jetpack <= 0) this.vy = -14; this.metrics.actions++; }
     if (action === 'ability' && this.config.overdrive && this.shieldCooldown <= 0) {
       this.shield = this.theme === 'temple' ? 7 : 9; this.shieldCooldown = 16; this.metrics.actions++;
       this.notice = this.theme === 'temple' ? 'ANCIENT AEGIS. One crash forgiven.' : 'BOARD UP. Surf through one collision.'; this.cue('ability', 0, 0, this.theme === 'temple' ? 'AEGIS' : 'BOARD UP');
@@ -134,7 +142,7 @@ export class RunnerRun extends ArcadeRun {
     const previous = this.distance; this.distance = Math.min(this.goal, this.distance + dt * this.speed);
     // Distance is worth points too, doubled with the 2× power-up.
     const metres = Math.floor(this.distance) - Math.floor(previous); if (metres > 0) this.score += metres * this.multiplier;
-    this.x += (this.lane * LANE - this.x) * Math.min(1, dt * 17);
+    this.x += (this.lane * LANE - this.x) * Math.min(1, dt * this.weather.grip);
     this.slide = Math.max(0, this.slide - dt); this.invulnerable = Math.max(0, this.invulnerable - dt); this.chase = Math.max(0, this.chase - dt / 6);
     this.shield = this.config.overdrive ? Math.max(0, this.shield - dt) : 0; this.shieldCooldown = Math.max(0, this.shieldCooldown - dt);
     const flying = this.powers.jetpack > 0;
@@ -145,13 +153,13 @@ export class RunnerRun extends ArcadeRun {
     // A ramp is a continuous surface. Entering a train sideways is still a collision.
     this.roof = roof?.ramp || this.y >= 2.5 ? surface : 0;
     if (this.powers.jetpack > 0) { this.y += (JET_HEIGHT - this.y) * Math.min(1, dt * 3); this.vy = 0; this.airborne = true; }
-    else { this.vy -= this.config.gravity * dt; this.y += this.vy * dt; }
+    else { this.vy -= this.gravity * dt; this.y += this.vy * dt; }
     if (this.y <= this.roof) { if (this.airborne && this.vy < -3) this.cue('hit', 0, 0); this.y = this.roof; this.vy = 0; this.airborne = false; }
     for (const t of this.turns) {
       if (!t.passed && this.powers.sprint > 0 && t.at - this.distance < 10) t.queued = true;
       if (!t.passed && previous < t.at && this.distance >= t.at) {
         t.passed = true;
-        if (!t.queued) this.crash('MISSED TURN. Swipe toward the arrow before the corner.');
+        if (!t.queued) { this.crashes.turn++; this.crash('MISSED TURN. Swipe toward the arrow before the corner.'); }
         else { this.metrics.perfects++; this.addScore(60 * this.multiplier, 0, 0, 'CLEAN TURN +60'); this.notice = 'Perfect turn. Next stretch, new choices.'; }
       }
     }
@@ -164,7 +172,7 @@ export class RunnerRun extends ArcadeRun {
       if (overlap && sameLane && danger && !o.hit) {
         o.hit = true;
         if (this.powers.sprint > 0 && o.kind !== 'train') { this.addScore(50, 0, 0, 'SMASH!'); this.cue('hit', 0, 0); }
-        else this.crash(o.kind === 'arch' ? 'Slide under it. Swipe down or press SLIDE.' : o.kind === 'gap' ? 'Jump the broken path. Swipe up or JUMP.' : o.kind === 'train' ? 'Train ahead. Change track or run up its ramp.' : 'Jump it or change lane.');
+        else { this.crashes[o.kind]++; this.crash(o.kind === 'arch' ? 'Slide under it. Swipe down or press SLIDE.' : o.kind === 'gap' ? 'Jump the broken path. Swipe up or JUMP.' : o.kind === 'train' ? 'Train ahead. Change track or run up its ramp.' : 'Jump it or change lane.'); }
       }
       if (this.distance > o.at + o.length) { o.passed = true; if (!o.hit) { this.metrics.perfects++; this.addScore(15 * this.multiplier, 0, 0); } }
     }
