@@ -1,4 +1,5 @@
 import * as T from 'three';
+import type { ArcadeCue } from '../premium-kit/core';
 import { World, material, mesh, type Shapes } from '../three-kit/world';
 import { SlingersRun, SLING, pieceOf, type PieceKind } from './run';
 import type { BladeKind } from './levels';
@@ -88,6 +89,14 @@ export class SlingersView extends World<SlingersRun> {
     }
     return root;
   }
+  private shot: string | null = null; private shotKey = '';
+  render(dt: number, held: boolean, reduced: boolean, cues: readonly ArcadeCue[]): void {
+    super.render(dt, held, reduced, cues);
+    // Freeze the final frame for the result polaroid while it is still in the drawing buffer.
+    const run = this.run, key = `${run.revision}|${run.phase}|${run.lives}`;
+    if ((run.phase === 'cleared' || run.phase === 'gameover') && key !== this.shotKey) { this.shotKey = key; try { this.shot = this.canvas.toDataURL('image/jpeg', .84); } catch { this.shot = null; } }
+  }
+  snapshot(): string | null { return this.shot; }
   protected rebuild(): void { for (const g of this.actors.values()) { g.removeFromParent(); this.disposeStage(g); } this.actors.clear(); this.seen.clear(); this.built = -1; this.rackKey = ''; }
   protected update(dt: number, reduced: boolean): void {
     const run = this.run;

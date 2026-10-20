@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseGameScript } from '../../interpreter/gameScript';
 import { formatCodeForLanguage } from '../../interpreter/languageSyntax';
 import { RunnerRun, runnerCourse, runnerFrame } from './runner';
-import { TeamRun, gateResult } from '../team-counters/run';
+import { TeamRun, gateResult, teamCourse, formation, hazardSpans, TEAM_LEVEL_NAMES, START_TEAM, VISIBLE, SPREAD, SQUEEZED, type TeamHazard } from '../team-counters/run';
 import { MonsterRun } from '../monster-strider/run';
 import { MONSTER_LEVELS } from '../monster-strider/levels';
 import { RoombaRun, blockedAt } from '../roomba-run/run';
@@ -85,27 +85,60 @@ describe('3D runner routes and collision rules', () => {
 });
 
 describe('Team Counters decisions', () => {
+  const smart = (run: TeamRun) => {
+    const gate = run.nextGate, hazard = run.hazards.find(h => !h.hit && h.at > run.distance && h.at - run.distance < 9), speed = run.config.speed;
+    const hits = (h: TeamHazard, x: number, spread: number) => { const t = run.elapsed + (h.at - run.distance) / speed; let n = 0; for (let k = 0; k < Math.min(VISIBLE, run.team); k++) { const o = formation(k, spread); if (hazardSpans(h, t - o.z / speed).some(([a, b]) => x + o.x > a && x + o.x < b)) n++; } return n; };
+    if (hazard && (!gate || hazard.at < gate.at)) {
+      const spread = run.squeeze > 0 || run.squeezeCooldown <= 0 ? SQUEEZED : SPREAD; let best = run.targetX, fewest = Infinity;
+      for (let x = -3.2; x <= 3.2; x += .2) { const n = hits(hazard, x, spread) + Math.abs(x - run.x) * .01; if (n < fewest) { fewest = n; best = x; } }
+      run.targetX = best; if (run.squeezeCooldown <= 0 && hazard.at - run.distance < 3 && hits(hazard, best, SQUEEZED) < hits(hazard, best, SPREAD)) run.action('primary');
+    } else if (gate && gate.at - run.distance < 12) { const p = run.preview(gate); run.targetX = p[0] >= p[1] ? -1.8 : 1.8; }
+  };
   it('evaluates arithmetic in order, rounds division, and bounds crowds without losing the displayed count', () => {
-    expect(gateResult(7, { op: '+', value: 75 })).toBe(82); expect(gateResult(7, { op: '×', value: 10 })).toBe(70); expect(gateResult(31, { op: '÷', value: 2 })).toBe(15); expect(gateResult(5, { op: '-', value: 10 })).toBe(0); expect(gateResult(4999, { op: '×', value: 10 })).toBe(5000); expect(gateResult(10, { op: '+', value: 10 }, 5)).toBe(25);
+    expect(gateResult(7, { op: '+', value: 75 })).toBe(82); expect(gateResult(7, { op: '×', value: 10 })).toBe(70); expect(gateResult(31, { op: '÷', value: 2 })).toBe(15); expect(gateResult(5, { op: '-', value: 10 })).toBe(0); expect(gateResult(4999, { op: '×', value: 10 })).toBe(5000); expect(gateResult(10, { op: '+', value: 10 }, 5)).toBe(25); expect(gateResult(12, null)).toBe(12);
   });
-  it('wins the castle with informed basic choices, avoids saws and scores the finale once', () => {
-    for (const level of [1, 2, 8]) {
-      const run = new TeamRun(); run.level = level; run.launch();
-      for (let i = 0; i < 60 * 60 && run.phase === 'playing'; i++) {
-        const gate = run.nextGate, trap = run.traps.find(t => !t.hit && Math.abs(t.at - run.distance) < 7);
-        if (gate && gate.at - run.distance < 10) { const choices = run.preview(gate); run.targetX = choices[0] > choices[1] ? -2.3 : 2.3; }
-        else if (trap) run.targetX = run.trapX(trap) > 0 ? -2.5 : 2.5;
-        run.step(1 / 60);
-      }
-      expect(run.phase, `level ${level}`).toBe('cleared'); expect(run.team).toBeGreaterThan(0); expect(run.metrics.clears).toBe(1); expect(run.victory).toBeGreaterThan(1);
-      const score = run.score; advance(run, 1); expect(run.score).toBe(score);
-      const restored = new TeamRun(run.checkpoint); restored.launch(); expect(restored.team).toBe(run.team); expect(restored.victory).toBe(run.victory); expect(restored.distance).toBe(run.goal);
+  it('builds twenty fair, deterministic courses that open with gates and end with an army and the stairs', () => {
+    for (let level = 1; level <= 20; level++) {
+      const course = teamCourse(level); expect(teamCourse(level)).toEqual(course); expect(course.name).toBe(TEAM_LEVEL_NAMES[level - 1]);
+      const events = [...course.gates.map(g => ({ at: g.at, t: 'G' })), ...course.enemies.map(e => ({ at: e.at, t: 'E' })), ...course.hazards.map(h => ({ at: h.at, t: 'H' }))].sort((a, b) => a.at - b.at);
+      expect(events.slice(0, 2).map(e => e.t)).toEqual(['G', 'G']); expect(events.at(-1)!.t).toBe('E'); expect(course.enemies.at(-1)!.boss).toBe(true); expect(course.goal).toBeGreaterThan(events.at(-1)!.at);
+      expect(course.stepCost).toBeGreaterThanOrEqual(level < 3 ? 1 : 2);
     }
   });
-  it('rewinds a losing choice without duplicating score, and keeps rally and shield cooldowns honest', () => {
-    const run = new TeamRun(); run.launch(); run.action('primary'); expect(run.team).toBe(13); run.action('primary'); expect(run.team).toBe(13);
-    run.gates[0].options = [{ op: '-', value: 100 }, { op: '+', value: 20 }]; run.x = run.targetX = -2; run.distance = 15.99; run.step(.01); expect(run.lives).toBe(2); expect(run.team).toBe(13); expect(run.score).toBe(0); expect(run.gates[0].used).toBe(false);
+  it('wins every kind of course with smart choices and steering, and scores the finale once', () => {
+    for (const level of [1, 2, 8, 15, 20]) {
+      const run = new TeamRun(); run.level = level; run.launch();
+      for (let i = 0; i < 60 * 120 && run.phase === 'playing'; i++) { smart(run); run.step(1 / 60); }
+      expect(run.phase, `level ${level}`).toBe('cleared'); expect(run.lives, `level ${level}`).toBe(3); expect(run.team).toBeGreaterThan(0); expect(run.metrics.clears).toBe(1); expect(run.victory).toBeGreaterThan(1);
+      const score = run.score; advance(run, 1); expect(run.score).toBe(score);
+      const restored = new TeamRun(run.checkpoint); restored.launch(); expect(restored.team).toBe(run.team); expect(restored.victory).toBe(run.victory); expect(restored.phase).toBe('cleared');
+    }
+  });
+  it('cuts only the runners inside a blade zone, and squeezing slips a crowd through a gap', () => {
+    const roller = new TeamRun(); roller.level = 4; roller.launch(); roller.team = 100; roller.x = roller.targetX = 0; roller.distance = 50;
+    roller.hazards = [{ at: 50.05, kind: 'roller', a: -5, b: 0, speed: 0, phase: 0, hit: false }]; roller.gates = []; roller.enemies = []; roller.step(.02);
+    expect(roller.team).toBeGreaterThan(35); expect(roller.team).toBeLessThan(65);
+    const squeeze = (on: boolean) => { const run = new TeamRun(); run.level = 4; run.launch(); run.team = 60; run.distance = 50; run.gates = []; run.enemies = []; run.hazards = [{ at: 50.05, kind: 'gap', a: 0, b: 2, speed: 0, phase: 0, hit: false }]; if (on) run.action('primary'); run.step(.02); return run.team; };
+    expect(squeeze(true)).toBeGreaterThan(squeeze(false)); expect(squeeze(true)).toBe(60);
+  });
+  it('fights one for one, then climbs the stairs until the crowd runs out', () => {
+    const run = new TeamRun(); run.launch(); run.gates = []; run.hazards = []; run.team = 50; run.distance = 30;
+    run.enemies = [{ at: 33, count: 20, left: 20, boss: false, defeated: false }]; advance(run, .2); expect(run.state).toBe('clash'); expect(run.distance).toBe(31); advance(run, 2);
+    expect(run.enemies[0].defeated).toBe(true); expect(run.team).toBe(30); expect(run.score).toBe(run.config.bonus);
+    run.enemies = []; run.course.stepCost = 5; run.team = 50; run.distance = run.goal - .1; advance(run, 8);
+    expect(run.phase).toBe('cleared'); expect(run.victory).toBe(9); expect(run.team).toBe(5);
+  });
+  it('rewinds a losing choice without duplicating score, and keeps squeeze and shield cooldowns honest', () => {
+    const run = new TeamRun(); run.launch(); run.action('primary'); expect(run.squeeze).toBeGreaterThan(0); expect(run.spread).toBe(SQUEEZED); run.action('primary'); expect(run.squeezeCooldown).toBe(3.2);
+    run.gates[0].options = [{ op: '-', value: 100 }, { op: '+', value: 20 }]; run.x = run.targetX = -2; run.distance = run.gates[0].at - .01; run.step(.02);
+    expect(run.team).toBe(1); expect(run.lives).toBe(3); expect(run.gates[0].used).toBe(true);
+    run.enemies = [{ at: run.distance + 2.05, count: 40, left: 40, boss: false, defeated: false }]; advance(run, 1);
+    expect(run.lives).toBe(2); expect(run.team).toBe(START_TEAM); expect(run.score).toBe(0); expect(run.gates[0].used).toBe(false); expect(run.enemies[0].left).toBe(40);
     run.config.overdrive = true; run.action('ability'); expect(run.shield).toBe(6); run.action('ability'); expect(run.shieldCooldown).toBe(14);
+  });
+  it('steers by relative drag from wherever the finger lands and ignores other pointers', () => {
+    const run = new TeamRun(); run.launch(); run.targetX = .5; run.pointer('down', 800, 300, 1); run.pointer('move', 900, 300, 2); expect(run.targetX).toBe(.5);
+    run.pointer('move', 900, 300, 1); expect(run.targetX).toBeCloseTo(1.6); run.pointer('up', 900, 300, 1); run.pointer('move', 100, 300, 1); expect(run.targetX).toBeCloseTo(1.6);
   });
 });
 

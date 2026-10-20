@@ -87,7 +87,7 @@ export abstract class World<R extends ArcadeRun> implements WorldView {
     this.scene.background = new T.Color(background); this.scene.fog = new T.Fog(background, 45, 145);
     if (run.game !== 'roomba-run') {
       const sky = document.createElement('canvas'); sky.width = 256; sky.height = 512; const ctx = sky.getContext('2d')!, gradient = ctx.createLinearGradient(0, 0, 0, 512);
-      const colors = run.game === 'temple-race' ? ['#518f9c', '#b8d4be', '#e5ddb4'] : run.game === 'team-counters' ? ['#8dc9d9', '#f7c9a3', '#ffe3b5'] : run.game === 'monster-strider' ? ['#1f9df5', '#5cc8ff', '#b9ecff'] : run.game === 'makitas-vs-zombies' ? ['#3b9be6', '#9bd8ff', '#e6f7ff'] : run.game === 'makita-slingers' ? ['#2a86d8', '#6fc0f2', '#c6ecff'] : ['#5ba9d5', background, '#e2f0dc'];
+      const colors = run.game === 'temple-race' ? ['#518f9c', '#b8d4be', '#e5ddb4'] : run.game === 'team-counters' ? ['#2f8fe0', '#8fd0f5', '#e2f5ff'] : run.game === 'monster-strider' ? ['#1f9df5', '#5cc8ff', '#b9ecff'] : run.game === 'makitas-vs-zombies' ? ['#3b9be6', '#9bd8ff', '#e6f7ff'] : run.game === 'makita-slingers' ? ['#2a86d8', '#6fc0f2', '#c6ecff'] : ['#5ba9d5', background, '#e2f0dc'];
       gradient.addColorStop(0, colors[0]); gradient.addColorStop(.62, colors[1]); gradient.addColorStop(1, colors[2]); ctx.fillStyle = gradient; ctx.fillRect(0, 0, 256, 512);
       for (let i = 0; i < (run.game === 'monster-strider' || run.game === 'makitas-vs-zombies' || run.game === 'makita-slingers' ? 0 : 5); i++) { ctx.fillStyle = '#fff7e62b'; ctx.beginPath(); ctx.ellipse((i * 83 + 27) % 256, 90 + i * 23, 37 + i * 5, 7 + i, 0, 0, Math.PI * 2); ctx.fill(); }
       const skyMap = new T.CanvasTexture(sky); skyMap.colorSpace = T.SRGBColorSpace; this.scene.background = skyMap;

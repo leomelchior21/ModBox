@@ -6,9 +6,9 @@ export const teamCatalog = createArcadeCatalog({
   assist: { name: 'gatePreview', label: 'DO THE MATH', blurb: 'Show each gate’s projected crowd and highlight the better result.', instruction: 'Pass a gate with projected results switched on.' },
   bonus: { name: 'battleValue', label: 'VICTORY LAP', blurb: 'Points for winning a crowd clash.', min: 10, max: 150, goal: 60 },
   physics: { key: 'speed', name: 'runSpeed', label: 'SET THE PACE', blurb: 'More speed means less time to choose a gate.', min: 3, max: 15, goal: 10 },
-  overdrive: { name: 'teamShield', label: 'STRENGTH TOGETHER', blurb: 'Enable SHIELD / E to protect the crowd from one trap or reduce one battle loss.' },
+  overdrive: { name: 'teamShield', label: 'STRENGTH TOGETHER', blurb: 'Enable SHIELD / E to block one blade or halve your losses in one fight.' },
   lives: { name: 'rallyTokens', label: 'RALLY AGAIN', min: 1, max: 7 },
-  final: 'Grow your crowd, win the final clash and climb the victory steps. Smart gate choices beat bigger numbers.',
+  final: 'Grow your crowd, beat the red army and climb the multiplier stairs. Smart gate choices beat bigger numbers.',
   runtime: { distance: 'meters along the course', team: 'current runners in your crew', gates: 'gates passed this stage' },
   extraTools: [{ id: 'team-comeback', name: 'comebackRule', label: 'COMEBACK CREW', type: 'condition', blurb: 'Small crowd? Recruit ten extra runners at the next positive gate.', example: 'if (team < 20)\n{\n    recruitBonus = 10;\n}', glyph: '?', unlockAt: 0 }],
 });
