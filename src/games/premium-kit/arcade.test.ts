@@ -15,6 +15,8 @@ import { YOUR_KITS, rivalKit } from '../pinballerz/kits';
 import { pinballerzSpec } from '../pinballerz/PinballScreen';
 import { STACK_WORLDS, STACK_WEATHER } from '../speed-stack/worlds';
 import { speedStackSpec } from '../speed-stack/StackScreen';
+import { NAJA_GARDENS, NAJA_WEATHER } from '../naja-run/worlds';
+import { najaRunSpec } from '../naja-run/NajaScreen';
 import { pinballCatalog } from '../pinballerz/catalog';
 import { StackRun, overlap1D, STACK_LEVELS } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
@@ -318,6 +320,16 @@ describe('Speed Stack sites, weather and the foreman', () => {
     const run = new StackRun(); run.launch();
     expect(speedStackSpec.invites!(run, 'lose')[0].code).toBe('bool magnetSnap = true;'); expect(speedStackSpec.invites!(run, 'win')[0].code).toBe('string worldTheme = "tokyo";');
     for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of speedStackSpec.invites!(run, moment)) expect(parseGameScript<ArcadeConfig>(invite.code, 'csharp', stackCatalog.schema).ok, invite.code).toBe(true);
+  });
+});
+
+describe('Naja Run gardens, weather and the old cobra', () => {
+  it('slides faster in the rain and remembers what ended each life', () => {
+    const dry = new NajaRun(), wet = new NajaRun(); dry.launch(); wet.launch(); wet.config.weather = 'rain'; expect(wet.interval).toBeLessThan(dry.interval);
+    const run = new NajaRun(); run.launch(); run.body = [{ x: 17, y: 9 }, { x: 16, y: 9 }]; run.direction = 'right'; for (let i = 0; i < 30; i++) run.step(1 / 30); expect(run.bumps.wall).toBe(1);
+    expect(najaRunSpec.invites!(run, 'lose')[0].code).toBe('bool wrapWalls = true;'); expect(najaRunSpec.invites!(run, 'win')[0].code).toBe('string worldTheme = "desert";');
+    for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of najaRunSpec.invites!(run, moment)) expect(parseGameScript<ArcadeConfig>(invite.code, 'csharp', najaCatalog.schema).ok, invite.code).toBe(true);
+    expect(Object.keys(NAJA_GARDENS)).toEqual(najaCatalog.mods.find(m => m.id === 'worldTheme')!.values); expect(Object.keys(NAJA_WEATHER)).toEqual(najaCatalog.mods.find(m => m.id === 'weather')!.values);
   });
 });
 

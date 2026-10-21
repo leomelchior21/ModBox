@@ -151,7 +151,10 @@ export class SceneRemix {
         shell(style === 'armored' ? '#35384e' : '#e4ecf2', .6); const ring = new T.Mesh(new T.TorusGeometry(.39, .035, 6, 40), glow); ring.rotation.x = Math.PI / 2; ring.position.y = .29; root.add(ring); box(root, dark, 0, .38, -.02, .23, .14, .19); box(root, glow, 0, .4, .085, .15, .04, .025); if (style === 'armored') for (const side of [-1, 1]) box(root, dark, side * .39, .15, 0, .18, .27, .56);
       }
     } else if (a.kind === 'snake') {
-      const hood = ball(root, chrome, 0, .55, 0, .52); hood.scale.set(.9, 1.1, .7); for (const side of [-1, 1]) { ball(root, glow, side * .2, .74, -.29, .085); if (style === 'robot') box(root, glow, side * .4, .5, 0, .13, .62, .15); } box(root, dark, 0, .4, -.38, .32, .09, .2);
+      const scale = style === 'gold' ? mat('#ffcf3a', .8) : style === 'dragon' ? mat('#d02a2f', .1) : style === 'rainbow' ? mat('#ff4fd8', .2) : chrome;
+      if (style === 'dragon') for (const side of [-1, 1]) { const horn = new T.Mesh(new T.ConeGeometry(.09, .4, 6), mat('#f4e2b8')); horn.position.set(side * .25, .95, .15); horn.rotation.x = -.4; root.add(horn); }
+      if (style === 'gold') { const crown = new T.Mesh(new T.CylinderGeometry(.22, .26, .16, 6, 1, true), mat('#ffd23f', .8, '#ffb000')); crown.position.set(0, 1.05, 0); root.add(crown); }
+      const hood = ball(root, scale, 0, .55, 0, .52); hood.scale.set(.9, 1.1, .7); for (const side of [-1, 1]) { ball(root, glow, side * .2, .74, -.29, .085); if (style === 'robot') box(root, glow, side * .4, .5, 0, .13, .62, .15); } box(root, dark, 0, .4, -.38, .32, .09, .2);
     } else { box(root, dark, 0, .25, 0, .85, .4, .8); box(root, chrome, 0, .7, 0, .7, .55, .65); box(root, glow, .4, .8, 0, .2, .22, .4); }
   }
   private buildWeather(weather: string) {

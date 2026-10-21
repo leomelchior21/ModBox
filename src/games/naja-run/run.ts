@@ -1,5 +1,6 @@
 import { ArcadeRun, type ArcadeAction } from '../premium-kit/core';
 import { najaCatalog } from './catalog';
+import { NAJA_WEATHER } from './worlds';
 export const NAJA_SIZE = 18;
 export interface Tile { x: number; y: number }
 export type Direction = 'up' | 'right' | 'down' | 'left';
@@ -9,10 +10,14 @@ export class NajaRun extends ArcadeRun {
   body: Tile[] = []; previousBody: Tile[] = []; direction: Direction = 'right'; queue: Direction[] = [];
   food: Tile = { x: 11, y: 9 }; crystal = false; obstacles: Tile[] = []; fruits = 0; growthLeft = 0; timer = 0; shield = 0; rushCooldown = 0; respawn = 0;
   private rng = 1; private pointerStart: Tile | null = null;
+  /** What ended each life this stage: the edge, a stone or Naja's own tail. */
+  bumps = { wall: 0, stone: 0, tail: 0 };
+  get weather() { return NAJA_WEATHER[this.config.weather ?? 'clear'] ?? NAJA_WEATHER.clear; }
   constructor(checkpoint?: unknown) { super('naja-run', najaCatalog.defaults, najaCatalog.schema, checkpoint); }
   get goal(): number { return Math.min(12, 5 + this.level - 1); }
-  get interval(): number { return 1 / (this.config.speed + Math.min(4, (this.level - 1) * 0.35)); }
+  get interval(): number { return 1 / ((this.config.speed + Math.min(4, (this.level - 1) * 0.35)) * this.weather.speed); }
   protected setup(): void {
+    this.bumps = { wall: 0, stone: 0, tail: 0 };
     this.rng = this.level * 331 + 17; this.fruits = 0; this.food = { x: 11, y: 9 }; this.crystal = false; this.shield = 0; this.rushCooldown = 0; this.respawn = 0;
     this.obstacles = [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 13, y: 3 }, { x: 14, y: 3 }, { x: 3, y: 14 }, { x: 4, y: 14 }, { x: 13, y: 14 }, { x: 14, y: 14 }];
     if (this.level > 1) this.obstacles.push({ x: 8, y: 5 }, { x: 9, y: 5 }, { x: 8, y: 13 }, { x: 9, y: 13 });
@@ -46,13 +51,13 @@ export class NajaRun extends ArcadeRun {
     const v = DIRECTIONS[this.direction], head = { x: this.body[0].x + v.x, y: this.body[0].y + v.y };
     const outside = head.x < 0 || head.y < 0 || head.x >= NAJA_SIZE || head.y >= NAJA_SIZE;
     if (outside && this.config.assist) { head.x = (head.x + NAJA_SIZE) % NAJA_SIZE; head.y = (head.y + NAJA_SIZE) % NAJA_SIZE; this.metrics.assisted++; this.cue('ability', head.x * 36 + 54, head.y * 36 + 54, 'PORTAL'); }
-    else if (outside) { this.collide(); return; }
+    else if (outside) { this.bumps.wall++; this.collide(); return; }
     const eating = head.x === this.food.x && head.y === this.food.y;
     const tailMoves = !eating && this.growthLeft === 0;
     const hitBody = this.body.slice(0, tailMoves ? -1 : undefined).some(t => t.x === head.x && t.y === head.y);
     const hitStone = this.obstacles.some(t => t.x === head.x && t.y === head.y);
     if (hitBody || hitStone) {
-      if (this.shield <= 0) { this.collide(); return; }
+      if (this.shield <= 0) { if (hitStone) this.bumps.stone++; else this.bumps.tail++; this.collide(); return; }
       if (hitStone) this.obstacles = this.obstacles.filter(t => t.x !== head.x || t.y !== head.y);
       if (hitBody) { const index = this.body.findIndex(t => t.x === head.x && t.y === head.y); this.body = this.body.slice(0, index); }
       this.shield = 0; this.cue('ability', head.x * 36 + 54, head.y * 36 + 54, 'SHIELD SAVE');
