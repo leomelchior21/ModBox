@@ -1,6 +1,6 @@
 # Current campaigns
 
-All games support Python, Swift and C#. Makitas vs Zombies, Block Forge, Makita Slingers, Naja Run, Pinballerz, Speed Stack, Temple Race, Subway Runnerz, Team Counters, Monster Strider and Roomba Run start in Free Play with complete basic settings and every mod and rule tool available. Their seven teaching missions and final challenge are optional suggestions, with unrestricted navigation back to Free Play. Upgrades start off so enabling one produces a noticeable change. Switching modes seeds unsaved challenge code from the current experiment while preserving existing saved code and checkpoints. The original three games retain progressive unlocks.
+All games support Python, Swift and C#. Makitas vs Zombies, Block Forge, Makita Slingers, Naja Run, Pinballerz, Speed Stack, Temple Race, Subway Runnerz, Team Counters, Monster Strider, Roomba Run and Tomatina start in Free Play with complete basic settings and every mod and rule tool available. Their seven teaching missions and final challenge are optional suggestions, with unrestricted navigation back to Free Play. Upgrades start off so enabling one produces a noticeable change. Switching modes seeds unsaved challenge code from the current experiment while preserving existing saved code and checkpoints. The original three games retain progressive unlocks.
 
 | Stage | Vector Zero | Neon Maze | Devil Floor | Makitas vs Zombies | Block Forge |
 | --- | --- | --- | --- | --- | --- |
@@ -54,5 +54,18 @@ Temple Race, Subway Runnerz, Team Counters, Monster Strider and Roomba Run also 
 | Team Counters | Win the castle clash and reach the victory steps | recruitBonus, gatePreview, runSpeed, teamShield | distance, team, gates |
 | Monster Strider | Cross the bridges and both gaps to the finish | enginePower, autoBalance, gravity, nitro | distance, velocity, airborne |
 | Roomba Run | Clean 90% of accessible floor and return to dock | suction, smartRoute, driveSpeed, turboBrush | battery, cleaned, patches |
+| Tomatina | Finish the street's goals: robots, plaza paint, bullseyes, golden tomatoes, the exit or the washer | throwPower, autoAim, tomatoGravity, tomatoRain, tomatoSize, bounces, bagSize, runSpeed, extraRobots, robotLevel, amigos, splatParty | splats, paint, tomatoes, dry, combo |
 
 Stage boundaries save score and learning metrics. Truck recovery uses safe islands within a stage. Failed crowd choices rewind the choice and score together. Vacuum recharging preserves dirt progress during the current job. Original art and reference research are documented in [3d-arcade-research.md](3d-arcade-research.md).
+
+## Tomatina
+
+Tomatina is a first-person tomato fight through twelve hand-drawn streets: La Calle, Paint the Plaza, Bullseye, Hose Alley, Umbrella Square, The Market, Bank Shot, Plaza Mayor, The Labyrinth, Midnight, The Storm and The Great Washer. The Limpiabots (cleaning robots) took the town's tomatoes; splatting one makes it drip red and drop the tomatoes it confiscated. Nobody is hurt: getting soaked by a hose costs a dry shirt and sends you back to the start of the street.
+
+- Each street is a grid of 2 m cells (`src/games/tomatina/levels.ts`). Goals combine splatting robots, painting a dotted plaza to a percentage, hitting bullseye targets (which lift the gate to the exit), finding golden tomatoes, reaching the fiesta arch and beating La Gran Lavadora, a washing machine whose door only opens between spin cycles and slams after five tomatoes.
+- Tapping (or clicking) the scene throws at whatever is under the finger: the run casts a ray through the grid and lobs the tomato on the arc that lands exactly there. Space throws straight ahead; tapping open sky throws high, which is how you lob over an umbrella. Dragging turns the view; the D-pad or arrow keys walk and turn.
+- Robots have personalities: mop bots scrub your paint away, hose bots keep their distance and spray arcs of water, umbrella bots block tomatoes from the front until the canopy droops under three tomatoes, and robot vacuums zoom around eating paint.
+- Mods change how it plays: arm strength and tomato gravity reshape every arc, `bounces` turns throws into bank shots, `tomatoSize` paints wider and splashes nearby robots from size 4, `bagSize` and `runSpeed` change the pace, `extraRobots` and `robotLevel` change the fight, `amigos` brings townsfolk who throw with you, and `splatParty` changes what a splatted robot does.
+- `worldTheme` tours real places in their own inks and wall art (Buñol, La Boqueria, the Alhambra, Metro Sol and Park Güell); `characterStyle` changes the arm on screen and the face on the status bar; `weather` is live and changes play: rain rinses paint off the street, wind pushes tomatoes sideways, fog and night shorten everyone's sight.
+- The renderer draws the scene at about 210 lines into colour and depth buffers, then one pass turns grey levels into ordered dither between the town's paper and ink, outlines depth edges, keeps pure red as tomato red, dissolves the distance into fog and adds drips when you are soaked.
+- The test bot in `testBots.ts` plays with the same inputs as a student (turn, walk, tap) and clears all twelve streets; the first three take it under 40 seconds.

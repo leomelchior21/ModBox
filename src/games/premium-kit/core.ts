@@ -8,6 +8,7 @@ export interface ArcadeConfig {
   worldTheme?: string; characterStyle?: string; weather?: string;
   /** Optional game-specific mods (see CatalogOptions.extraMods). */
   teammates?: number; rivals?: number; balls?: number; crowd?: number; difficulty?: string; celebration?: string;
+  splash?: number; bounces?: number; ammo?: number;
 }
 export type ArcadePhase = 'ready' | 'playing' | 'paused' | 'cleared' | 'gameover';
 export type ArcadeAction = 'primary' | 'left' | 'right' | 'up' | 'down' | 'ability' | 'launch' | 'nudge';

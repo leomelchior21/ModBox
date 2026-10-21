@@ -22,6 +22,7 @@ vi.mock('../../games/makita-slingers/view', () => ({ SlingersView: class { resiz
 vi.mock('../../games/team-counters/view', () => ({ TeamView: class { resize() {} render() {} dispose() {} } }));
 vi.mock('../../games/monster-strider/view', () => ({ MonsterView: class { resize() {} render() {} dispose() {} } }));
 vi.mock('../../games/roomba-run/view', () => ({ RoombaView: class { resize() {} render() {} dispose() {} } }));
+vi.mock('../../games/tomatina/view', () => ({ TomatinaView: class { resize() {} render() {} dispose() {} } }));
 
 /* ============================================================================
    MODBOX — APP SMOKE TEST
@@ -408,6 +409,7 @@ describe('MODBOX app shell', () => {
     ['team-counters', 'TEAM COUNTERS', 'candy', 'teamShield'],
     ['monster-strider', 'MONSTER STRIDER', 'lava', 'nitro'],
     ['roomba-run', 'ROOMBA RUN', 'spaceship', 'turboBrush'],
+    ['tomatina', 'TOMATINA', 'alhambra', 'tomatoRain'],
   ])('opens %s in basic free play, enables every mod and keeps challenges optional', async (id, title, theme, ability) => {
     window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
     await act(async () => host.querySelector<HTMLButtonElement>(`.home-game--${id}`)?.click()); await flush();
@@ -417,7 +419,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.premium__introLogo')?.getAttribute('alt')).toBe(title);
     expect(window.location.hash).toContain('mission=free');
     expect(host.querySelector('.cm-content')?.textContent).toContain('worldTheme'); expect(host.querySelector('.cm-content')?.textContent).not.toContain('playerName');
-    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'pinballerz' ? 18 : id === 'roomba-run' ? 13 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 12 : 11);
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'tomatina' ? 21 : id === 'pinballerz' ? 18 : id === 'roomba-run' ? 13 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 12 : 11);
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
     const enhanced = `${view!.state.doc.toString().replace(/worldTheme = "[^"]+"/, `worldTheme = "${theme}"`)}
 ${ability} = True`;
@@ -451,7 +453,7 @@ ${ability} = True`;
     expect(host.querySelector('.home__games')).toBeTruthy();
     expect(host.querySelector('.home__languages')).toBeNull();
     const games = [...host.querySelectorAll('.home-game')];
-    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK', 'TEMPLE RACE', 'SUBWAY RUNNERZ', 'TEAM COUNTERS', 'MONSTER STRIDER', 'ROOMBA RUN']);
+    expect(games.map(card => card.querySelector('h3')?.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK', 'TEMPLE RACE', 'SUBWAY RUNNERZ', 'TEAM COUNTERS', 'MONSTER STRIDER', 'ROOMBA RUN', 'TOMATINA']);
     expect(games.every(card => card.tagName === 'BUTTON' && card.textContent?.includes('AVAILABLE NOW'))).toBe(true);
     expect(games.every(card => card.querySelector('.home-game__art .game-art'))).toBe(true);
   });
@@ -485,7 +487,7 @@ ${ability} = True`;
     expect(host.querySelector('.lab__filename')?.textContent).toBe('main.swift');
   });
 
-  it('renders all fourteen playable games in the arcade', async () => {
+  it('renders all fifteen playable games in the arcade', async () => {
     window.location.hash = '#/arcade';
     const { host, root } = mount();
     await act(async () => {
@@ -495,7 +497,7 @@ ${ability} = True`;
     expect(host.textContent).toContain('VECTOR ZERO');
     expect(host.textContent).toContain('MAKITAS VS ZOMBIES');
     expect(host.textContent).not.toContain('COMING SOON');
-    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK', 'TEMPLE RACE', 'SUBWAY RUNNERZ', 'TEAM COUNTERS', 'MONSTER STRIDER', 'ROOMBA RUN']);
+    expect([...host.querySelectorAll('.cabinet__title')].map(title => title.textContent)).toEqual(['VECTOR ZERO', 'NEON MAZE', 'DEVIL FLOOR', 'MAKITAS VS ZOMBIES', 'BLOCK FORGE', 'MAKITA SLINGERS', 'NAJA RUN', 'PINBALLERZ', 'SPEED STACK', 'TEMPLE RACE', 'SUBWAY RUNNERZ', 'TEAM COUNTERS', 'MONSTER STRIDER', 'ROOMBA RUN', 'TOMATINA']);
     expect(host.querySelectorAll('.cabinet--locked button')).toHaveLength(0);
   });
 

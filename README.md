@@ -7,8 +7,8 @@ behind them and rebuild the world while they fly it.
 
 Play **VECTOR ZERO**, **NEON MAZE**, **DEVIL FLOOR**, **MAKITAS VS ZOMBIES**, **BLOCK FORGE**,
 **MAKITA SLINGERS**, **NAJA RUN**, **PINBALLERZ**, **SPEED STACK**, **TEMPLE RACE**,
-**SUBWAY RUNNERZ**, **TEAM COUNTERS**, **MONSTER STRIDER** and **ROOMBA RUN**.
-Each game supports Python, Swift and C#. The eleven newest games open in Free Play with a complete basic game and every mod available immediately.
+**SUBWAY RUNNERZ**, **TEAM COUNTERS**, **MONSTER STRIDER**, **ROOMBA RUN** and **TOMATINA**.
+Each game supports Python, Swift and C#. The twelve newest games open in Free Play with a complete basic game and every mod available immediately.
 Enable upgrades, change the physics and add live rules to see their effects. Their eight
 guided challenges are optional; existing code and saves are preserved. Vector Zero, Neon Maze
 and Devil Floor retain their progressive learning campaigns.
@@ -92,7 +92,9 @@ The nine-game mission progression and world-building mods are documented in [Cur
 
 MAKITA SLINGERS launches sawblades through destructible robot towers. NAJA RUN gathers fruit in
 temple gardens. PINBALLERZ is soccer pinball: flip the ball past defenders and a diving keeper. SPEED STACK
-cuts slab overhangs and rewards perfect timing. All four have original covers, gameplay scenery,
+cuts slab overhangs and rewards perfect timing. TOMATINA is a first-person tomato fight in a two-tone
+retro town: lob tomatoes at the cleaning robots, paint the plazas red and hit every bullseye.
+The first four have original covers, gameplay scenery,
 transparent sprite atlases and SVG wordmarks; the [asset manifest](docs/premium-arcade-art.json)
 records the image-generation prompts and saved paths. Their game views expand on demand while
 preserving the code desk, with keyboard and touch controls, reduced-motion effects and stage saves.

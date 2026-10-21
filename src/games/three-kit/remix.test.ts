@@ -12,11 +12,12 @@ import { RunnerRun } from './runner';
 import { TeamRun } from '../team-counters/run';
 import { MonsterRun } from '../monster-strider/run';
 import { RoombaRun } from '../roomba-run/run';
+import { TomatinaRun } from '../tomatina/run';
 import { YardRun } from '../makitas-vs-zombies/run';
 import { yardSchema, type YardConfig } from '../makitas-vs-zombies/mods';
 import type { ArcadeConfig, ArcadeRun } from '../premium-kit/core';
 
-const games: (() => ArcadeRun)[] = [() => new SlingersRun(), () => new NajaRun(), () => new PinballRun(), () => new StackRun(), () => new RunnerRun('temple'), () => new RunnerRun('subway'), () => new TeamRun(), () => new MonsterRun(), () => new RoombaRun()];
+const games: (() => ArcadeRun)[] = [() => new SlingersRun(), () => new NajaRun(), () => new PinballRun(), () => new StackRun(), () => new RunnerRun('temple'), () => new RunnerRun('subway'), () => new TeamRun(), () => new MonsterRun(), () => new RoombaRun(), () => new TomatinaRun()];
 
 describe('live world remixes', () => {
   it.each(['python', 'swift', 'csharp'] as const)('changes scenery, actors and weather without resetting any game in %s', language => {

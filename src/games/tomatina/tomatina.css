@@ -1,0 +1,35 @@
+/* TOMATINA: a two-tone status bar in the town's own inks, a crosshair and the town crier's calls. */
+.premium-stage--tomatina .premium__canvas { image-rendering:pixelated; image-rendering:crisp-edges; cursor:crosshair; touch-action:none; }
+.premium-stage--tomatina .result__frame img { image-rendering:pixelated; }
+.tom__hud { position:absolute; inset:0; z-index:2; pointer-events:none; font-family:var(--font-terminal, 'VT323', monospace); color:var(--tom-ink); }
+.tom__cross { position:absolute; left:50%; top:50%; width:15px; height:15px; transform:translate(-50%,-50%); }
+.tom__cross::before, .tom__cross::after { content:""; position:absolute; background:var(--tom-ink); box-shadow:0 0 0 1px var(--tom-paper); }
+.tom__cross::before { left:7px; top:0; width:2px; height:15px; }
+.tom__cross::after { top:7px; left:0; width:15px; height:2px; }
+.tom__call { position:absolute; left:50%; top:16%; transform:translateX(-50%); padding:4px 14px 2px; background:var(--tom-paper); border:3px solid var(--tom-ink); box-shadow:4px 4px 0 var(--tom-ink); color:var(--tom-ink); font-size:clamp(20px,3.4cqw,34px); line-height:1; letter-spacing:.04em; white-space:nowrap; max-width:92%; overflow:hidden; text-overflow:ellipsis; animation:tom-pop .22s steps(3) both; }
+.tom__weather, .tom__exit { position:absolute; right:12px; top:56px; display:flex; align-items:center; gap:6px; padding:2px 8px; background:var(--tom-paper); border:2px solid var(--tom-ink); font-size:15px; letter-spacing:.06em; }
+.tom__weather b { display:inline-block; font-size:16px; }
+.tom__exit { right:auto; left:50%; top:auto; bottom:84px; transform:translateX(-50%); background:var(--tom-red); color:#fff; border-color:var(--tom-ink); font-size:18px; animation:tom-blink 1s steps(2) infinite; }
+.tom__bar { position:absolute; left:50%; bottom:10px; transform:translateX(-50%); display:flex; align-items:stretch; gap:0; background:var(--tom-paper); border:3px solid var(--tom-ink); box-shadow:4px 4px 0 var(--tom-ink); }
+.tom__face { width:56px; height:56px; image-rendering:pixelated; border-right:3px solid var(--tom-ink); display:block; }
+.tom__stat { display:flex; flex-direction:column; justify-content:center; padding:2px 12px; border-right:3px solid var(--tom-ink); min-width:70px; }
+.tom__stat small { font-size:13px; letter-spacing:.12em; line-height:1; }
+.tom__stat strong { font-size:30px; line-height:.95; font-weight:400; white-space:nowrap; }
+.tom__stat strong em { font-style:normal; font-size:16px; opacity:.75; }
+.tom__stat strong.is-low { color:var(--tom-red); animation:tom-blink .8s steps(2) infinite; }
+.tom__stat--ammo strong { color:var(--tom-red); }
+.tom__powers { display:flex; align-items:center; gap:8px; padding:2px 10px; font-size:22px; }
+.tom__powers span { display:flex; align-items:center; gap:2px; color:var(--tom-red); }
+.tom__powers span.is-ready { color:var(--tom-ink); animation:tom-blink 1.2s steps(2) infinite; }
+.tom__bar > :last-child { border-right:0; }
+@keyframes tom-pop { from { transform:translateX(-50%) scale(.6); } to { transform:translateX(-50%) scale(1); } }
+@keyframes tom-blink { 50% { opacity:.45; } }
+/* On tablets the thumb pads sit in the corners: keep the bar compact between them, and lift the notice above it. */
+.lab .premium-stage--tomatina:has(.premium__controls--touch) .tom__bar { bottom:8px; }
+.lab .premium-stage--tomatina:has(.premium__controls--touch) .tom__stat { min-width:0; padding:2px 8px; }
+.lab .premium-stage--tomatina:has(.premium__controls--touch) .tom__stat strong { font-size:24px; }
+.lab .premium-stage--tomatina:has(.premium__controls--touch) .tom__face { width:46px; height:46px; }
+.lab .premium-stage--tomatina .premium__notice, .lab .premium-stage--tomatina .premium__keyHint { display:none; }
+@container (max-width:720px) { .tom__stat:nth-of-type(3) { display:none; } .tom__stat { min-width:0; padding:2px 7px; } .tom__stat strong { font-size:22px; } .tom__face { width:42px; height:42px; } .tom__powers { display:none; } }
+@container (max-width:520px) { .tom__bar { bottom:auto; top:44px; } .tom__call { top:28%; } }
+@media (prefers-reduced-motion: reduce) { .tom__call, .tom__exit, .tom__stat strong.is-low, .tom__powers span.is-ready { animation:none; } }

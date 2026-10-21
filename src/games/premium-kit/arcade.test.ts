@@ -22,6 +22,8 @@ import { makitaSlingersSpec } from '../makita-slingers/SlingersScreen';
 import { pinballCatalog } from '../pinballerz/catalog';
 import { StackRun, overlap1D, STACK_LEVELS } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
+import { TomatinaRun } from '../tomatina/run';
+import { tomatinaCatalog } from '../tomatina/catalog';
 import { readCampaign, type ArcadeConfig, type ArcadeRun } from './core';
 import { ArcadeEffects } from './visuals';
 
@@ -30,6 +32,7 @@ const games = [
   { id: 'naja-run', catalog: najaCatalog, create: (save?: unknown) => new NajaRun(save) },
   { id: 'pinballerz', catalog: pinballCatalog, create: (save?: unknown) => new PinballRun(save) },
   { id: 'speed-stack', catalog: stackCatalog, create: (save?: unknown) => new StackRun(save) },
+  { id: 'tomatina', catalog: tomatinaCatalog, create: (save?: unknown) => new TomatinaRun(save) },
 ];
 const advance = (run: ArcadeRun, time: number) => { for (let frame = 0; frame < Math.ceil(time * 120); frame++) run.step(1 / 120); };
 

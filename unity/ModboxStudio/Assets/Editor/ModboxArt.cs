@@ -83,6 +83,89 @@ public static class ModboxArt
         ExportParts(root.gameObject,Path.Combine(output,"footballer.glb"));
     }
 
+    /** A rotated piece (degrees), for spokes, ribs, bristles and tilted handles. */
+    static void Turned(string name, string shape, Material m, float x, float y, float z, float sx, float sy, float sz, float rx, float ry, float rz) {
+        Piece(name, shape, m, x, y, z, sx, sy, sz); limb.GetChild(limb.childCount - 1).localRotation = Quaternion.Euler(rx, ry, rz);
+    }
+    /**
+     * TOMATINA's cleaning robots (the Limpiabots) and the thrower's arms, in one rigged pack. Every node is named
+     * "<model>.<part>" and pivots where it moves. Robots face -z (+z once exported). Colors are greys the web turns
+     * into two-tone dither: white panels, light trim, mid grey, and pure black ink. #ff00ff and #00ffff mark the
+     * glove and the sleeve of the arms, which the web repaints per thrower.
+     */
+    static void Limpiabots(string output) {
+        Begin("Limpiabots / TOMATINA cleaning robots");
+        var white=Paint("#ffffff"); var light=Paint("#d4d4d4"); var mid=Paint("#8a8a8a"); var dark=Paint("#3a3a3a"); var ink=Paint("#000000"); var glove=Paint("#ff00ff"); var sleeve=Paint("#00ffff");
+        // MOP BOT: a bucket on wheels with a dome head and a mop arm that scrubs.
+        Limb("mop.body",0,0,0);
+        Piece("wheel base","tube",dark,0,.1f,0,.62f,.16f,.62f); for(int s=-1;s<=1;s+=2) Turned("wheel","tube",ink,s*.3f,.12f,0,.22f,.08f,.22f,0,0,90);
+        Piece("bucket","tube",white,0,.5f,0,.78f,.66f,.78f); Piece("bucket band","tube",mid,0,.62f,0,.8f,.06f,.8f); Piece("bucket rim","tube",light,0,.84f,0,.84f,.06f,.84f);
+        Piece("neck","tube",dark,0,.93f,0,.18f,.14f,.18f); Piece("head","round",white,0,1.1f,0,.5f,.38f,.5f); Piece("visor","box",ink,0,1.12f,-.22f,.36f,.1f,.08f);
+        Piece("eye","round",white,-.08f,1.12f,-.265f,.06f,.06f,.02f); Piece("antenna","tube",dark,.12f,1.33f,0,.03f,.16f,.03f); Piece("antenna tip","round",ink,.12f,1.43f,0,.07f,.07f,.07f);
+        Limb("mop.arm",.36f,.82f,0);
+        Piece("shoulder","round",light,.38f,.82f,0,.16f,.16f,.16f); Turned("handle","tube",mid,.46f,.6f,-.38f,.05f,.95f,.05f,-38,0,0);
+        Piece("mop head","box",dark,.46f,.2f,-.72f,.24f,.08f,.12f); for(int i=0;i<7;i++) Turned("strand","box",light,.36f+i*.033f,.1f,-.74f-(i%2)*.03f,.026f,.2f,.026f,(i%3-1)*14,0,(i%2==0?1:-1)*8);
+        // HOSE BOT: a water tank with a pressure gauge and a hose arm.
+        Limb("spray.body",0,0,0);
+        for(int s=-1;s<=1;s+=2) for(int k=-1;k<=1;k+=2) Turned("wheel","tube",ink,s*.28f,.12f,k*.22f,.22f,.07f,.22f,0,0,90);
+        Piece("chassis","box",dark,0,.22f,0,.64f,.12f,.62f); Piece("tank","box",white,0,.66f,0,.7f,.76f,.6f); Piece("tank stripe","box",mid,0,.5f,-.305f,.71f,.08f,.02f);
+        Piece("gauge","tube",light,0,.8f,-.31f,.22f,.03f,.22f); Turned("gauge face","tube",white,0,.8f,-.325f,.18f,.01f,.18f,90,0,0); Turned("needle","box",ink,.03f,.83f,-.335f,.015f,.09f,.01f,0,0,-35);
+        Piece("back tank","tube",light,0,.8f,.38f,.36f,.6f,.36f); Piece("cap","round",dark,0,1.12f,.38f,.16f,.1f,.16f);
+        Piece("head","box",white,0,1.24f,0,.5f,.34f,.46f); Piece("brow","box",ink,0,1.36f,-.235f,.44f,.05f,.02f); for(int s=-1;s<=1;s+=2) Piece("eye","round",ink,s*.11f,1.25f,-.235f,.09f,.09f,.03f);
+        Piece("siren","round",light,0,1.46f,0,.14f,.12f,.14f);
+        Limb("spray.hose",.4f,.86f,0);
+        Piece("shoulder","round",light,.4f,.86f,0,.18f,.18f,.18f); Piece("arm","tube",mid,.44f,.84f,-.24f,.11f,.11f,.11f); Turned("hose","tube",dark,.44f,.84f,-.3f,.09f,.42f,.09f,90,0,0);
+        Turned("nozzle","tube",ink,.44f,.84f,-.55f,.13f,.12f,.13f,90,0,0); Turned("nozzle ring","tube",light,.44f,.84f,-.6f,.16f,.04f,.16f,90,0,0);
+        // UMBRELLA BOT: a slim robot holding a big umbrella in front like a shield.
+        Limb("umbrella.body",0,0,0);
+        Piece("wheel base","tube",dark,0,.1f,0,.5f,.14f,.5f); Piece("body","tube",white,0,.55f,0,.5f,.78f,.44f); Piece("belt","tube",mid,0,.4f,0,.52f,.06f,.46f);
+        Piece("head","round",white,0,1.12f,0,.46f,.42f,.46f); for(int s=-1;s<=1;s+=2) Piece("eye","round",ink,s*.1f,1.14f,-.2f,.08f,.1f,.04f); Piece("bow tie","box",ink,0,.92f,-.22f,.18f,.08f,.04f);
+        Piece("hat","tube",ink,0,1.36f,0,.36f,.12f,.36f); Piece("hat brim","tube",ink,0,1.3f,0,.52f,.02f,.52f);
+        Limb("umbrella.canopy",0,1.0f,-.3f);
+        Piece("handle","tube",dark,0,.82f,-.36f,.05f,.5f,.05f); Piece("hook","round",dark,0,.56f,-.36f,.09f,.09f,.09f);
+        Piece("canopy","round",white,0,1.05f,-.62f,1.45f,1.45f,.42f); Piece("tip","round",ink,0,1.05f,-.85f,.1f,.1f,.1f);
+        for(int i=0;i<8;i++) { float a=i*Mathf.PI/4; Turned("rib","box",ink,Mathf.Cos(a)*.36f,1.05f+Mathf.Sin(a)*.36f,-.79f,.025f,.7f,.02f,0,0,a*Mathf.Rad2Deg-90); }
+        Piece("trim","tube",ink,0,1.05f,-.62f,1.47f,.02f,1.47f); limb.GetChild(limb.childCount-1).localRotation=Quaternion.Euler(90,0,0);
+        // ROBO VACUUM: a fast disc with a bumper, a sensor eye and a spinning side brush.
+        Limb("vac.body",0,0,0);
+        Piece("bumper","tube",dark,0,.12f,0,.86f,.16f,.86f); Piece("shell","tube",white,0,.22f,0,.82f,.12f,.82f); Piece("lid","tube",light,0,.3f,0,.56f,.04f,.56f);
+        Piece("sensor","tube",ink,0,.36f,.08f,.2f,.08f,.2f); Piece("eye","box",ink,0,.2f,-.42f,.3f,.08f,.04f); Piece("button","tube",mid,0,.33f,-.18f,.1f,.02f,.1f);
+        Limb("vac.brush",.3f,.05f,-.3f);
+        Piece("hub","tube",ink,.3f,.05f,-.3f,.08f,.04f,.08f); for(int i=0;i<3;i++) Turned("bristle","box",dark,.3f,.05f,-.3f,.03f,.02f,.32f,0,i*60,0);
+        // LA GRAN LAVADORA: a giant washing machine with a porthole door and a spinning drum.
+        Limb("boss.body",0,0,0);
+        for(int s=-1;s<=1;s+=2) for(int k=-1;k<=1;k+=2) Piece("foot","box",ink,s*1.05f,.08f,k*.95f,.32f,.16f,.32f);
+        Piece("cabinet","box",white,0,1.6f,0,2.6f,2.9f,2.4f); Piece("top","box",light,0,3.08f,0,2.64f,.1f,2.44f); Piece("panel","box",light,0,2.78f,-1.21f,2.5f,.5f,.04f);
+        Piece("display","box",ink,.3f,2.8f,-1.24f,.7f,.26f,.02f); for(int i=0;i<3;i++) Turned("knob","tube",dark,-.9f+i*.32f,2.78f,-1.25f,.2f,.06f,.2f,90,0,0);
+        Piece("drawer","box",mid,-.75f,2.42f,-1.22f,.8f,.18f,.04f); Piece("seam","box",ink,0,2.52f,-1.215f,2.6f,.02f,.02f);
+        Turned("door well","tube",dark,0,1.45f,-1.2f,1.9f,.03f,1.9f,90,0,0); Turned("drum shadow","tube",ink,0,1.45f,-1.18f,1.5f,.02f,1.5f,90,0,0);
+        for(int s=-1;s<=1;s+=2) { Piece("arm","tube",mid,s*1.45f,1.8f,-.2f,.2f,.9f,.2f); Piece("glove","round",light,s*1.45f,1.28f,-.2f,.34f,.34f,.34f); }
+        Limb("boss.drum",0,1.45f,-1.15f);
+        Turned("drum","tube",mid,0,1.45f,-1.15f,1.36f,.02f,1.36f,90,0,0); for(int i=0;i<3;i++) Turned("paddle","box",white,0,1.45f,-1.17f,.14f,1.1f,.04f,0,0,i*60);
+        Limb("boss.door",-.95f,1.45f,-1.25f);
+        Turned("door ring","tube",light,0,1.45f,-1.26f,1.92f,.08f,1.92f,90,0,0); Turned("glass","tube",white,0,1.45f,-1.29f,1.5f,.02f,1.5f,90,0,0);
+        Piece("handle","box",dark,.82f,1.45f,-1.32f,.12f,.4f,.06f); for(int i=0;i<4;i++) Turned("shine","box",light,-.3f+i*.06f,1.75f-i*.06f,-1.31f,.03f,.3f,.01f,0,0,40);
+        // THROWER ARMS: seen from the eyes, reaching forward along -z. The web places them in front of the camera.
+        Limb("hand.glove",0,0,0);
+        Piece("sleeve","tube",sleeve,0,0,.3f,.17f,.3f,.17f); limb.GetChild(limb.childCount-1).localRotation=Quaternion.Euler(90,0,0); Piece("cuff","tube",white,0,0,.14f,.19f,.04f,.19f); limb.GetChild(limb.childCount-1).localRotation=Quaternion.Euler(90,0,0);
+        Piece("wrist","tube",glove,0,0,.06f,.13f,.12f,.12f); limb.GetChild(limb.childCount-1).localRotation=Quaternion.Euler(90,0,0); Piece("palm","box",glove,0,.01f,-.06f,.16f,.08f,.16f);
+        for(int i=0;i<4;i++) { Turned("finger","tube",glove,-.055f+i*.037f,.06f,-.15f,.034f,.1f,.034f,-30,0,0); Turned("fingertip","tube",glove,-.055f+i*.037f,.1f,-.1f,.032f,.06f,.032f,-160,0,0); }
+        Turned("thumb","tube",glove,-.1f,.05f,-.03f,.04f,.1f,.04f,-40,0,40);
+        Limb("hand.mitt",0,0,0);
+        Piece("sleeve","tube",sleeve,0,0,.3f,.18f,.3f,.18f); limb.GetChild(limb.childCount-1).localRotation=Quaternion.Euler(90,0,0);
+        Piece("cuff","tube",white,0,0,.12f,.22f,.08f,.22f); limb.GetChild(limb.childCount-1).localRotation=Quaternion.Euler(90,0,0);
+        Piece("mitt","round",glove,0,.03f,-.08f,.22f,.16f,.3f); Piece("mitt thumb","round",glove,-.12f,.05f,-.04f,.1f,.08f,.14f); Piece("quilt","box",ink,0,.11f,-.08f,.012f,.01f,.22f); Piece("quilt2","box",ink,0,.11f,-.08f,.16f,.01f,.012f);
+        Limb("hand.claw",0,0,0);
+        Piece("piston","tube",mid,0,0,.3f,.12f,.3f,.12f); limb.GetChild(limb.childCount-1).localRotation=Quaternion.Euler(90,0,0); Piece("joint","round",dark,0,0,.12f,.15f,.15f,.15f);
+        Piece("wrist","box",light,0,0,.0f,.16f,.1f,.14f); for(int i=0;i<3;i++) { float a=i*120f*Mathf.Deg2Rad; Turned("prong","box",dark,Mathf.Cos(a)*.06f,Mathf.Sin(a)*.06f+.04f,-.12f,.03f,.03f,.16f,-20*Mathf.Sin(a),20*Mathf.Cos(a),0); }
+        Piece("light","round",ink,0,.06f,.02f,.04f,.04f,.04f);
+        Limb("hand.gauntlet",0,0,0);
+        Piece("vambrace","tube",light,0,0,.3f,.18f,.3f,.18f); limb.GetChild(limb.childCount-1).localRotation=Quaternion.Euler(90,0,0); Piece("rivet band","tube",dark,0,0,.17f,.2f,.03f,.2f); limb.GetChild(limb.childCount-1).localRotation=Quaternion.Euler(90,0,0);
+        Piece("cuff","box",white,0,.02f,.06f,.22f,.12f,.14f); Piece("plate","box",light,0,.03f,-.06f,.17f,.08f,.15f);
+        for(int i=0;i<4;i++) { Turned("knuckle","box",white,-.055f+i*.037f,.07f,-.15f,.034f,.05f,.1f,-30,0,0); Turned("tip","box",dark,-.055f+i*.037f,.1f,-.1f,.032f,.04f,.05f,-160,0,0); }
+        ExportParts(root.gameObject,Path.Combine(output,"limpiabots.glb"));
+    }
+
     [MenuItem("MODBOX/Build web model pack")]
     public static void Build() {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
@@ -134,6 +217,7 @@ public static class ModboxArt
         for(int i=0;i<16;i++) { float a=i*Mathf.PI/8; var tooth=Part("tooth",PrimitiveType.Cube,chrome,.55f,.74f+Mathf.Sin(a)*.46f,Mathf.Cos(a)*.46f,.12f,.16f,.14f); tooth.transform.localRotation=Quaternion.Euler(i*22.5f,0,0); }
         End(Path.Combine(output,"turret.glb")); root.position=new Vector3(3,0,4);
         Footballer(output); root.position=new Vector3(0,0,-6); root.localScale=Vector3.one*2;
+        Limpiabots(output); root.position=new Vector3(8,0,-6);
         var sun=new GameObject("Sun").AddComponent<Light>(); sun.type=LightType.Directional; sun.intensity=1.3f; sun.transform.rotation=Quaternion.Euler(40,-30,0);
         var camera=new GameObject("Camera").AddComponent<Camera>(); camera.transform.position=new Vector3(10,11,-15); camera.transform.LookAt(new Vector3(0,0,1)); camera.clearFlags=CameraClearFlags.SolidColor; camera.backgroundColor=new Color(.16f,.2f,.28f); RenderSettings.ambientLight=new Color(.6f,.65f,.75f);
         Directory.CreateDirectory(Path.Combine(Application.dataPath,"Scenes")); EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene(),"Assets/Scenes/ModelGallery.unity"); AssetDatabase.SaveAssets(); Debug.Log("MODBOX_MODEL_EXPORT_OK " + output);
