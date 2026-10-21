@@ -4,6 +4,9 @@ import { GameWorkspace } from '../../components/GameWorkspace';
 import { TopBar } from '../../components/TopBar';
 import { SettingsDialog } from '../../components/SettingsDialog';
 import { CoachBubble } from '../../components/CoachBubble';
+import { InviteList, usableInvites } from '../premium-kit/InviteList';
+import { floorInvites } from '../premium-kit/classicInvites';
+import type { ModInvite } from '../premium-kit/invites';
 import { applyModToEditor } from '../../editor/CodeEditor';
 import type { ModInsertMode } from '../../editor/modEditing';
 import { normalizeVariableSpacing } from '../../editor/languageEditing';
@@ -71,6 +74,9 @@ export function DevilFloorScreen({ gameId, missionId, debugFlag }: GameScreenPro
   }, [sound]);
   const launch = useCallback(() => { sound.unlock(); clearInput(); run.launch(); update(); focusGame(); }, [sound, run, update, focusGame, clearInput]);
   const insert = useCallback((snippet: string, mode?: ModInsertMode) => applyModToEditor(editor.current, snippet, mode, language), [language]);
+  // One-line mod invites on the end screen, only for mods this mission has unlocked.
+  const localInvite = (invite: ModInvite): ModInvite => ({ ...invite, code: formatCodeForLanguage(invite.code, language).trim() });
+  const acceptInvite = (_invite: ModInvite, then: () => void) => { insert(formatCodeForLanguage(_invite.code, language), 'replace'); window.setTimeout(() => { then(); update(); focusGame(); }, 450); };
   const dismiss = () => setDismissed(`${mission.id}:${guidance.message}`);
 
   useEffect(() => {
@@ -190,6 +196,7 @@ export function DevilFloorScreen({ gameId, missionId, debugFlag }: GameScreenPro
           <h1>{snapshot.phase === 'launch' ? 'DEVIL FLOOR' : snapshot.phase === 'cleared' ? 'INFERNO ESCAPED' : snapshot.phase === 'paused' ? 'EXPEDITION HELD' : 'LOST TO THE FIRE'}</h1>
           <p>{snapshot.phase === 'cleared' ? 'Sanctuary reached. Carry your relics and remaining hearts into the next descent.' : snapshot.phase === 'gameover' ? 'The fire claimed this expedition. Rewire your mods and rise from the ashes.' : snapshot.phase === 'paused' ? 'Take a breath. Your descent is held until you resume.' : 'Begin on one island. Build your backdrop and platforms with code, then tune the effects and jump into your world.'}</p>
           {snapshot.phase === 'launch' ? <span className="floor__chapter">I — THE ASHEN CHOIR</span> : snapshot.phase === 'cleared' || snapshot.phase === 'gameover' ? <div className="floor__results"><div><small>RELIC SCORE</small><b>{String(snapshot.score).padStart(5, '0')}</b></div><div><small>COLLECTED</small><b>{snapshot.gems}<span> / {snapshot.config.platforms}</span></b></div><div><small>DESCENT</small><b>{String(snapshot.level).padStart(2, '0')}</b></div></div> : null}
+          {snapshot.phase === 'gameover' || snapshot.phase === 'cleared' ? <InviteList moment={snapshot.phase === 'cleared' ? 'win' : 'lose'} invites={usableInvites(floorInvites(snapshot.config as unknown as Record<string, unknown>, snapshot.phase === 'cleared' ? 'win' : 'lose'), unlocked.map(m => m.id)).slice(0, 2).map(localInvite)} onInvite={invite => acceptInvite(invite, () => { sound.unlock(); clearInput(); if (snapshot.phase === 'cleared') run.advance(); else run.launch(); })} /> : null}
           <div className="floor__legend"><span><b>◆</b> GATHER RELICS</span><span><b>⚑</b> SAVE YOUR ROUTE</span><span><b>▲</b> KEEP MOVING</span></div>
           <button className="btn floor__enter" onClick={() => {
             sound.unlock(); clearInput();

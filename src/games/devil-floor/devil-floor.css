@@ -146,3 +146,10 @@
   .floor__results { padding:8px 0; }
 }
 .floor-stage:has(.floor__overlay) .stage__missionBack { top:auto; bottom:14px; left:14px; }
+/* With mod invites on the end screen, trade the sigil and legend for room. */
+.floor__panel:has(.invite-list) { gap:10px; padding:16px 12px; }
+.floor__panel:has(.invite-list) .floor__emblem,.floor__panel:has(.invite-list) .floor__legend { display:none; }
+.floor__panel:has(.invite-list) h1 { font-size:clamp(28px,6cqw,42px); line-height:1; }
+.floor__panel:has(.invite-list) .floor__results { padding:8px 0; }
+.floor__panel .invite-list { margin-top:2px; color:#efd99b; }
+@container (max-height:520px) { .floor__panel .invite-list .result__invite:nth-of-type(2) { display:none; } .floor__panel:has(.invite-list) p { display:none; } }

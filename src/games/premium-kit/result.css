@@ -61,3 +61,15 @@
 .coach-toast .coach-toast__close { min-height:32px; width:32px; padding:0; background:transparent; color:#fff9; font-size:20px; }
 @keyframes coach-in { from { opacity:0; transform:translate(-50%,-12px) scale(.94); } }
 @media (prefers-reduced-motion: reduce) { .coach-toast { animation:none; } }
+
+/* Invites inside the classic games' own end screens: dark CRT glass to sit on neon, lava and forge overlays. */
+.invite-list { width:min(400px,100%); margin:10px auto 0; gap:6px; animation-delay:.1s; }
+.invite-list > b { color:inherit; font:400 15px/1 var(--font-terminal, 'VT323', monospace); letter-spacing:.18em; text-shadow:0 0 10px currentColor; opacity:.9; }
+.invite-list .result__invite { padding:7px 8px 7px 7px; border:1px solid #ffffff38; border-radius:12px; background:linear-gradient(180deg,#ffffff14,#ffffff06),#0a1120e8; color:#eef4ff; box-shadow:inset 0 1px 0 #ffffff1c,0 8px 22px #0007; backdrop-filter:blur(6px); }
+.invite-list .result__invite:hover { border-color:#c9ff3d99; box-shadow:inset 0 1px 0 #ffffff1c,0 0 0 1px #c9ff3d55,0 8px 22px #0007; }
+.invite-list .result__invite strong { font-size:12.5px; color:#ffffff; }
+.invite-list .result__invite small { color:#aebbd2; }
+.invite-list .result__invite code { background:#000c; border:1px solid #c9ff3d33; }
+.invite-list .result__invite i { width:36px; height:36px; box-shadow:0 0 14px #1679ef66; }
+.invite-list .result__invite--challenge i { box-shadow:0 0 14px #ff5a3c66; }.invite-list .result__invite--style i { box-shadow:0 0 14px #9b5cff66; }
+.forge__intro .invite-list { margin-top:0; }

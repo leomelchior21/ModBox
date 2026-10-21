@@ -4,6 +4,9 @@ import { GameWorkspace } from '../../components/GameWorkspace';
 import { TopBar } from '../../components/TopBar';
 import { SettingsDialog } from '../../components/SettingsDialog';
 import { CoachBubble } from '../../components/CoachBubble';
+import { InviteList, usableInvites } from '../premium-kit/InviteList';
+import { mazeInvites } from '../premium-kit/classicInvites';
+import type { ModInvite } from '../premium-kit/invites';
 import { applyModToEditor } from '../../editor/CodeEditor';
 import type { ModInsertMode } from '../../editor/modEditing';
 import { normalizeVariableSpacing } from '../../editor/languageEditing';
@@ -65,6 +68,9 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
   }, [sound]);
   const launch = useCallback(() => { sound.unlock(); clearInput(); run.launch(); update(); focusGame(); }, [sound, run, update, focusGame, clearInput]);
   const insert = useCallback((snippet: string, mode?: ModInsertMode) => applyModToEditor(editor.current, snippet, mode, language), [language]);
+  // One-line mod invites on the end screen, only for mods this mission has unlocked.
+  const localInvite = (invite: ModInvite): ModInvite => ({ ...invite, code: formatCodeForLanguage(invite.code, language).trim() });
+  const acceptInvite = (_invite: ModInvite, then: () => void) => { insert(formatCodeForLanguage(_invite.code, language), 'replace'); window.setTimeout(() => { then(); update(); focusGame(); }, 450); };
   const dismiss = () => setDismissed(`${mission.id}:${guidance.message}`);
 
   useEffect(() => {
@@ -180,6 +186,7 @@ export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps
           <div className="neon__emblem" aria-hidden="true">◉</div>
           <h1>{snapshot.phase === 'launch' ? 'NEON MAZE' : snapshot.phase === 'cleared' ? 'SECTOR CLEAR' : snapshot.phase === 'paused' ? 'SIGNAL HELD' : 'SIGNAL LOST'}</h1>
           <p>{snapshot.phase === 'cleared' ? 'Three gems collected. Roll into your next labyrinth.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and roll again.` : 'Keep rolling through the neon lines. Collect dots for points and amber gems to stun and catch sentinels. Add Room Lights to reveal the darkness. Three gems open the next sector.'}</p>
+          {snapshot.phase === 'gameover' || snapshot.phase === 'cleared' ? <InviteList moment={snapshot.phase === 'cleared' ? 'win' : 'lose'} invites={usableInvites(mazeInvites(snapshot.config as unknown as Record<string, unknown>, snapshot.phase === 'cleared' ? 'win' : 'lose'), unlocked.map(m => m.id)).slice(0, 2).map(localInvite)} onInvite={invite => acceptInvite(invite, () => { if (snapshot.phase === 'cleared') run.advance(); else run.launch(); })} /> : null}
           <div className="neon__legend"><span><i className="neon__legendRunner" /> YOU</span><span><i className="neon__legendDot" /> DOT +5</span><span><i className="neon__legendCore" /> STUN GEM</span><span><i className="neon__legendHunter" /> SENTINEL</span></div>
           <button className="btn neon__enter" onClick={() => {
             if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch();
