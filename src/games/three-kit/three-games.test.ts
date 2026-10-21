@@ -16,6 +16,8 @@ import { SUBWAY_WORLDS, TEMPLE_WORLDS, RUNNER_WEATHER } from './runner-worlds';
 import { runnerInvites } from './runner-invites';
 import { TEAM_WORLDS, TEAM_WEATHER } from '../team-counters/worlds';
 import { teamSpec } from '../team-counters/TeamScreen';
+import { MONSTER_WORLDS, MONSTER_WEATHER } from '../monster-strider/worlds';
+import { monsterSpec } from '../monster-strider/MonsterScreen';
 import type { ArcadeConfig, ArcadeRun } from '../premium-kit/core';
 
 const games = [
@@ -264,6 +266,18 @@ describe('Monster Strider vehicle simulation', () => {
     run.advance(); expect([run.level, run.score]).toEqual([2, saved.score]); expect(run.checkpoint).toEqual(saved);
     run.replayStage(1); run.lives = 1; run.invulnerable = 0; teleport(run, 0, -9); advance(run, 2); expect(run.phase).toBe('gameover');
     run.retryStage(); expect([run.level, run.phase]).toEqual([1, 'playing']); expect(run.checkpoint).toEqual(saved);
+  });
+});
+
+describe('Monster Strider worlds, weather and coaching', () => {
+  it('loses grip on snow, floats on Mars and coaches from the wreck', () => {
+    const drive = (setup: (run: MonsterRun) => void) => { const run = new MonsterRun(); run.launch(); setup(run); run.input.right = true; for (let i = 0; i < 60 * 3; i++) run.step(1 / 60); return run; };
+    const dry = drive(() => undefined), icy = drive(run => { run.config.weather = 'snow'; });
+    expect(icy.x).toBeLessThan(dry.x); const mars = new MonsterRun(); mars.launch(); mars.config.worldTheme = 'mars'; expect(mars.gravity).toBeLessThan(new MonsterRun().gravity * .7);
+    const run = new MonsterRun(); run.launch(); run.wrecks.roof = 2; expect(monsterSpec.invites!(run, 'lose')[0].code).toBe('bool autoBalance = true;'); expect(monsterSpec.invites!(run, 'struggle')[0].code).toBe('bool autoBalance = true;');
+    expect(monsterSpec.invites!(run, 'win')[0].code).toBe('string worldTheme = "desert";');
+    for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of monsterSpec.invites!(run, moment)) expect(parseGameScript<ArcadeConfig>(invite.code, 'csharp', run.schema).ok, invite.code).toBe(true);
+    expect(Object.keys(MONSTER_WORLDS)).toEqual(monsterCatalog.mods.find(m => m.id === 'worldTheme')!.values); for (const w of monsterCatalog.mods.find(m => m.id === 'weather')!.values!) expect(MONSTER_WEATHER[w], w).toBeDefined();
   });
 });
 

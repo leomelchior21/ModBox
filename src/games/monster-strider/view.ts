@@ -6,6 +6,9 @@ import { unityModel } from '../three-kit/unity-assets';
 import { MonsterRun, WHEEL_RADIUS } from './run';
 import { TRACK_DEPTH, WATER_Y, landHeight } from './levels';
 import { buildTire, buildTruck, courseTextures, pixelMaterial, voxelBox } from './art';
+import { WorldWeather } from '../three-kit/weather';
+import { applyLook, weatherLight, recolor, tintTexture } from '../three-kit/looks';
+import { monsterWorld, MONSTER_WORLDS } from './worlds';
 
 /** Truck body colors per palette; the Unity model marks its paintable panels with pure #ffcc00. */
 const TRUCK_PAINT: Record<string, string> = { amber: '#ffc61a', teal: '#25d6c2', violet: '#a48bff' };
@@ -24,6 +27,7 @@ export class MonsterView extends World<MonsterRun> {
   private shot: string | null = null; private shotKey = ''; private crashShot: string | null = null; private crashKey = '';
   private cam = new T.Vector3(); private look = new T.Vector3(); private camReady = false; private lastX = 0;
   private paintSlots: { attribute: T.BufferAttribute; indices: number[] }[] | null = null; private tint = '';
+  private weather: WorldWeather; private sky: T.Texture | null = null; private worldKey = ''; private seaMaterial: T.MeshStandardMaterial | null = null;
 
   constructor(canvas: HTMLCanvasElement, run: MonsterRun) {
     super(canvas, run, '#7fd8ff', 19);
@@ -34,6 +38,7 @@ export class MonsterView extends World<MonsterRun> {
     this.ring = mesh(new T.TorusGeometry(1, .07, 6, 40), new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }), this.scene, 0, WATER_Y + .05, 0, false);
     this.ring.rotation.x = Math.PI / 2; this.ring.visible = false;
     this.drops = new T.InstancedMesh(new T.BoxGeometry(.16, .16, .16), new T.MeshBasicMaterial({ color: '#e9fbff' }), 28); this.drops.frustumCulled = false; this.drops.count = 0; this.scene.add(this.drops);
+    this.remix.ownWorld(true); this.weather = new WorldWeather(this.scene, { w: 40, h: 16, d: 30 });
     this.buildBackdrop(); this.buildTruck();
   }
   resize(width: number, height: number, pixelRatio: number): void {
@@ -53,7 +58,7 @@ export class MonsterView extends World<MonsterRun> {
 
   private buildBackdrop() {
     const s = this.shapes, water = material('#14c3f6', .25, 0); water.emissive.set('#0796d6'); water.emissiveIntensity = .22;
-    const sea = mesh(new T.PlaneGeometry(700, 340), water, this.backdrop, 60, WATER_Y, -80, false); sea.rotation.x = -Math.PI / 2;
+    const sea = mesh(new T.PlaneGeometry(700, 340), water, this.backdrop, 60, WATER_Y, -80, false); sea.rotation.x = -Math.PI / 2; this.seaMaterial = water; sea.userData.keepColor = true;
     const facets = CLIFFS.map(color => { const m = material(color, .85, 0); m.flatShading = true; return m; });
     const rock = new T.IcosahedronGeometry(1, 0);
     let seed = 7; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
@@ -81,11 +86,21 @@ export class MonsterView extends World<MonsterRun> {
     for (const z of [-.45, .45]) { const fire = mesh(new T.ConeGeometry(.22, 1.3, 8), new T.MeshBasicMaterial({ color: '#7ff0ff' }), this.flame, -2.45, .35, z, false); fire.rotation.z = Math.PI / 2; }
   }
 
+  /** Dresses the backdrop for a world: sky, sea (or sand, or lava), cliffs and far peaks. */
+  private dressWorld() {
+    const w = monsterWorld(this.run.config.worldTheme), base = MONSTER_WORLDS.classic; this.worldKey = this.run.config.worldTheme ?? 'classic';
+    this.sky?.dispose(); this.sky = applyLook(this.scene, this.sun, w.look, this.weather);
+    recolor(this.backdrop, [...base.cliffs.map((c, i) => [c, w.cliffs[i]] as const), [base.far, w.far], ['#f6c8ab', w.cliffs[2]], ['#c97680', w.cliffs[3]]]);
+    if (this.seaMaterial) { this.seaMaterial.color.set(w.sea); this.seaMaterial.emissive.set(w.sea); this.seaMaterial.emissiveIntensity = w.seaGlow; this.seaMaterial.roughness = w.seaGlow >= 1 ? .6 : .25; }
+  }
   protected rebuild(): void {
+    this.dressWorld(); const world = monsterWorld(this.run.config.worldTheme);
     this.disposeStage(this.stage); this.stage.clear(); this.planks = []; this.crates = []; this.coins = []; this.flags = []; this.foam = [];
     this.shot = null; this.shotKey = ''; this.crashShot = null; this.camReady = false;
     const run = this.run, level = run.stage, t = this.tex, s = this.shapes, half = TRACK_DEPTH / 2;
-    const grass = pixelMaterial(t.grass), fringe = pixelMaterial(t.fringe, '#ffffff', .5), face = pixelMaterial(t.face), brick = pixelMaterial(t.brick), ornament = pixelMaterial(t.ornament);
+    // Other worlds repaint the pixel grass, cliff face and bricks by brightness (sand, snow, ash, dust).
+    const paint = (map: T.Texture, color: string) => color === '#ffffff' ? map : tintTexture(map, color);
+    const grass = pixelMaterial(paint(t.grass, world.grass)), fringe = pixelMaterial(paint(t.fringe, world.grass), '#ffffff', .5), face = pixelMaterial(paint(t.face, world.face)), brick = pixelMaterial(paint(t.brick, world.brick)), ornament = pixelMaterial(t.ornament);
     const foam = new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .9 });
     const post = (x: number, top: number, z: number, width = .7) => {
       const height = top - WATER_Y + .3; mesh(voxelBox(width, height, width), brick, this.stage, x, WATER_Y - .3 + height / 2, z);
@@ -144,6 +159,8 @@ export class MonsterView extends World<MonsterRun> {
   }
 
   protected update(dt: number, reduced: boolean): void {
+    if ((this.run.config.worldTheme ?? 'classic') !== this.worldKey) this.rebuild();
+    this.weather.update(dt, this.run.config.weather ?? 'clear', new T.Vector3(this.run.x + 6, this.run.y, 0), this.run.wind * .3, reduced); weatherLight(this.scene, this.sun, this.weather);
     const run = this.run, course = run.course, p = course.sim.p, truck = course.truck;
     this.chassis.position.set(run.x, run.y, 0); this.chassis.rotation.z = run.angle;
     this.flame.visible = run.turbo > 0; this.flame.scale.setScalar(reduced ? 1 : 1 + Math.sin(run.elapsed * 31) * .15);

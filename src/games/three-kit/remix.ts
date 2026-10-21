@@ -112,7 +112,26 @@ export class SceneRemix {
       if (style === 'skater') { const board = box(root, mat('#2a2a35'), 0, .05, 0, .3, .05, 1.1); board.position.y = .03; for (const z of [-.38, .38]) for (const x of [-.12, .12]) ball(root, trimMat, x, .0, z, .05); }
       for (const side of [-1, 1]) { const leg = new T.Group(); leg.position.set(side * .21, .72, 0); root.add(leg); leg.userData.limb = side; box(leg, style === 'skater' ? dark : suit, 0, -.24, 0, .26, .55, .28); box(leg, style === 'ninja' ? suit : trimMat, 0, -.58, -.07, .3, .18, .42); const arm = new T.Group(); arm.position.set(side * .5, 1.35, 0); root.add(arm); arm.userData.limb = -side; ball(arm, suit, 0, -.05, 0, .2); box(arm, style === 'mummy' ? trimMat : suit, 0, -.32, 0, .24, .48, .25); }
     } else if (a.kind === 'vehicle') {
-      box(root, dark, 0, -.05, 0, 3.4, .3, 1.85); box(root, chrome, -.1, .45, 0, 3.25, .75, 1.9); box(root, dark, -.35, 1.07, 0, 1.7, .65, 1.75); box(root, glow, .4, 1.07, 0, .08, .39, 1.79); for (const z of [-.78, .78]) { box(root, glow, 1.59, .55, z, .08, .2, .22); box(root, chrome, -.4, 1.5, z, 1.3, .16, .17); } if (style === 'robot') for (const z of [-.5, .5]) box(root, glow, -1.8, .25, z, .5, .3, .3);
+      // Truck bodies ride on the same wheels and suspension: x is forward, y up.
+      const capsule = (material: T.Material, x: number, y: number, z: number, length: number, radius: number) => { const m = new T.Mesh(new T.CapsuleGeometry(radius, length, 6, 14), material); m.rotation.z = Math.PI / 2; m.position.set(x, y, z); m.castShadow = true; root.add(m); return m; };
+      if (style === 'hotdog') {
+        const bun = mat('#e8a35a'), sausage = mat('#c8452f'), mustard = mat('#ffd23f', 0, '#ffb000');
+        box(root, dark, 0, -.05, 0, 3.2, .25, 1.6); capsule(bun, 0, .45, -.45, 2.6, .42); capsule(bun, 0, .45, .45, 2.6, .42); capsule(sausage, 0, .75, 0, 3, .36);
+        for (let i = 0; i < 7; i++) { const zig = box(root, mustard, -1.3 + i * .43, 1.12, (i % 2 ? .12 : -.12), .5, .06, .08); zig.rotation.y = i % 2 ? .5 : -.5; }
+      } else if (style === 'racer') {
+        const paint = mat('#e3202f', .3), wing = mat('#1d1d24', .3);
+        box(root, dark, 0, -.05, 0, 3.4, .25, 1.7); const nose = box(root, paint, .7, .38, 0, 2.2, .42, 1.5); nose.rotation.z = -.06; box(root, paint, -.7, .5, 0, 1.4, .55, 1.7);
+        box(root, mat('#1d2b3c', .15, '#38e8ff'), -.25, .82, 0, .7, .25, .9); box(root, wing, -1.55, 1.15, 0, .4, .08, 1.9); for (const z of [-.7, .7]) box(root, wing, -1.5, .85, z, .12, .5, .08);
+        box(root, mat('#ffffff'), .3, .6, .76, .6, .3, .02); box(root, mat('#ffffff'), .3, .6, -.76, .6, .3, .02);
+      } else if (style === 'tank') {
+        const olive = mat('#5a6b3a', .1), darkOlive = mat('#3e4a28', .1);
+        box(root, darkOlive, 0, .1, 0, 3.4, .5, 1.95); box(root, olive, 0, .55, 0, 3, .45, 1.7);
+        const turret = new T.Group(); turret.position.set(-.2, .95, 0); root.add(turret); box(turret, olive, 0, 0, 0, 1.3, .45, 1.2);
+        const barrel = new T.Mesh(new T.CylinderGeometry(.09, .11, 1.8, 10), darkOlive); barrel.rotation.z = Math.PI / 2; barrel.position.set(1.4, .05, 0); barrel.castShadow = true; turret.add(barrel);
+        box(root, mat('#ffd23f'), -.2, 1.22, 0, .25, .06, .25);
+      } else {
+        box(root, dark, 0, -.05, 0, 3.4, .3, 1.85); box(root, chrome, -.1, .45, 0, 3.25, .75, 1.9); box(root, dark, -.35, 1.07, 0, 1.7, .65, 1.75); box(root, glow, .4, 1.07, 0, .08, .39, 1.79); for (const z of [-.78, .78]) { box(root, glow, 1.59, .55, z, .08, .2, .22); box(root, chrome, -.4, 1.5, z, 1.3, .16, .17); } if (style === 'robot') { for (const z of [-.5, .5]) box(root, glow, -1.8, .25, z, .5, .3, .3); const head = box(root, chrome, .3, 1.75, 0, .6, .45, .6); head.castShadow = true; box(root, glow, .62, 1.78, 0, .02, .1, .45); }
+      }
     } else if (a.kind === 'vacuum') {
       const body = new T.Mesh(new T.CylinderGeometry(.39, .41, .25, style === 'robot' ? 8 : 32), chrome); body.position.y = .2; root.add(body); const ring = new T.Mesh(new T.TorusGeometry(.39, .035, 6, 40), glow); ring.rotation.x = Math.PI / 2; ring.position.y = .29; root.add(ring); box(root, dark, 0, .38, -.02, .23, .14, .19); box(root, glow, 0, .4, .085, .15, .04, .025); if (style === 'armored') for (const side of [-1, 1]) box(root, dark, side * .39, .15, 0, .18, .27, .56);
     } else if (a.kind === 'snake') {

@@ -2,6 +2,7 @@ import { ArcadeRun, clamp, type ArcadeAction } from '../premium-kit/core';
 import { monsterCatalog } from './catalog';
 import { Sim, type Particle } from './physics';
 import { MONSTER_LEVELS, SEABED_Y, WATER_Y, landHeight, levelFor, levelName, type MonsterLevel } from './levels';
+import { MONSTER_WEATHER, monsterWorld } from './worlds';
 
 export const WHEEL_RADIUS = .72, WHEEL_REST = -.55;
 const WHEEL_MASS = .8, WHEEL_INERTIA = .5 * WHEEL_MASS * WHEEL_RADIUS * WHEEL_RADIUS;
@@ -78,6 +79,11 @@ export class MonsterRun extends ArcadeRun {
   x = 0; y = 0; angle = 0; spinRate = 0; velocity = 0; grounded = true; airtime = 0;
   turbo = 0; turboCooldown = 0; hopCooldown = 0; invulnerable = 0; raceTime = 0; finishTime = 0;
   crash: { timer: number; message: string; splash: boolean } | null = null;
+  /** How the truck wrecked this stage, so the coach can suggest the right fix. */
+  wrecks = { splash: 0, roof: 0, side: 0 };
+  get weather() { return MONSTER_WEATHER[this.config.weather ?? 'clear'] ?? MONSTER_WEATHER.clear; }
+  /** Wind on the truck, in m/s², blowing in gusts. */
+  get wind() { return this.weather.wind * Math.sin(this.elapsed * .5) * (.6 + .4 * Math.sin(this.elapsed * 1.7)); }
   splash: { x: number; at: number } | null = null;
   coins: { x: number; y: number; taken: boolean }[] = [];
   safeX = 0; flips = 0; lastLanding = '';
@@ -92,11 +98,11 @@ export class MonsterRun extends ArcadeRun {
   get goal(): number { return this.stage.finish; }
   get progress(): number { return clamp((this.x - this.stage.start) / (this.stage.finish - this.stage.start), 0, 1); }
   get levelCount(): number { return MONSTER_LEVELS.length; }
-  get gravity(): number { return this.config.gravity * .6; }
+  get gravity(): number { return this.config.gravity * .6 * monsterWorld(this.config.worldTheme).gravity; }
   protected setup(): void {
     const stage = this.stage; this.safeX = stage.start; this.course = buildCourse(stage, stage.start, this.gravity);
     this.coins = stage.coins.map(([x, y]) => ({ x, y, taken: false }));
-    this.turbo = 0; this.turboCooldown = 0; this.hopCooldown = 0; this.invulnerable = .6; this.raceTime = 0; this.finishTime = 0; this.crash = null; this.splash = null;
+    this.turbo = 0; this.turboCooldown = 0; this.hopCooldown = 0; this.invulnerable = .6; this.raceTime = 0; this.finishTime = 0; this.crash = null; this.splash = null; this.wrecks = { splash: 0, roof: 0, side: 0 };
     this.airtime = 0; this.airRotation = 0; this.sideTime = 0; this.clock = 0; this.flips = 0; this.lastLanding = ''; this.pointers.clear(); this.pose();
     this.notice = `${this.stageName.toUpperCase()} · ${stage.tip}`;
   }
@@ -157,6 +163,8 @@ export class MonsterRun extends ArcadeRun {
       w.vx += nx * force * w.w; w.vy += ny * force * w.w; m.vx -= nx * force * m.w; m.vy -= ny * force * m.w;
     }
     if (this.turbo > 0) for (const id of Object.values(t.parts)) { p[id].vx += ux * 9 * h; p[id].vy += uy * 9 * h; }
+    // Gusts only catch the truck in the air.
+    if (airborne && this.weather.wind) { const gust = this.wind * h; for (const id of [...Object.values(t.parts), ...t.wheels]) p[id].vx += gust; }
     sim.integrate(h);
     for (let i = 0; i < ITERATIONS; i++) { sim.solveLinks(); this.suspension(); sim.solveCollisions(); }
     sim.finishVelocities(h);
@@ -166,7 +174,7 @@ export class MonsterRun extends ArcadeRun {
       if (w.cn > 0) {
         t.touching[i] = 0;
         const tx = w.cny, ty = -w.cnx, [sx, sy] = sim.surfaceVelocity(w), slip = (w.vx - sx) * tx + (w.vy - sy) * ty + t.spin[i] * WHEEL_RADIUS;
-        const limit = GRIP * w.cn / h / w.w, impulse = clamp(-slip / (w.w + WHEEL_RADIUS * WHEEL_RADIUS / WHEEL_INERTIA), -limit, limit);
+        const limit = GRIP * this.weather.grip * w.cn / h / w.w, impulse = clamp(-slip / (w.w + WHEEL_RADIUS * WHEEL_RADIUS / WHEEL_INERTIA), -limit, limit);
         w.vx += tx * impulse * w.w; w.vy += ty * impulse * w.w; t.spin[i] += impulse * WHEEL_RADIUS / WHEEL_INERTIA;
       } else t.touching[i] += h;
       t.turn[i] += t.spin[i] * h;
@@ -219,9 +227,9 @@ export class MonsterRun extends ArcadeRun {
     const upsideDown = Math.abs(this.angle) > 1.95, bodyDown = Object.values(t.parts).some(id => p[id].cn > 0);
     this.sideTime = upsideDown && bodyDown && !this.grounded ? this.sideTime + dt : 0;
     if (this.invulnerable <= 0) {
-      if (this.y < WATER_Y - .25 || Math.min(p[t.wheels[0]].y, p[t.wheels[1]].y) < WATER_Y - 1.2) { this.wreck('SPLASH! Build speed before the gap.', true); return; }
-      if (head.cn > 0) { this.wreck('ROOF HIT! In the air, GAS tilts back and BACK tilts forward.', false); return; }
-      if (this.sideTime > .7) { this.wreck('STUCK ON ITS SIDE. Keep the wheels under you.', false); return; }
+      if (this.y < WATER_Y - .25 || Math.min(p[t.wheels[0]].y, p[t.wheels[1]].y) < WATER_Y - 1.2) { this.wrecks.splash++; this.wreck('SPLASH! Build speed before the gap.', true); return; }
+      if (head.cn > 0) { this.wrecks.roof++; this.wreck('ROOF HIT! In the air, GAS tilts back and BACK tilts forward.', false); return; }
+      if (this.sideTime > .7) { this.wrecks.side++; this.wreck('STUCK ON ITS SIDE. Keep the wheels under you.', false); return; }
     }
     for (const cp of stage.checkpoints) if (this.x > cp + 1 && cp > this.safeX && this.grounded && Math.abs(this.angle) < .6) { this.safeX = cp; this.cue('perfect', 0, 0, 'CHECKPOINT'); }
     for (const coin of this.coins) {

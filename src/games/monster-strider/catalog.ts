@@ -9,6 +9,11 @@ export const monsterCatalog = createArcadeCatalog({
   overdrive: { name: 'nitro', label: 'BOTTLED LIGHTNING', blurb: 'Enable NITRO / E for a short rechargeable rocket boost.' },
   lives: { name: 'spareTrucks', label: 'PIT CREW', min: 1, max: 8 },
   final: 'Cross the island courses and reach the checkered finish. Tilt in the air and keep the roof off the ground.',
+  remix: {
+    worldTheme: { label: 'RALLY WORLD', blurb: 'Race the "desert" canyons over a sand sea, the "arctic" ice floes, a glowing "lava" field or the "mars" dunes, where low gravity makes every jump huge.', values: ['classic', 'desert', 'arctic', 'lava', 'mars'] },
+    characterStyle: { label: 'GARAGE', blurb: 'Swap the truck for a "robot" walker, an armoured "tank", a sleek "racer" or a giant "hotdog".', values: ['original', 'robot', 'tank', 'racer', 'hotdog'] },
+    weather: { label: 'TRACK WEATHER', blurb: 'Rain and snow steal tyre grip (snow is ice racing), wind pushes the truck in the air and fog hides the next jump.', values: ['clear', 'rain', 'snow', 'wind', 'fog'] },
+  },
   runtime: { distance: 'meters from the start line', velocity: 'current speed in meters per second', airborne: '1 while airborne, 0 on the ground', tilt: 'nose-up angle in degrees (negative is nose-down)' },
   extraTools: [{ id: 'monster-air', name: 'airRule', label: 'LAND LIKE A PRO', type: 'condition', blurb: 'Engage your stabilizer only when the truck leaves the ground.', example: 'if (airborne > 0)\n{\n    autoBalance = true;\n}', glyph: '?', unlockAt: 0 }],
 });

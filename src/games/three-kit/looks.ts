@@ -41,3 +41,14 @@ export function recolor(root: T.Object3D, pairs: readonly (readonly [string, str
     }
   });
 }
+/**
+ * Repaints a canvas texture by brightness: every pixel keeps its light and shade but takes the new colour.
+ * Turns green pixel grass into sand, snow or ash while keeping the pattern. Non-canvas textures are returned as is.
+ */
+export function tintTexture(texture: T.Texture, color: string): T.Texture {
+  const image = texture.image as HTMLCanvasElement | undefined; if (!image || !('getContext' in image)) return texture;
+  const c = document.createElement('canvas'); c.width = image.width; c.height = image.height; const g = c.getContext('2d', { willReadFrequently: true }); if (!g) return texture;
+  g.drawImage(image, 0, 0); const data = g.getImageData(0, 0, c.width, c.height), px = data.data, [r, gr, b] = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16));
+  for (let i = 0; i < px.length; i += 4) { const l = Math.min(1.25, (px[i] * .3 + px[i + 1] * .59 + px[i + 2] * .11) / 150); px[i] = Math.min(255, r * l); px[i + 1] = Math.min(255, gr * l); px[i + 2] = Math.min(255, b * l); }
+  g.putImageData(data, 0, 0); const out = new T.CanvasTexture(c); out.colorSpace = texture.colorSpace; out.magFilter = texture.magFilter; out.minFilter = texture.minFilter; out.wrapS = texture.wrapS; out.wrapT = texture.wrapT; out.repeat.copy(texture.repeat); out.generateMipmaps = texture.generateMipmaps; return out;
+}
