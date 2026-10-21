@@ -5,7 +5,7 @@ import type { YardSnapshot } from './run';
 
 export interface YardMission { id: string; order: number; title: string; kind: 'mission' | 'final' | 'sandbox'; message: string; targetId?: string }
 export const YARD_MISSIONS: readonly YardMission[] = [
-  { id: 'm00', order: 0, title: 'BUILD YOUR WORLD', kind: 'mission', message: 'Your yard is ready to defend. Change worldTheme to "alpine", "volcanic" or "neon" and watch the yard rebuild.', targetId: 'worldTheme' },
+  { id: 'm00', order: 0, title: 'BUILD YOUR WORLD', kind: 'mission', message: 'Your yard is ready to defend. Change worldTheme to "graveyard", "beach" or "winter" and watch the yard rebuild.', targetId: 'worldTheme' },
   { id: 'm01', order: 1, title: 'NAME YOUR WORKSHOP', kind: 'mission', message: 'Add WORKSHOP NAME and give your workshop a name of your own.', targetId: 'workshopName' },
   { id: 'm02', order: 2, title: 'SHARPEN THE MATH', kind: 'mission', message: 'Use BLADE DAMAGE and SHARPEN THE MATH to reach 30 damage with arithmetic.', targetId: 'bladeDamage' },
   { id: 'm03', order: 3, title: 'AUTOMATIC ENERGY', kind: 'mission', message: 'Add AUTO COLLECT set to true and let a battery bank itself.', targetId: 'autoCollect' },
@@ -20,7 +20,7 @@ export const YARD_STARTER = YARD_MODS.slice(0, 3).map(m => `${m.type} ${m.name} 
 export const YARD_SANDBOX = YARD_STARTER;
 /** Example remix used to exercise advanced settings and live rules. */
 export const YARD_REMIX = [
-  'string worldTheme = "neon";', 'string workshopName = "Saw Society";', 'int bladeDamage = 20 + 10;', 'int chargeRate = 7;',
+  'string worldTheme = "graveyard";', 'string workshopName = "Saw Society";', 'int bladeDamage = 20 + 10;', 'int chargeRate = 7;',
   'bool autoCollect = true;', 'bool doubleShot = false;', 'bool overdrive = false;', 'int wallHealth = 2400;', 'int zombieSpeed = 3;', 'int startingPower = 300;', 'bool quickHands = true;',
   'if (kills >= 3)', '{', '    doubleShot = true;', '}', 'if (wave >= 2)', '{', '    overdrive = true;', '}',
 ].join('\n');

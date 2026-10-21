@@ -4,6 +4,7 @@ import { evalExpr } from '../../interpreter/core/evaluate';
 import { renderText } from '../../interpreter/csharp/binder';
 import { YARD_DEFAULTS, YARD_MODS, yardSchema, type YardConfig } from './mods';
 import { YARD_LEVELS, yardLevel, yardLevelName, yardToughness, type UnitKind, type YardLevel, type ZombieKind } from './levels';
+import { YARD_WEATHER } from './worlds';
 
 export type { UnitKind, ZombieKind };
 export const ROWS = 5, COLS = 9;
@@ -136,7 +137,7 @@ export class YardRun {
   }
   private random(): number { this.seed = (this.seed * 16807) % 2147483647; return (this.seed - 1) / 2147483646; }
   private tick(dt: number): void {
-    const stage = this.stage, speedScale = this.config.zombieSpeed / 3;
+    const stage = this.stage, speedScale = this.config.zombieSpeed / 3 * (YARD_WEATHER[this.config.weather]?.zombies ?? 1);
     this.elapsed += dt;
     for (const kind of Object.keys(this.cooldowns) as UnitKind[]) this.cooldowns[kind] = Math.max(0, (this.cooldowns[kind] ?? 0) - dt * (this.config.quickHands ? 2 : 1));
     // Waves arrive on schedule, and sooner when the yard is already clear.

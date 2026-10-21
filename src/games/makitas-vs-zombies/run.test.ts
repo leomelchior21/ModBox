@@ -4,6 +4,7 @@ import { formatCodeForLanguage } from '../../interpreter/languageSyntax';
 import { YARD_DEFAULTS, YARD_MODS, YARD_TOOLS, yardSchema, type YardConfig } from './mods';
 import { YardRun, readYardCheckpoint, UNIT_INFO, ZOMBIE_INFO, type Zombie, type ZombieKind } from './run';
 import { YARD_LEVELS } from './levels';
+import { YARD_WORLDS, YARD_WEATHER, yardInvites } from './worlds';
 import { YARD_MISSIONS, YARD_REMIX, YARD_STARTER, yardMissionPassed } from './missions';
 
 const parse = (s: string) => parseGameScript<YardConfig>(s, 'csharp', yardSchema);
@@ -98,5 +99,16 @@ describe('Makitas vs Zombies lawn defense', () => {
     const restored = new YardRun(saved); restored.launch(); expect(restored.level).toBe(2); expect(restored.score).toBe(run.score); expect(restored.stage.cards).toContain('charger');
     expect(restored.playLevel(3)).toBe(false); expect(restored.playLevel(1)).toBe(true); expect(restored.level).toBe(1); expect(restored.checkpoint?.best).toBe(2); expect(restored.frontier).toBe(2);
     expect(readYardCheckpoint({ ...saved, version: 1 })).toBeNull(); expect(readYardCheckpoint({ ...saved, level: 0 })).toBeNull(); expect(readYardCheckpoint({ ...saved, metrics: {} })).toBeNull();
+  });
+});
+
+describe('yards, weather and the foreman', () => {
+  it('slows zombies in the snow and offers fixes after a breach', () => {
+    const pace = (weather: string) => { const run = new YardRun(); run.setProgram(parseGameScript<YardConfig>(`string weather = "${weather}";`, 'csharp', yardSchema)); run.launch(); for (let i = 0; i < 60 * 40; i++) run.step(1 / 60); return run.zombies.length ? Math.min(...run.zombies.map(z => z.x)) : 99; };
+    expect(pace('snow')).toBeGreaterThan(pace('clear'));
+    const state = { config: { ...YARD_DEFAULTS }, power: 20, wave: 2, kills: 3, lost: true };
+    expect(yardInvites(state, 'lose')[0].code).toBe('int bladeDamage = 30;'); expect(yardInvites(state, 'struggle')[0].code).toBe('bool autoCollect = true;'); expect(yardInvites(state, 'win')[0].code).toBe('string worldTheme = "graveyard";');
+    for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of yardInvites(state, moment)) expect(parseGameScript<YardConfig>(invite.code, 'csharp', yardSchema).ok, invite.code).toBe(true);
+    expect(Object.keys(YARD_WORLDS)).toEqual(YARD_MODS.find(m => m.id === 'worldTheme')!.values); expect(Object.keys(YARD_WEATHER)).toEqual(YARD_MODS.find(m => m.id === 'weather')!.values);
   });
 });

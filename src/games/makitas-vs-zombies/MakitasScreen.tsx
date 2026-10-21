@@ -21,6 +21,8 @@ import { COLS, ROWS, UNIT_INFO, YardRun, type UnitKind } from './run';
 import { YARD_LEVELS, yardLevelName } from './levels';
 import { YardView } from './view';
 import { YardSound } from './sound';
+import { yardInvites } from './worlds';
+import { freshInvites, type ModInvite } from '../premium-kit/invites';
 import './makitas.css';
 
 const COACH_TARGETS = { 'yard-log': /(?:Console\.WriteLine|print)/, 'yard-math': /^\s*bladeDamage\s*=/, 'yard-kills': /^\s*if.*\bkills\b/, 'yard-wave': /^\s*if.*\bwave\b/ };
@@ -58,6 +60,19 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
   const engage = useCallback(() => { (document.activeElement as HTMLElement | null)?.closest?.('.cm-editor') && (document.activeElement as HTMLElement).blur(); setFocused(false); sound.unlock(); }, [sound]);
   const act = (move: () => void) => { if (libraryOpen || settingsOpen || interactionOpen()) return; engage(); move(); update(); };
   const insert = useCallback((snippet: string, mode?: ModInsertMode) => applyModToEditor(editor.current, snippet, mode, language), [language]);
+  // Coaching invites: one line of code offered after a breach, a win, or a tough wave.
+  const [coach, setCoach] = useState<ModInvite | null>(null); const seenInvites = useRef(new Set<string>()), lastCoach = useRef(0);
+  const inviteState = (lost: boolean) => ({ config: run.config, power: run.power, wave: run.wave, kills: run.metrics.kills, lost });
+  const localInvite = (invite: ModInvite): ModInvite => ({ ...invite, code: formatCodeForLanguage(invite.code, language).trim() });
+  const acceptInvite = (invite: ModInvite, then?: () => void) => { seenInvites.current.add(invite.id); setCoach(null); insert(formatCodeForLanguage(invite.code, language), 'replace'); window.setTimeout(() => { engage(); then?.(); update(); }, 450); };
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const now = performance.now(); if (run.phase !== 'playing' || blocked.current || now - lastCoach.current < 25000) return;
+      const [next] = freshInvites(yardInvites(inviteState(false), 'struggle'), seenInvites.current, 1); if (!next) return; seenInvites.current.add(next.id); lastCoach.current = now; setCoach(next);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [run]);
+  useEffect(() => { if (!coach) return; const t = window.setTimeout(() => setCoach(null), 10000); return () => window.clearTimeout(t); }, [coach]);
   const dismiss = () => setDismissed(`${mission.id}:${guidance.message}`);
   const choose = (next: Tool) => { engage(); setTool(current => current === next ? null : next); };
   const tapTile = (row: number, col: number) => act(() => {
@@ -177,7 +192,9 @@ export function MakitasScreen({ gameId, missionId, debugFlag }: GameScreenProps)
       </div>
       {playing ? <div className="mvz__banner" key={snapshot.bannerId} aria-live="polite">{snapshot.banner}</div> : null}
       {playing ? <div className={`mvz__notice mvz__notice--${snapshot.noticeKind}`} role="status"><span key={snapshot.noticeId}>{focused ? 'EDITING · DEFENSE HELD' : snapshot.config.overdrive ? '⚡ OVERDRIVE ACTIVE' : snapshot.config.doubleShot ? '» TWIN BLADES ACTIVE' : snapshot.notice}</span></div> : null}
+      {playing && coach ? <div className={`coach-toast coach-toast--${coach.tone}`} role="status"><i aria-hidden="true">{coach.icon}</i><span><strong>{coach.title}</strong><small>{coach.reason}</small><code>{localInvite(coach).code}</code></span><button onClick={() => acceptInvite(coach)}>ADD MOD</button><button className="coach-toast__close" aria-label="Dismiss tip" onClick={() => setCoach(null)}>×</button></div> : null}
       {ended ? <ResultOverlay key={`${run.revision}-${snapshot.phase}`} snapshot={world.current?.snapshot() ?? null} footnote={footnote}
+        invites={freshInvites(yardInvites(inviteState(snapshot.phase === 'gameover'), snapshot.phase === 'cleared' ? 'win' : 'lose'), seenInvites.current, 2).map(localInvite)} onInvite={invite => acceptInvite(invite, () => { if (snapshot.phase === 'cleared') run.advance(); else run.launch(); })}
         card={snapshot.phase === 'cleared' ? { win: true, headline: `${snapshot.score.toLocaleString()} PTS`, caption: snapshot.levelName, detail: snapshot.reward ? `New tool unlocked · ${UNIT_INFO[snapshot.reward].name}` : `${snapshot.metrics.kills} zombies stopped` } : { win: false, caption: 'Brains... I mean, tools!', detail: 'A zombie reached the workshop' }}
         stages={Array.from({ length: levelCount }, (_, i) => i + 1).map(level => ({ level, name: yardLevelName(level), state: level < run.frontier || level === run.level && snapshot.phase === 'cleared' ? 'done' : level === run.frontier ? 'current' : 'locked' }))}
         onHome={() => navigate({ name: 'landing' })} onPrimary={() => act(() => snapshot.phase === 'cleared' ? run.advance() : run.launch())} onPick={level => act(() => run.playLevel(level))} /> : null}

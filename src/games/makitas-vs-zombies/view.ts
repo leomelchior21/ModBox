@@ -4,6 +4,9 @@ import { ArcadeRun, type ArcadeAction, type ArcadeCue } from '../premium-kit/cor
 import { World, material, mesh, label, batchScenery } from '../three-kit/world';
 import { YardRun, COLS, ROWS, type Defender, type Zombie, type YardCue, type UnitKind } from './run';
 import { TEAL, batteryModel, sawBlade, sweeperModel, unitModel, zombieModel, type UnitModel, type ZombieModel } from './models';
+import { yardWorld, YARD_WEATHER } from './worlds';
+import { recolor, tintTexture, weatherLight } from '../three-kit/looks';
+import { WorldWeather } from '../three-kit/weather';
 
 const TILE = 1.4;
 export const tileX = (col: number) => (col - COLS / 2) * TILE;
@@ -21,7 +24,7 @@ export class YardView extends World<Presentation> {
   private yardGroup = new T.Group(); private units = new Map<number, Actor<UnitModel>>(); private zombies = new Map<number, Actor<ZombieModel> & { last: Zombie }>();
   private blades = new Map<number, T.Group>(); private drops = new Map<number, T.Group>(); private sweepers: T.Group[] = [];
   private ghost = new T.Group(); private ghostKind = ''; private marker: T.Mesh; private sign = label('THE LAST WORKSHOP', '#ffffff', '#0a7f82ee', 640, 120);
-  private stageKey = ''; private iconCache: Partial<Record<UnitKind, string>> = {};
+  private stageKey = ''; private iconCache: Partial<Record<UnitKind, string>> = {}; private weather: WorldWeather; private unitStyle = '';
   constructor(canvas: HTMLCanvasElement, readonly yard: YardRun) {
     super(canvas, new Presentation(yard), '#8fd3ff', 15);
     this.camera = new T.PerspectiveCamera(34, 1, .5, 300);
@@ -29,6 +32,18 @@ export class YardView extends World<Presentation> {
     this.scene.add(this.yardGroup, this.ghost);
     this.marker = mesh(new T.PlaneGeometry(TILE * .96, TILE * .96), new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .35, depthWrite: false }), this.scene, 0, .1, 0, false);
     this.marker.rotation.x = -Math.PI / 2; this.marker.visible = false;
+    this.remix.ownWorld(true); this.weather = new WorldWeather(this.scene, { w: 22, h: 10, d: 14 });
+  }
+  /** Machine styles repaint each tool's own materials: chrome robot, polished gold, bright toy plastic or steampunk brass. */
+  private styleUnit(root: T.Object3D, style: string) {
+    const target = { robot: ['#c9d3dc', .75, .25], gold: ['#ffcf3a', .85, .25], toy: ['', 0, .35], steampunk: ['#b5753a', .7, .4] }[style] as [string, number, number] | undefined;
+    root.traverse(o => {
+      if (!(o instanceof T.Mesh) || !(o.material instanceof T.MeshStandardMaterial)) return; const m = o.material;
+      const base = (m.userData.base ??= { color: m.color.clone(), metal: m.metalness, rough: m.roughness }) as { color: T.Color; metal: number; rough: number }; m.color.copy(base.color); m.metalness = base.metal; m.roughness = base.rough;
+      if (!target) return;
+      if (style === 'toy') { const hsl = { h: 0, s: 0, l: 0 }; base.color.getHSL(hsl); m.color.setHSL(hsl.h, Math.min(1, hsl.s + .45), Math.min(.7, hsl.l + .12)); m.metalness = 0; m.roughness = .35; }
+      else { m.color.copy(base.color).lerp(new T.Color(target[0]), .7); m.metalness = target[1]; m.roughness = target[2]; }
+    });
   }
   resize(width: number, height: number, pixelRatio: number): void {
     super.resize(width, height, pixelRatio);
@@ -51,9 +66,9 @@ export class YardView extends World<Presentation> {
   }
   private buildYard() {
     this.disposeStage(this.yardGroup); this.yardGroup.clear(); this.sweepers = [];
-    const s = this.shapes, y = this.yard, night = y.stage.night, lanes = y.stage.lanes;
+    const s = this.shapes, y = this.yard, w = yardWorld(y.config.worldTheme), night = y.stage.night || YARD_WEATHER[y.config.weather]?.dark || w.props === 'graves', lanes = y.stage.lanes;
     const grassA = material(night ? '#5f9a6a' : '#ffffff', .9), grassB = material(night ? '#4f8a5c' : '#e3f0d8', .9), dirt = material(night ? '#8a7a66' : '#ffffff', .95), dirtDark = material(night ? '#4a3a2a' : '#9c7246', .95);
-    grassA.map = grassB.map = turf(); dirt.map = soil();
+    const lawn = turf(), ground = soil(); grassA.map = grassB.map = w.grass === '#ffffff' ? lawn : tintTexture(lawn, w.grass); if (w.grass !== '#ffffff' && !night) grassB.color.set('#e6e6e6'); dirt.map = w.soil === '#ffffff' ? ground : tintTexture(ground, w.soil);
     // Lawn tiles: classic alternating stripes for open lanes, bare soil for closed ones.
     s.cube(this.yardGroup, dirtDark, -.3, -.5, 0, 15.6, 1, 8.6, false);
     for (let row = 0; row < ROWS; row++) for (let col = 0; col < COLS; col++) {
@@ -86,6 +101,10 @@ export class YardView extends World<Presentation> {
     for (let i = 0; i < 14; i++) s.cube(this.yardGroup, material('#f4d35e', .7), -14 + i * 2.2, -.13, tileZ(ROWS) + 3.4, 1.1, .02, .14, false);
     for (const [x, color] of [[-4.5, '#d8392b'], [2.2, TEAL], [5.4, '#d8392b']] as const) { const crate = s.cube(this.yardGroup, material(color, .5), x, .25, tileZ(ROWS) + .95, .7, .5, .5); crate.rotation.y = x * .3; }
     if (night) for (const x of [-3, 3]) { s.tube(this.yardGroup, material('#2d3238'), x, 1.5, tileZ(0) - 1.9, .06, 3); const lamp = material('#ffe9a8'); lamp.emissive.set('#ffd77a'); lamp.emissiveIntensity = 1.2; s.ball(this.yardGroup, lamp, x, 3.05, tileZ(0) - 1.9, .18); }
+    this.yardProps(w);
+    recolor(this.yardGroup, [['#f4e9d4', w.wall], ['#d0573b', w.roof], ['#a8432e', w.roof], ['#efe9dc', w.fence], ['#d6cfc0', w.fence], ['#3f9a3c', w.leaves[0]], ['#4caf45', w.leaves[1]], ['#358a33', w.leaves[2]], ['#5aa848', w.back], ['#545b63', w.road], ['#9c7246', w.soil === '#ffffff' ? '#9c7246' : w.soil]]);
+    const sky = document.createElement('canvas'); sky.width = 8; sky.height = 256; const g = sky.getContext('2d')!, gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, night ? '#0a1028' : w.sky[0]); gr.addColorStop(1, night ? '#2a2a50' : w.sky[1]); g.fillStyle = gr; g.fillRect(0, 0, 8, 256);
+    if (this.scene.background instanceof T.Texture) this.scene.background.dispose(); const skyMap = new T.CanvasTexture(sky); skyMap.colorSpace = T.SRGBColorSpace; this.scene.background = skyMap;
     batchScenery(this.yardGroup);
     for (const row of lanes) { const sweeper = sweeperModel(s); sweeper.position.set(tileX(0) - .55, .05, tileZ(row + .5)); this.yardGroup.add(sweeper); sweeper.userData.row = row; this.sweepers.push(sweeper); }
     this.sun.intensity = night ? 1 : 2.6; this.sun.color.set(night ? '#a9c0ff' : '#fff2d8');
@@ -95,14 +114,25 @@ export class YardView extends World<Presentation> {
       mesh(new T.CircleGeometry(1.6, 32), new T.MeshBasicMaterial({ color: '#f6f0c8', fog: false }), sky, 14, 10, .1, false);
     }
   }
+  /** Yard dressing: tombstones and dead trees, palms and the sea, snowmen and pines, or a city skyline. */
+  private yardProps(w: ReturnType<typeof yardWorld>) {
+    const s = this.shapes, g = this.yardGroup, back = tileZ(0) - 3;
+    if (w.props === 'graves') for (let i = 0; i < 9; i++) { const x = -7 + i * 1.8, stone = s.cube(g, material('#8a8a94', .9), x, .5, back - (i % 2) * 1.4, .7, 1, .18); stone.rotation.z = Math.sin(i) * .12; s.ball(g, material('#8a8a94', .9), x, 1, back - (i % 2) * 1.4, .35).scale.z = .5; }
+    if (w.props === 'palms') for (let i = 0; i < 5; i++) { const x = -6 + i * 3.2; s.tube(g, material('#9a7a52'), x, 1.6, back - 1, .14, 3.2); for (let k = 0; k < 6; k++) { const leaf = s.cube(g, material('#3aa860', .8), x + Math.cos(k) * .8, 3.2, back - 1 + Math.sin(k) * .8, 1.6, .06, .35); leaf.rotation.y = -k; leaf.rotation.z = .3; } }
+    if (w.props === 'snowmen') for (let i = 0; i < 4; i++) { const x = -5 + i * 3.4, snow = material('#ffffff', .8); s.ball(g, snow, x, .45, back, .45); s.ball(g, snow, x, 1.1, back, .32); s.ball(g, snow, x, 1.6, back, .22); const nose = mesh(new T.ConeGeometry(.05, .25, 6), material('#ff8a1f'), g, x, 1.6, back + .25); nose.rotation.x = Math.PI / 2; s.cube(g, material('#c8303c'), x, 1.32, back, .5, .08, .5); }
+    if (w.props === 'skyline') for (let i = 0; i < 14; i++) { const h = 3 + (i * 7) % 8, x = -16 + i * 2.6; s.cube(g, material(i % 2 ? '#4a5a6a' : '#5a6a7a', .7), x, h / 2 - .3, back - 8 - (i % 3) * 2, 2.2, h, 2, false); for (let k = 0; k < 4; k++) s.cube(g, material('#ffe9a8', .5), x - .5 + (k % 2), h - 1 - Math.floor(k / 2) * 1.2, back - 6.95 - (i % 3) * 2, .4, .4, .02, false); }
+  }
   protected update(dt: number, reduced: boolean) {
-    const y = this.yard, key = `${y.revision}|${y.level}|${y.config.workshopName}`, t = y.elapsed;
+    this.weather.update(dt, YARD_WEATHER[this.yard.config.weather]?.kind ?? 'clear', new T.Vector3(0, 0, 0), 0, reduced); weatherLight(this.scene, this.sun, this.weather);
+    if (this.yard.config.weather !== 'fog') this.scene.fog = null;
+    const style = this.yard.config.characterStyle ?? 'original'; if (style !== this.unitStyle) { this.unitStyle = style; for (const actor of this.units.values()) this.styleUnit(actor.model.root, style); }
+    const y = this.yard, key = `${y.revision}|${y.level}|${y.config.workshopName}|${y.config.worldTheme}|${y.config.weather === 'night'}`, t = y.elapsed;
     if (key !== this.stageKey) { this.stageKey = key; this.buildYard(); }
     const s = this.shapes;
     for (const a of this.units.values()) a.seen = false;
     for (const u of y.units) {
       let actor = this.units.get(u.id);
-      if (!actor) { const model = unitModel(s, u.kind); this.scene.add(model.root); this.remix.character(model.root, 'machine'); actor = { model, seen: true, death: 0 }; this.units.set(u.id, actor); }
+      if (!actor) { const model = unitModel(s, u.kind); this.scene.add(model.root); this.styleUnit(model.root, y.config.characterStyle ?? 'original'); actor = { model, seen: true, death: 0 }; this.units.set(u.id, actor); }
       actor.seen = true; this.pose(actor.model, u, t, dt, reduced);
     }
     for (const [id, actor] of this.units) if (!actor.seen) { actor.model.root.removeFromParent(); this.disposeStage(actor.model.root); this.units.delete(id); }

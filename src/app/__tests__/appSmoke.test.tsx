@@ -337,7 +337,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('[data-cell="2:1"]')?.getAttribute('aria-label')).toContain('SAW SHOOTER');
     expect(host.querySelector('.mvz__power strong')?.textContent).toBe('100');
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    await act(async () => view!.dispatch({ changes: { from: view!.state.doc.length, insert: '\ndoubleShot = True\nworldTheme = "neon"' } }));
+    await act(async () => view!.dispatch({ changes: { from: view!.state.doc.length, insert: '\ndoubleShot = True\nworldTheme = "graveyard"' } }));
     expect(await waitFor(() => host.querySelector('.mvz__notice')?.textContent?.includes('TWIN BLADES ACTIVE') ?? false)).toBe(true);
     expect(useProgress.getState().getGameProgress('makitas-vs-zombies').completed).toEqual([]);
     await act(async () => host.querySelector<HTMLButtonElement>('.play-mode button')?.click());

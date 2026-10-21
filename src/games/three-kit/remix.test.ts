@@ -39,8 +39,8 @@ describe('live world remixes', () => {
   });
   it('remixes an active workshop without losing placed machines or power', () => {
     const run = new YardRun(); run.launch(); run.place('saw', 2, 1); const power = run.power, unit = run.units[0], revision = run.revision;
-    run.setProgram(parseGameScript<YardConfig>('string worldTheme = "neon"; string characterStyle = "armored"; string weather = "rain";', 'csharp', yardSchema));
-    expect(run.config).toMatchObject({ worldTheme: 'neon', characterStyle: 'armored', weather: 'rain' }); expect(run.power).toBe(power); expect(run.units[0]).toBe(unit); expect(run.revision).toBe(revision);
+    run.setProgram(parseGameScript<YardConfig>('string worldTheme = "graveyard"; string characterStyle = "steampunk"; string weather = "rain";', 'csharp', yardSchema));
+    expect(run.config).toMatchObject({ worldTheme: 'graveyard', characterStyle: 'steampunk', weather: 'rain' }); expect(run.power).toBe(power); expect(run.units[0]).toBe(unit); expect(run.revision).toBe(revision);
   });
 });
 
