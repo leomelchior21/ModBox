@@ -1,6 +1,7 @@
 import { ArcadeRun, clamp, type ArcadeAction } from '../premium-kit/core';
 import { roombaCatalog } from './catalog';
 import { legs, roomFor, roomName, type DebrisKind, type Room } from './rooms';
+import { ROOMBA_CHAOS } from './worlds';
 
 export const CELL = .25, RADIUS = .27;
 const DEBRIS_VALUE: Record<DebrisKind, number> = { coin: 10, popcorn: 2, crumbs: 1, sock: 4, brick: 3, leaf: 1, bolt: 3 };
@@ -48,6 +49,11 @@ export class RoombaRun extends ArcadeRun {
   path: { x: number; z: number }[] = []; joystick: { ox: number; oy: number; x: number; y: number; id: number } | null = null;
   /** Cells cleaned since the view last painted them, so the floor trail stays in sync. */
   freshlyCleaned: number[] = [];
+  /** Cells made dirty again by party confetti or muddy paws, for the view to paint. */
+  freshlyDirtied: number[] = [];
+  /** The puppy that wanders the room when pets are in, and how often the battery ran flat this stage. */
+  pet = { x: 0, z: 0, t: 0 }; flats = 0; messes = 0; private messTimer = 0;
+  get chaos() { return ROOMBA_CHAOS[this.config.weather ?? 'clear'] ?? ROOMBA_CHAOS.clear; }
   private routeTimer = 0; private stuck = 0;
   constructor(checkpoint?: unknown) { super('roomba-run', roombaCatalog.defaults, roombaCatalog.schema, checkpoint); this.prepare(); }
   get coverage() { return this.grid.total ? this.cleanedCells / this.grid.total * 100 : 0; }
@@ -62,6 +68,7 @@ export class RoombaRun extends ArcadeRun {
     this.toys = this.room.toys.map(t => ({ ...t, vx: 0, vz: 0, spin: 0 }));
   }
   protected setup(): void {
+    this.flats = 0; this.messes = 0; this.messTimer = 2; this.freshlyDirtied = []; this.pet = { x: 0, z: 0, t: 0 };
     this.prepare(); this.battery = 100; this.money = 0; this.docking = false; this.charging = false; this.turbo = 0; this.turboCooldown = 0; this.brushAngle = 0; this.path = []; this.joystick = null; this.routeTimer = 0; this.dirtRevision++;
     this.notice = `${this.roomName.toUpperCase()} · ${this.room.tip}`;
   }
@@ -123,12 +130,27 @@ export class RoombaRun extends ArcadeRun {
       this.battery = Math.min(100, this.battery + dt * 26);
       if (this.coverage >= this.target) { const bonus = 300 + Math.round(this.battery) + this.money * 5; this.addScore(bonus, 0, 0, 'SPOTLESS!'); this.clear(0, 0); return; }
       if (this.battery >= 99 && this.docking) { this.docking = false; this.path = []; }
-    } else this.battery = Math.max(0, this.battery - dt * (.2 + Math.abs(this.speedNow) * .15 + (this.turbo > 0 ? 1.2 : 0)));
+    } else this.battery = Math.max(0, this.battery - dt * (.2 + Math.abs(this.speedNow) * .15 + (this.turbo > 0 ? 1.2 : 0)) * this.chaos.drain);
     this.brushAngle += dt * (this.turbo > 0 ? 45 : 22);
-    this.clean(dt);
+    this.clean(dt); this.mess(dt);
     if (this.battery <= 0) {
-      this.lose(0, 0, 'BATTERY EMPTY. A spare pack brings you home: recharge at the dock.');
+      this.flats++; this.lose(0, 0, 'BATTERY EMPTY. A spare pack brings you home: recharge at the dock.');
       if (this.phase === 'playing') { this.x = this.room.dock.x; this.z = this.room.dock.z - .1; this.heading = Math.PI; this.speedNow = 0; this.battery = 40; this.path = []; this.docking = false; }
+    }
+  }
+  /** Party confetti lands on clean floor; a muddy puppy leaves paw prints along its walk. */
+  private mess(dt: number) {
+    const kind = this.chaos.mess; if (kind === 'none' || this.coverage >= this.target) return;
+    const g = this.grid, cellAt = (x: number, z: number) => clamp(Math.floor((z + this.room.depth / 2) / CELL), 0, g.rows - 1) * g.cols + clamp(Math.floor((x + this.room.width / 2) / CELL), 0, g.cols - 1);
+    const dirty = (i: number) => { if (g.cleanable[i] && g.reachable[i] && g.dirt[i] === 0) { g.dirt[i] = Math.max(.4, g.initial[i] * .7); this.cleanedCells = Math.max(0, this.cleanedCells - 1); this.freshlyDirtied.push(i); this.messes++; this.dirtRevision++; } };
+    this.messTimer -= dt;
+    if (kind === 'party' && this.messTimer <= 0) {
+      this.messTimer = 1.2; const hash = Math.abs(Math.sin(this.elapsed * 91.7)) * 1e4, start = Math.floor(hash) % g.dirt.length;
+      for (let k = 0; k < g.dirt.length; k++) { const i = (start + k * 37) % g.dirt.length; if (g.cleanable[i] && g.reachable[i] && g.dirt[i] === 0 && Math.hypot((i % g.cols + .5) * CELL - this.room.width / 2 - this.x, (Math.floor(i / g.cols) + .5) * CELL - this.room.depth / 2 - this.z) > 1.2) { dirty(i); dirty(i + 1); dirty(i + g.cols); break; } }
+    }
+    if (kind === 'pets') {
+      const p = this.pet; p.t += dt; p.x = Math.sin(p.t * .31) * this.room.width * .38; p.z = Math.sin(p.t * .47 + 1) * this.room.depth * .36;
+      if (this.messTimer <= 0) { this.messTimer = .35; dirty(cellAt(p.x, p.z)); }
     }
   }
   private move(dx: number, dz: number) {

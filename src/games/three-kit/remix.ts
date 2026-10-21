@@ -133,7 +133,23 @@ export class SceneRemix {
         box(root, dark, 0, -.05, 0, 3.4, .3, 1.85); box(root, chrome, -.1, .45, 0, 3.25, .75, 1.9); box(root, dark, -.35, 1.07, 0, 1.7, .65, 1.75); box(root, glow, .4, 1.07, 0, .08, .39, 1.79); for (const z of [-.78, .78]) { box(root, glow, 1.59, .55, z, .08, .2, .22); box(root, chrome, -.4, 1.5, z, 1.3, .16, .17); } if (style === 'robot') { for (const z of [-.5, .5]) box(root, glow, -1.8, .25, z, .5, .3, .3); const head = box(root, chrome, .3, 1.75, 0, .6, .45, .6); head.castShadow = true; box(root, glow, .62, 1.78, 0, .02, .1, .45); }
       }
     } else if (a.kind === 'vacuum') {
-      const body = new T.Mesh(new T.CylinderGeometry(.39, .41, .25, style === 'robot' ? 8 : 32), chrome); body.position.y = .2; root.add(body); const ring = new T.Mesh(new T.TorusGeometry(.39, .035, 6, 40), glow); ring.rotation.x = Math.PI / 2; ring.position.y = .29; root.add(ring); box(root, dark, 0, .38, -.02, .23, .14, .19); box(root, glow, 0, .4, .085, .15, .04, .025); if (style === 'armored') for (const side of [-1, 1]) box(root, dark, side * .39, .15, 0, .18, .27, .56);
+      // Vacuum shells sit on the same base: a cat passenger, a flying saucer or tank tracks, or the classic robot shells.
+      const shell = (color: string, metal = 0) => { const body = new T.Mesh(new T.CylinderGeometry(.39, .41, .25, style === 'robot' ? 8 : 32), mat(color, metal)); body.position.y = .2; body.castShadow = true; root.add(body); return body; };
+      if (style === 'cat') {
+        shell('#f7f7f4'); const fur = mat('#f0a04a'), stripe = mat('#c8742a');
+        const body = ball(root, fur, 0, .48, -.05, .2); body.scale.set(1, .8, 1.25); ball(root, fur, 0, .7, .14, .14);
+        for (const x of [-.07, .07]) { const ear = new T.Mesh(new T.ConeGeometry(.05, .1, 4), stripe); ear.position.set(x, .84, .14); root.add(ear); ball(root, mat('#1b1b1b'), x * .8, .72, .27, .02); }
+        const tail = new T.Mesh(new T.CylinderGeometry(.025, .02, .35, 6), stripe); tail.position.set(0, .55, -.32); tail.rotation.x = -1; root.add(tail); box(root, stripe, 0, .58, -.05, .3, .02, .06);
+      } else if (style === 'ufo') {
+        const saucer = new T.Mesh(new T.CylinderGeometry(.24, .46, .16, 32), mat('#c9d3dc', .7)); saucer.position.y = .2; saucer.castShadow = true; root.add(saucer);
+        const dome = ball(root, mat('#7fe8ff', .3, '#38c8ff'), 0, .32, 0, .2); dome.scale.y = .7; const ring = new T.Mesh(new T.TorusGeometry(.42, .03, 6, 32), glow); ring.rotation.x = Math.PI / 2; ring.position.y = .15; root.add(ring);
+        for (let i = 0; i < 6; i++) ball(root, mat(i % 2 ? '#ffd23f' : '#ff4fd8', 0, i % 2 ? '#ffb000' : '#ff2fc8'), Math.cos(i * 1.05) * .36, .17, Math.sin(i * 1.05) * .36, .035);
+      } else if (style === 'tank') {
+        shell('#5a6b3a'); for (const side of [-1, 1]) { box(root, dark, side * .4, .14, 0, .14, .24, .7); for (let k = 0; k < 4; k++) ball(root, mat('#2a2e24'), side * .4, .1, -.24 + k * .16, .06); }
+        box(root, mat('#4a5a30'), 0, .4, -.02, .32, .14, .3); const barrel = new T.Mesh(new T.CylinderGeometry(.03, .035, .4, 8), dark); barrel.rotation.x = Math.PI / 2; barrel.position.set(0, .42, .3); root.add(barrel);
+      } else {
+        shell(style === 'armored' ? '#35384e' : '#e4ecf2', .6); const ring = new T.Mesh(new T.TorusGeometry(.39, .035, 6, 40), glow); ring.rotation.x = Math.PI / 2; ring.position.y = .29; root.add(ring); box(root, dark, 0, .38, -.02, .23, .14, .19); box(root, glow, 0, .4, .085, .15, .04, .025); if (style === 'armored') for (const side of [-1, 1]) box(root, dark, side * .39, .15, 0, .18, .27, .56);
+      }
     } else if (a.kind === 'snake') {
       const hood = ball(root, chrome, 0, .55, 0, .52); hood.scale.set(.9, 1.1, .7); for (const side of [-1, 1]) { ball(root, glow, side * .2, .74, -.29, .085); if (style === 'robot') box(root, glow, side * .4, .5, 0, .13, .62, .15); } box(root, dark, 0, .4, -.38, .32, .09, .2);
     } else { box(root, dark, 0, .25, 0, .85, .4, .8); box(root, chrome, 0, .7, 0, .7, .55, .65); box(root, glow, .4, .8, 0, .2, .22, .4); }

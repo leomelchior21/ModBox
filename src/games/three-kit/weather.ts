@@ -1,7 +1,7 @@
 import * as T from 'three';
 
 /** Weather kinds any 3D game can roll in. Games decide which ones they offer and how each changes play. */
-export type WeatherKind = 'clear' | 'rain' | 'storm' | 'snow' | 'fog' | 'sandstorm' | 'embers' | 'fireflies' | 'petals' | 'aurora' | 'wind';
+export type WeatherKind = 'clear' | 'rain' | 'storm' | 'snow' | 'fog' | 'sandstorm' | 'embers' | 'fireflies' | 'petals' | 'confetti' | 'aurora' | 'wind';
 interface Layer { mesh: T.InstancedMesh; level: number; max: number }
 const seedTable = Float32Array.from({ length: 6000 }, (_, i) => Math.abs(Math.sin(i * 12.9898 + 4.1) * 43758.5453) % 1);
 
@@ -14,7 +14,7 @@ export class WorldWeather {
   wet = 0; cover = 0; gloom = 0; flash = 0; fogLevel = 0;
   private layers: Record<'rain' | 'snow' | 'dust' | 'embers' | 'flies' | 'petals', Layer>;
   private fog = new T.Fog('#cfd6dc', 30, 120); private base = { color: new T.Color('#cfd6dc'), near: 30, far: 120 }; private tint = new T.Color('#cfd6dc');
-  private dummy = new T.Object3D(); private time = 0; private nextBolt = 5; private aurora: T.Mesh;
+  private dummy = new T.Object3D(); private time = 0; private petalTone = ''; private nextBolt = 5; private aurora: T.Mesh;
   constructor(private scene: T.Scene, readonly box = { w: 26, h: 12, d: 34 }) {
     const make = (g: T.BufferGeometry, m: T.Material, max: number): Layer => { const mesh = new T.InstancedMesh(g, m, max); mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 2; scene.add(mesh); return { mesh, level: 0, max }; };
     const basic = (color: string, opacity = 1, additive = false) => new T.MeshBasicMaterial({ color, transparent: opacity < 1 || additive, opacity, depthWrite: false, toneMapped: false, ...(additive ? { blending: T.AdditiveBlending } : {}) });
@@ -24,7 +24,7 @@ export class WorldWeather {
       dust: make(new T.BoxGeometry(.5, .02, .02), basic('#d9b77a', .55), 700),
       embers: make(new T.IcosahedronGeometry(.04, 0), basic('#ff9a3c', .9, true), 300),
       flies: make(new T.IcosahedronGeometry(.05, 0), basic('#e6ff7a', .9, true), 160),
-      petals: make(new T.PlaneGeometry(.1, .07), new T.MeshBasicMaterial({ color: '#ffb7d5', side: T.DoubleSide, transparent: true, opacity: .95, depthWrite: false }), 260),
+      petals: make(new T.PlaneGeometry(.1, .07), new T.MeshBasicMaterial({ color: '#ffffff', side: T.DoubleSide, transparent: true, opacity: .95, depthWrite: false }), 260),
     };
     // Aurora: a wide glowing ribbon high in the sky, only shown for that weather.
     const c = document.createElement('canvas'); c.width = 256; c.height = 64; const g = c.getContext('2d')!, gr = g.createLinearGradient(0, 0, 0, 64);
@@ -37,7 +37,9 @@ export class WorldWeather {
   update(dt: number, kind: string, center: T.Vector3, wind: number, reduced: boolean) {
     this.time += dt; const t = this.time, ease = (v: number, to: number, rate: number) => v + (to - v) * Math.min(1, dt * rate);
     const k = kind as WeatherKind, raining = k === 'rain' || k === 'storm';
-    const target = { rain: raining ? (k === 'storm' ? 1 : .65) : 0, snow: k === 'snow' ? 1 : 0, dust: k === 'sandstorm' ? 1 : k === 'wind' ? .35 : 0, embers: k === 'embers' ? 1 : 0, flies: k === 'fireflies' ? 1 : 0, petals: k === 'petals' ? 1 : k === 'wind' ? .4 : 0 };
+    const target = { rain: raining ? (k === 'storm' ? 1 : .65) : 0, snow: k === 'snow' ? 1 : 0, dust: k === 'sandstorm' ? 1 : k === 'wind' ? .35 : 0, embers: k === 'embers' ? 1 : 0, flies: k === 'fireflies' ? 1 : 0, petals: k === 'petals' || k === 'confetti' ? 1 : k === 'wind' ? .4 : 0 };
+    // Confetti reuses the petal layer in party colours.
+    const tone = k === 'confetti' ? 'party' : 'petal'; if (tone !== this.petalTone) { this.petalTone = tone; const c = new T.Color(); for (let i = 0; i < this.layers.petals.max; i++) this.layers.petals.mesh.setColorAt(i, c.set(tone === 'party' ? ['#ff4f7a', '#ffd23f', '#38c8ff', '#7dff9a', '#c27bff'][i % 5] : '#ffb7d5')); if (this.layers.petals.mesh.instanceColor) this.layers.petals.mesh.instanceColor.needsUpdate = true; }
     for (const [name, layer] of Object.entries(this.layers) as [keyof typeof target, Layer][]) layer.level = ease(layer.level, target[name], 1.1);
     this.wet = ease(this.wet, raining ? 1 : 0, .3); this.cover = ease(this.cover, k === 'snow' ? 1 : 0, k === 'snow' ? .15 : .35);
     this.gloom = ease(this.gloom, k === 'storm' ? 1 : k === 'rain' ? .5 : k === 'sandstorm' ? .45 : k === 'fog' ? .3 : k === 'fireflies' || k === 'aurora' ? .6 : 0, .6);

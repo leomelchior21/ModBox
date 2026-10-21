@@ -18,6 +18,8 @@ import { TEAM_WORLDS, TEAM_WEATHER } from '../team-counters/worlds';
 import { teamSpec } from '../team-counters/TeamScreen';
 import { MONSTER_WORLDS, MONSTER_WEATHER } from '../monster-strider/worlds';
 import { monsterSpec } from '../monster-strider/MonsterScreen';
+import { HOUSE_STYLES, ROOMBA_CHAOS } from '../roomba-run/worlds';
+import { roombaSpec } from '../roomba-run/RoombaScreen';
 import type { ArcadeConfig, ArcadeRun } from '../premium-kit/core';
 
 const games = [
@@ -328,5 +330,20 @@ describe('Roomba Run cleaning and navigation', () => {
     const run = new RoombaRun(); run.setProgram(parseGameScript<ArcadeConfig>('bool smartRoute = false;\nif (battery <= 25) { smartRoute = true; }', 'csharp', roombaCatalog.schema)); run.launch(); run.x = 3; run.z = 0; run.battery = 21;
     advance(run, .1); expect(run.config.assist).toBe(true); const cleaned = run.cleanedCells; advance(run, 14); expect(run.dockDistance).toBeLessThan(.7); expect(run.battery).toBeGreaterThan(25); expect(run.cleanedCells).toBeGreaterThanOrEqual(cleaned);
     expect(run.metrics.ruleTraces.some(t => t.includes('smartRoute'))).toBe(true);
+  });
+});
+
+describe('Roomba Run houses, chaos and coaching', () => {
+  it('lets party confetti and muddy paws undo clean floor, and storms drain the battery', () => {
+    const clean = (weather: string) => { const run = new RoombaRun(); run.launch(); run.config.weather = weather; const g = run.grid; for (let i = 0; i < g.dirt.length; i++) if (g.cleanable[i]) { g.dirt[i] = 0; } run.cleanedCells = Math.floor(g.total / 2); for (let i = 0; i < 60 * 8; i++) run.step(1 / 60); return run; };
+    const party = clean('party'), pets = clean('pets'), calm = clean('clear');
+    expect(party.messes).toBeGreaterThan(3); expect(pets.messes).toBeGreaterThan(3); expect(calm.messes).toBe(0); expect(party.cleanedCells).toBeLessThan(Math.floor(party.grid.total / 2));
+    const storm = new RoombaRun(); storm.launch(); storm.config.weather = 'storm'; const still = new RoombaRun(); still.launch(); storm.input.up = still.input.up = true; for (let i = 0; i < 60 * 5; i++) { storm.step(1 / 60); still.step(1 / 60); } expect(storm.battery).toBeLessThan(still.battery);
+    expect(Object.keys(HOUSE_STYLES)).toEqual(roombaCatalog.mods.find(m => m.id === 'worldTheme')!.values); expect(Object.keys(ROOMBA_CHAOS)).toEqual(roombaCatalog.mods.find(m => m.id === 'weather')!.values);
+  });
+  it('speaks as the robot when the battery dies and invites a new house after a win', () => {
+    const run = new RoombaRun(); run.launch();
+    expect(roombaSpec.invites!(run, 'lose')[0].code).toBe('bool smartRoute = true;'); expect(roombaSpec.invites!(run, 'win')[0].code).toBe('string worldTheme = "castle";');
+    for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of roombaSpec.invites!(run, moment)) expect(parseGameScript<ArcadeConfig>(invite.code, 'csharp', run.schema).ok, invite.code).toBe(true);
   });
 });

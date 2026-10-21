@@ -407,7 +407,7 @@ describe('MODBOX app shell', () => {
     ['subway-runnerz', 'SUBWAY RUNNERZ', 'tokyo', 'hoverboard'],
     ['team-counters', 'TEAM COUNTERS', 'candy', 'teamShield'],
     ['monster-strider', 'MONSTER STRIDER', 'lava', 'nitro'],
-    ['roomba-run', 'ROOMBA RUN', 'neon', 'turboBrush'],
+    ['roomba-run', 'ROOMBA RUN', 'spaceship', 'turboBrush'],
   ])('opens %s in basic free play, enables every mod and keeps challenges optional', async (id, title, theme, ability) => {
     window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
     await act(async () => host.querySelector<HTMLButtonElement>(`.home-game--${id}`)?.click()); await flush();

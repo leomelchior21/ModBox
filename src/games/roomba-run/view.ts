@@ -3,6 +3,9 @@ import { RoombaRun, CELL } from './run';
 import { World, material, mesh, label, floorTexture, batchScenery, type Shapes } from '../three-kit/world';
 import { unityModel } from '../three-kit/unity-assets';
 import type { DebrisKind, Furniture, Room } from './rooms';
+import { houseStyle } from './worlds';
+import { recolor, tintTexture } from '../three-kit/looks';
+import { WorldWeather } from '../three-kit/weather';
 
 const PX = 48; // dirt-map pixels per meter
 function canvasTexture(size: number, paint: (ctx: CanvasRenderingContext2D) => void, repeat = 1) {
@@ -67,6 +70,7 @@ export class RoombaView extends World<RoombaRun> {
   private dirtCanvas = document.createElement('canvas'); private dirtTexture: T.CanvasTexture; private dirt: T.Mesh | null = null;
   private debris: T.Group[] = []; private toys: T.Group[] = []; private dock: T.MeshStandardMaterial | null = null; private builtFor = -1; private route: T.Line;
   private cam = new T.Vector3(); private look = new T.Vector3(); private camReady = false;
+  private styleKey = ''; private windows: T.MeshStandardMaterial | null = null; private torches: T.Mesh[] = []; private headlight: T.SpotLight; private puppy = new T.Group(); private weather: WorldWeather; private flash = 0; private nextFlash = 4;
   constructor(canvas: HTMLCanvasElement, run: RoombaRun) {
     super(canvas, run, '#2b2420', 15);
     this.camera = new T.PerspectiveCamera(58, 1, .05, 80); this.scene.fog = null;
@@ -76,6 +80,15 @@ export class RoombaView extends World<RoombaRun> {
     this.buildRobot(); unityModel(this.robot, 'vacuum'); this.remix.character(this.robot, 'vacuum');
     this.suction = mesh(new T.RingGeometry(.93, 1, 44), new T.MeshBasicMaterial({ color: '#bff6ff', transparent: true, opacity: .25, side: T.DoubleSide, depthWrite: false }), this.scene, 0, .03, 0, false); this.suction.rotation.x = -Math.PI / 2;
     this.route = new T.Line(new T.BufferGeometry(), new T.LineDashedMaterial({ color: '#ffffff', dashSize: .15, gapSize: .12, transparent: true, opacity: .7 })); this.scene.add(this.route);
+    // A headlight for night cleaning, and a muddy puppy for when the pets are in.
+    this.headlight = new T.SpotLight('#fff3d0', 0, 9, .55, .5, 1.2); this.headlight.position.set(0, .35, 0); this.robot.add(this.headlight); this.robot.add(this.headlight.target); this.headlight.target.position.set(0, 0, 2);
+    this.remix.ownWorld(true); this.weather = new WorldWeather(this.scene, { w: 12, h: 3, d: 10 }); this.buildPuppy();
+  }
+  private buildPuppy() {
+    const s = this.shapes, fur = material('#c8925a', .9), dark = material('#6a4a2a', .9); this.scene.add(this.puppy); this.puppy.visible = false;
+    s.cube(this.puppy, fur, 0, .28, 0, .32, .26, .55); s.cube(this.puppy, fur, 0, .44, .32, .26, .24, .26); s.cube(this.puppy, dark, 0, .4, .47, .12, .1, .08);
+    for (const x of [-.11, .11]) { s.cube(this.puppy, dark, x, .6, .3, .06, .14, .1); for (const z of [-.18, .18]) s.cube(this.puppy, dark, x, .1, z, .08, .2, .08); }
+    const tail = s.cube(this.puppy, fur, 0, .4, -.32, .05, .05, .22); tail.userData.tail = true;
   }
   resize(width: number, height: number, pixelRatio: number): void { super.resize(width, height, pixelRatio); const c = this.camera as T.PerspectiveCamera; c.fov = width / height < .8 ? 72 : 58; c.updateProjectionMatrix(); }
   private buildRobot() {
@@ -88,16 +101,24 @@ export class RoombaView extends World<RoombaRun> {
   private build() {
     const run = this.run, room = run.room, s = this.shapes;
     this.disposeStage(this.room); this.room.clear(); this.debris = []; this.toys = []; this.camReady = false;
-    const floor = material('#ffffff', .75); floor.map = floorMap(room.floor, room);
+    const style = houseStyle(run.config.worldTheme); this.styleKey = run.config.worldTheme ?? 'classic'; this.torches = [];
+    const floor = material('#ffffff', .75), plainFloor = floorMap(room.floor, room); floor.map = style.floor === '#ffffff' ? plainFloor : tintTexture(plainFloor, style.floor); if (floor.map !== plainFloor) { plainFloor.dispose(); }
     s.cube(this.room, floor, 0, -.05, 0, room.width, .1, room.depth, false);
     // Walls face inwards only: when the chase camera passes behind one, it simply disappears.
-    const wallMat = new T.MeshStandardMaterial({ color: room.wall, roughness: .9, side: T.FrontSide }), base = material('#f7efe2', .7);
+    const wallMat = new T.MeshStandardMaterial({ color: style.wall || room.wall, roughness: .9, side: T.FrontSide }), base = material(style.trim, .7); if (style.decor === 'neon') { base.emissive.set(style.trim); base.emissiveIntensity = 1.2; }
     const wall = (x: number, z: number, length: number, rotation: number) => { const w = mesh(new T.PlaneGeometry(length, 2.6), wallMat, this.room, x, 1.3, z, false); w.rotation.y = rotation; const b = mesh(new T.PlaneGeometry(length, .14), base, this.room, x + Math.sin(rotation) * .01, .07, z + Math.cos(rotation) * .01, false); b.rotation.y = rotation; };
     wall(0, -room.depth / 2, room.width, 0); wall(0, room.depth / 2, room.width, Math.PI); wall(-room.width / 2, 0, room.depth, Math.PI / 2); wall(room.width / 2, 0, room.depth, -Math.PI / 2);
-    const glass = material('#a9d8f0', .15, .2); glass.emissive.set('#bfe6ff'); glass.emissiveIntensity = .35;
-    for (const x of [-room.width / 4, room.width / 4]) { const win = mesh(new T.PlaneGeometry(1.8, 1.3), glass, this.room, x, 1.55, -room.depth / 2 + .02, false); win.receiveShadow = false; }
-    const rug = s.cube(this.room, material(room.floor === 'concrete' ? '#6f7e66' : '#b4c9a8', .95), room.width * .12, .006, room.depth * .1, room.width * .32, .012, room.depth * .3, false); rug.receiveShadow = true;
+    const windowColor = { glass: '#a9d8f0', stained: '#c84aa0', porthole: '#0a1030', candy: '#ffb0d8', leafy: '#9ad87a' }[style.window], glass = material(windowColor, .15, .2); glass.emissive.set(windowColor); glass.emissiveIntensity = style.window === 'porthole' ? .2 : .35; this.windows = glass;
+    for (const x of [-room.width / 4, room.width / 4]) {
+      const win = mesh(style.window === 'porthole' ? new T.CircleGeometry(.75, 28) : new T.PlaneGeometry(1.8, 1.3), glass, this.room, x, 1.55, -room.depth / 2 + .02, false); win.receiveShadow = false;
+      if (style.window === 'porthole') { mesh(new T.TorusGeometry(.78, .07, 8, 32), material('#8a96a8', .3, .6), this.room, x, 1.55, -room.depth / 2 + .04, false); for (let k = 0; k < 14; k++) mesh(new T.CircleGeometry(.018, 6), new T.MeshBasicMaterial({ color: '#ffffff' }), this.room, x + Math.sin(k * 2.4) * .55, 1.55 + Math.cos(k * 1.7) * .5, -room.depth / 2 + .03, false); }
+      if (style.window === 'stained') for (let k = 0; k < 4; k++) mesh(new T.PlaneGeometry(.4, 1.2), new T.MeshBasicMaterial({ color: ['#3f6fd8', '#ffd23f', '#3fa85a', '#e8473c'][k] }), this.room, x - .66 + k * .44, 1.55, -room.depth / 2 + .025, false);
+    }
+    this.decorate(style.decor, room);
+    const rug = s.cube(this.room, material(style.rug || (room.floor === 'concrete' ? '#6f7e66' : '#b4c9a8'), .95), room.width * .12, .006, room.depth * .1, room.width * .32, .012, room.depth * .3, false); rug.receiveShadow = true;
     for (const f of room.furniture) furniture(s, this.room, f);
+    if (style.furniture.length) recolor(this.room, style.furniture);
+    const hemi = this.scene.children.find((o): o is T.HemisphereLight => o instanceof T.HemisphereLight); if (hemi) { hemi.color.set(style.ambient); hemi.userData.base = 1.15; } this.sun.color.set(style.light); this.sun.userData.base = 2.4;
     // Dock: a glowing charging base against the wall.
     this.dock = material('#62e0b4', .3, .2); this.dock.emissive.set('#2fbf8f');
     const dock = new T.Group(); dock.position.set(room.dock.x, 0, room.dock.z); dock.rotation.y = Math.atan2(-room.dock.x, -room.dock.z) * 0; this.room.add(dock);
@@ -115,18 +136,45 @@ export class RoombaView extends World<RoombaRun> {
       else s.cube(g, material('#4aa3df', .5), 0, 0, 0, toy.r * 1.5, toy.r * 1.5, toy.r * 1.5);
     }
   }
+  /** Wall dressing per house style: castle banners and torches, starship neon, candy canes or jungle vines. */
+  private decorate(decor: string, room: Room) {
+    const s = this.shapes, walls: [number, number, number][] = [[0, -room.depth / 2 + .03, 0], [-room.width / 2 + .03, 0, Math.PI / 2], [room.width / 2 - .03, 0, -Math.PI / 2]];
+    if (decor === 'banners') for (const [x, z, r] of walls) for (const k of [-1, 1]) {
+      const along = k * (r ? room.depth : room.width) * .38, bx = x + (r ? 0 : along), bz = z + (r ? along : 0), g = new T.Group(); g.position.set(bx, 0, bz); g.rotation.y = r; this.room.add(g);
+      s.cube(g, material('#8a1f2a', .9), 0, 1.75, 0, .6, 1.1, .02, false); s.cube(g, material('#ffd23f', .5), 0, 1.75, .012, .2, .5, .01, false);
+      const flame = mesh(new T.ConeGeometry(.08, .22, 8), new T.MeshBasicMaterial({ color: '#ffb340' }), g, .55, 1.62, .1, false); s.cube(g, material('#4a3a2a'), .55, 1.45, .08, .06, .2, .06, false); this.torches.push(flame);
+    }
+    if (decor === 'neon') for (const [x, z, r] of walls) for (const y of [.35, 2.3]) { const strip = mesh(s.block, new T.MeshBasicMaterial({ color: y > 1 ? '#ff4fd8' : '#38e8ff', toneMapped: false }), this.room, x, y, z, false); strip.scale.set(r ? .03 : room.width * .96, .05, r ? room.depth * .96 : .03); }
+    if (decor === 'candy') for (const [cx, cz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const x = cx * (room.width / 2 - .4), z = cz * (room.depth / 2 - .4), g = new T.Group(); g.position.set(x, 0, z); this.room.add(g);
+      for (let k = 0; k < 8; k++) s.tube(g, material(k % 2 ? '#ffffff' : '#e8304a', .4), 0, .12 + k * .22, 0, .07, .22, false);
+      const hook = mesh(new T.TorusGeometry(.18, .07, 8, 16, Math.PI), material('#e8304a', .4), g, .18, 1.85, 0, false); hook.rotation.z = 0;
+    }
+    if (decor === 'vines') for (const [x, z, r] of walls) for (let k = 0; k < 7; k++) { const along = (k - 3) * (r ? room.depth : room.width) / 8, vx = x + (r ? 0 : along), vz = z + (r ? along : 0), len = .8 + (k % 3) * .5, vine = s.tube(this.room, material(k % 2 ? '#3f7a3a' : '#4f9a45', .8), vx, 2.6 - len / 2, vz, .03, len, false); vine.rotation.y = r; for (let l = 0; l < 3; l++) { const leaf = s.ball(this.room, material('#5fb04f', .8), vx, 2.5 - l * len / 3, vz, .09); leaf.scale.set(.13, .05, .09); } }
+  }
+  /** Paints new mess (party confetti, muddy paws) back onto the floor. */
+  private paintMess() {
+    const run = this.run; if (!run.freshlyDirtied.length) return;
+    const g = run.grid, ctx = this.dirtCanvas.getContext('2d')!, cell = CELL * PX, party = run.chaos.mess === 'party';
+    for (const i of run.freshlyDirtied) {
+      const x = (i % g.cols + .5) * cell, y = (Math.floor(i / g.cols) + .5) * cell;
+      if (party) for (let k = 0; k < 6; k++) { ctx.fillStyle = ['#ff4f7a', '#ffd23f', '#38c8ff', '#7dff9a', '#c27bff'][(i + k) % 5]; ctx.fillRect(x + Math.sin(i + k * 2.1) * cell * .6, y + Math.cos(i * 1.3 + k) * cell * .6, 4, 3); }
+      else { ctx.fillStyle = 'rgba(92,60,30,.75)'; ctx.beginPath(); ctx.ellipse(x, y, cell * .28, cell * .36, 0, 0, Math.PI * 2); ctx.fill(); for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(x - cell * .3 + k * cell * .2, y - cell * .5, cell * .1, 0, Math.PI * 2); ctx.fill(); } }
+    }
+    run.freshlyDirtied = []; this.dirtTexture.needsUpdate = true;
+  }
   private paintDirt() {
-    const run = this.run, g = run.grid, ctx = this.dirtCanvas.getContext('2d')!, w = this.dirtCanvas.width, h = this.dirtCanvas.height, cell = CELL * PX;
+    const run = this.run, g = run.grid, ctx = this.dirtCanvas.getContext('2d')!, w = this.dirtCanvas.width, h = this.dirtCanvas.height, cell = CELL * PX, style = houseStyle(run.config.worldTheme), dust = style.dust;
     ctx.globalCompositeOperation = 'source-over'; ctx.clearRect(0, 0, w, h);
     for (let i = 0; i < g.dirt.length; i++) {
       if (!g.cleanable[i] || g.dirt[i] <= 0) continue;
       // Soft overlapping smudges read as organic grime rather than a grid.
       const x = (i % g.cols + .5) * cell + Math.sin(i * 12.7) * cell * .3, y = (Math.floor(i / g.cols) + .5) * cell + Math.cos(i * 7.9) * cell * .3, a = Math.min(.5, .2 + g.initial[i] * .22);
-      ctx.fillStyle = `rgba(88,62,38,${a})`; ctx.beginPath(); ctx.arc(x, y, cell * (.85 + (i % 5) * .08), 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(${dust[0]},${dust[1]},${dust[2]},${a})`; ctx.beginPath(); ctx.arc(x, y, cell * (.85 + (i % 5) * .08), 0, Math.PI * 2); ctx.fill();
     }
     // Specks, smudges and footprints so the dust reads as real grime.
-    for (let i = 0; i < w * h / 90; i++) { const x = (i * 97.13) % w, y = (i * 53.71 + (i % 13) * 7) % h; ctx.fillStyle = i % 4 ? 'rgba(60,42,25,.45)' : 'rgba(170,140,100,.4)'; ctx.globalCompositeOperation = 'source-atop'; ctx.fillRect(x, y, 2 + (i % 3), 2); }
-    for (let i = 0; i < 40; i++) { const x = (i * 211.7) % w, y = (i * 137.3) % h; ctx.fillStyle = 'rgba(55,38,22,.35)'; ctx.beginPath(); ctx.ellipse(x, y, 7, 11, i, 0, Math.PI * 2); ctx.fill(); }
+    for (let i = 0; i < w * h / 90; i++) { const x = (i * 97.13) % w, y = (i * 53.71 + (i % 13) * 7) % h; ctx.fillStyle = style.specks[i % 4 ? 0 : 1]; ctx.globalCompositeOperation = 'source-atop'; ctx.fillRect(x, y, 2 + (i % 3), 2); }
+    for (let i = 0; i < 40; i++) { const x = (i * 211.7) % w, y = (i * 137.3) % h; ctx.fillStyle = `rgba(${dust[0] * .7 | 0},${dust[1] * .7 | 0},${dust[2] * .7 | 0},.35)`; ctx.beginPath(); ctx.ellipse(x, y, 7, 11, i, 0, Math.PI * 2); ctx.fill(); }
     ctx.globalCompositeOperation = 'source-over'; run.freshlyCleaned = []; this.dirtTexture.needsUpdate = true;
   }
   private eraseFresh() {
@@ -137,10 +185,23 @@ export class RoombaView extends World<RoombaRun> {
     ctx.globalCompositeOperation = 'source-over'; run.freshlyCleaned = []; this.dirtTexture.needsUpdate = true;
   }
   protected rebuild(): void { this.builtFor = -1; }
+  /** Household chaos made visible: confetti, a wandering puppy, lights out with a headlight, or a flickering storm. */
+  private chaos(dt: number, reduced: boolean) {
+    const run = this.run, chaos = run.chaos, kind = run.config.weather ?? 'clear', hemi = this.scene.children.find((o): o is T.HemisphereLight => o instanceof T.HemisphereLight);
+    this.weather.update(dt, kind === 'party' ? 'confetti' : 'clear', new T.Vector3(0, 0, 0), 0, reduced); this.scene.fog = null;
+    this.puppy.visible = chaos.mess === 'pets'; if (this.puppy.visible) { const p = run.pet, nx = Math.sin((p.t + .05) * .31) * run.room.width * .38, nz = Math.sin((p.t + .05) * .47 + 1) * run.room.depth * .36; this.puppy.position.set(p.x, reduced ? 0 : Math.abs(Math.sin(p.t * 12)) * .04, p.z); this.puppy.rotation.y = Math.atan2(nx - p.x, nz - p.z); this.puppy.children.forEach(c => { if (c.userData.tail) c.rotation.y = reduced ? 0 : Math.sin(p.t * 18) * .6; }); }
+    this.flash = Math.max(0, this.flash - dt * 3.5); if (kind === 'storm' && !reduced) { this.nextFlash -= dt; if (this.nextFlash <= 0) { this.flash = 1; this.nextFlash = 3 + (run.elapsed * 7.3) % 5; } }
+    const dim = chaos.dark ? .12 : kind === 'storm' ? .7 - (reduced ? 0 : Math.max(0, Math.sin(run.elapsed * 23)) * .15) : 1;
+    if (hemi) hemi.intensity = (hemi.userData.base ?? 1.15) * dim + this.flash * 1.2; this.sun.intensity = (this.sun.userData.base ?? 2.4) * dim + this.flash * 1.5;
+    this.headlight.intensity = chaos.dark ? 9 : 0; if (this.windows) this.windows.emissiveIntensity = (chaos.dark ? .05 : .35) + this.flash * 2;
+    if (this.dirt) (this.dirt.material as T.MeshStandardMaterial).opacity = chaos.dark ? .7 : 1;
+    this.torches.forEach((t, i) => { t.scale.y = reduced ? 1 : .85 + Math.abs(Math.sin(run.elapsed * 11 + i)) * .35; });
+  }
   protected update(dt: number, reduced: boolean): void {
     const run = this.run;
     if (this.builtFor !== run.revision) { this.builtFor = run.revision; this.build(); }
-    this.eraseFresh();
+    if ((run.config.worldTheme ?? 'classic') !== this.styleKey) this.build();
+    this.eraseFresh(); this.paintMess(); this.chaos(dt, reduced);
     this.robot.position.set(run.x, 0, run.z); this.robot.rotation.y = run.heading; this.robot.scale.setScalar(.74);
     this.brushes.forEach((b, i) => { b.rotation.y = reduced ? 0 : run.brushAngle * (i ? 1 : -1); });
     this.ring.emissiveIntensity = run.charging ? 1.4 + Math.sin(run.elapsed * 6) * .4 : run.turbo > 0 ? 1.6 : .8; this.ring.color.set(run.battery < 22 ? '#ff4a3a' : '#ff9d2e'); this.ring.emissive.set(run.battery < 22 ? '#ff2a1a' : '#ff8a1f');
