@@ -85,6 +85,30 @@ describe('TOMATINA throws', () => {
   });
 });
 
+describe('TOMATINA touch play and supplies', () => {
+  it('sidesteps on touch screens instead of turning, and aims up and down by dragging', () => {
+    const run = fresh(); run.briefing = 0; run.strafe = true; const yaw = run.yaw, x = run.px;
+    run.input.right = true; advance(run, .5); run.input.right = false;
+    expect(run.yaw).toBe(yaw); expect(run.px).toBeGreaterThan(x + 1);
+    run.look(.2, -.5); expect(run.pitch).toBeCloseTo(-.5); run.look(0, -2); expect(run.pitch).toBeGreaterThanOrEqual(-1.05);
+    const keys = fresh(); keys.input.right = true; advance(keys, .5); expect(keys.yaw).not.toBe(keys.startYaw);
+  });
+  it('throws along the crosshair when you look down: the tomato lands at your feet, not far away', () => {
+    const run = fresh(); run.bots = []; run.pitch = -.8; run.aimAt(0, 0); advance(run, 2);
+    const splat = run.splats.at(-1)!; expect(Math.hypot(splat.x - run.px, splat.z - run.pz)).toBeLessThan(2.5);
+  });
+  it('refills the whole bag at a crate, and never leaves you stuck without tomatoes', () => {
+    const run = fresh(1, 'int bagSize = 40;'), crate = run.pickups.find(p => p.kind === 'crate')!; run.ammo = 2; run.px = crate.x; run.pz = crate.z; run.step(.02);
+    expect(run.ammo).toBe(40); expect(crate.away).toBeGreaterThan(0);
+    const empty = fresh(); empty.ammo = 0; empty.bots = []; advance(empty, 6); expect(empty.ammo).toBeGreaterThanOrEqual(2);
+  });
+  it('points the compass at the next goal, or at a crate when the bag is empty, and holds robots during the briefing', () => {
+    const run = fresh(); expect(run.nextObjective()?.label).toBe('ROBOT'); run.ammo = 0; expect(run.nextObjective()?.label).toBe('TOMATO CRATE');
+    const plaza = fresh(2); expect(plaza.nextObjective()?.label).toBe('PLAZA'); const gate = fresh(3); expect(gate.nextObjective()?.label).toBe('BULLSEYE');
+    const waiting = fresh(); const mop = waiting.bots[2]; waiting.px = mop.x; waiting.pz = mop.z + 1.2; const at = { x: mop.x, z: mop.z }; advance(waiting, 1); expect({ x: mop.x, z: mop.z }).toEqual(at);
+  });
+});
+
 describe('TOMATINA robots', () => {
   it('blocks front throws with the umbrella until it droops, but a lob over the top gets through', () => {
     const run = fresh(5), u = run.bots.find(b => b.kind === 'umbrella')!; for (const b of run.bots) b.stun = 999; run.px = u.x; run.pz = u.z + 6; u.yaw = Math.PI / 2;

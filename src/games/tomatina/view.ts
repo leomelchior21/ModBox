@@ -74,12 +74,14 @@ export class TomatinaView implements WorldView {
   private gates: T.Mesh[] = []; private targetFaces = new Map<number, T.Mesh[]>(); private exitSign: T.Mesh | null = null; private bunting: T.Mesh | null = null;
   private wallMaterials = new Map<string, T.MeshBasicMaterial>(); private floorMaterial = new T.MeshBasicMaterial(); private zoneMaterial = new T.MeshBasicMaterial(); private skyMaterial = new T.MeshBasicMaterial({ side: T.BackSide });
   private particles: Flake[] = []; private shake = 0; private flash = 0; private scratch = new T.Object3D();
-  private press: { id: number; x: number; y: number; lastX: number; t: number; moved: boolean } | null = null;
+  private press: { id: number; x: number; y: number; lastX: number; lastY: number; t: number; moved: boolean } | null = null;
   width = 1; height = 1;
   constructor(readonly canvas: HTMLCanvasElement, readonly run: TomatinaRun) {
     this.renderer = new T.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = T.LinearSRGBColorSpace; this.renderer.setPixelRatio(1);
     canvas.style.imageRendering = 'pixelated';
+    // On touch screens the pad walks and sidesteps; dragging the scene aims, like a mobile shooter.
+    run.strafe = typeof window !== 'undefined' && window.matchMedia?.('(any-pointer: coarse)').matches === true;
     this.target = new T.WebGLRenderTarget(4, 4, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, depthTexture: new T.DepthTexture(4, 4, T.UnsignedIntType) });
     this.post = new T.ShaderMaterial({ vertexShader: POST_VERTEX, fragmentShader: POST_FRAGMENT, depthTest: false, depthWrite: false, uniforms: {
       tColor: { value: this.target.texture }, tDepth: { value: this.target.depthTexture }, res: { value: new T.Vector2(4, 4) }, near: { value: this.camera.near }, far: { value: this.camera.far },
@@ -110,14 +112,14 @@ export class TomatinaView implements WorldView {
   }
   private get hfov() { return 2 * Math.atan(Math.tan(this.camera.fov * Math.PI / 360) * this.camera.aspect); }
 
-  /** Tap to throw at that spot; drag sideways to look around. */
+  /** Drag to aim (any direction); tap anywhere to throw at the crosshair. */
   pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number, pointerId: number): void {
-    if (phase === 'down') { this.press = { id: pointerId, x, y, lastX: x, t: performance.now(), moved: false }; return; }
+    if (phase === 'down') { this.press = { id: pointerId, x, y, lastX: x, lastY: y, t: performance.now(), moved: false }; return; }
     const p = this.press; if (!p || p.id !== pointerId) return;
-    if (phase === 'move') { if (Math.abs(x - p.x) > .025 || Math.abs(y - p.y) > .04) p.moved = true; if (p.moved) this.run.look((x - p.lastX) * this.hfov * 1.15); p.lastX = x; return; }
+    if (phase === 'move') { if (Math.abs(x - p.x) > .025 || Math.abs(y - p.y) > .04) p.moved = true; if (p.moved) this.run.look((x - p.lastX) * this.hfov * 1.2, (p.lastY - y) * this.camera.fov * Math.PI / 180 * 1.2); p.lastX = x; p.lastY = y; return; }
     if (phase === 'up' && !p.moved && performance.now() - p.t < 500) {
-      const tanH = Math.tan(this.hfov / 2), tanV = Math.tan(this.camera.fov * Math.PI / 360), nx = (x * 2 - 1) * tanH, ny = (1 - y * 2) * tanV;
-      this.run.aimAt(Math.atan(nx), Math.atan2(ny, Math.hypot(1, nx)));
+      // A tap anywhere throws along the crosshair, like a mobile shooter: drag to aim, tap to throw.
+      this.run.aimAt(0, 0);
     }
     this.press = null;
   }
@@ -133,7 +135,7 @@ export class TomatinaView implements WorldView {
     const bob = reduced ? 0 : Math.sin(run.bob * 2) * .04 * Math.min(1, Math.abs(run.speed) / 3);
     this.shake = Math.max(0, this.shake - step * 3); const sx = reduced ? 0 : Math.sin(this.time * 70) * this.shake * .02;
     this.camera.position.set(run.px, EYE + bob + (run.hurt > 0 && !reduced ? Math.sin(this.time * 40) * .02 : 0), run.pz);
-    this.camera.lookAt(run.px + Math.cos(run.yaw + sx), EYE + bob, run.pz + Math.sin(run.yaw + sx));
+    const cp = Math.cos(run.pitch); this.camera.lookAt(run.px + Math.cos(run.yaw + sx) * cp, EYE + bob + Math.sin(run.pitch), run.pz + Math.sin(run.yaw + sx) * cp);
     this.hand.update(run.bob, run.speed, run.throwAnim, run.cool <= 0 && run.ammo > 0, run.hurt, reduced);
     this.updateActors(step, reduced); this.updateEffects(step, reduced);
     // Palette, fog and drips.

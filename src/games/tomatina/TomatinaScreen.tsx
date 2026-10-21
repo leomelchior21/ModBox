@@ -3,7 +3,7 @@ import type { GameScreenProps } from '../types';
 import { PremiumScreen, type PremiumGameSpec } from '../premium-kit/PremiumScreen';
 import type { InviteMoment, ModInvite } from '../premium-kit/invites';
 import { tomatinaCatalog } from './catalog';
-import { TomatinaRun, LEVELS, GOAL_TEXT, POWER_TEXT, levelName, type PowerKind } from './run';
+import { TomatinaRun, LEVELS, GOAL_TEXT, POWER_TEXT, levelName, type PowerKind, type TomatoGoal } from './run';
 import { TOWNS, TOWN_ORDER, THROWERS } from './worlds';
 import { TomatinaView } from './view';
 import '../three-kit/world.css';
@@ -78,19 +78,42 @@ function Face({ style, mood, look, paper, ink, red }: { style: string; mood: 'ca
   return <canvas ref={ref} className="tom__face" width={24} height={24} aria-hidden="true" />;
 }
 
-/** Doom-style status bar, crosshair and the crier's big calls. */
+/** Each goal in plain words, with its progress. */
+function goalLines(run: TomatinaRun) {
+  const boss = run.bots.find(b => b.kind === 'boss');
+  const text: Record<TomatoGoal, (n: number) => string> = {
+    robots: n => `Splat ${n} robot${n === 1 ? '' : 's'}`, zone: n => `Paint the dotted plaza ${n}% red`, targets: n => `Hit ${n} bullseye${n === 1 ? '' : 's'} to open the gate`,
+    golden: n => `Find ${n} golden tomato${n === 1 ? '' : 'es'}`, exit: () => run.exitOpen ? 'Run to the ¡FIESTA! arch' : 'Then run to the ¡FIESTA! arch', boss: () => 'Splat La Gran Lavadora when its door opens',
+  };
+  return run.goalProgress().map(g => ({ kind: g.kind, text: text[g.kind](g.count), done: g.value >= g.count, waiting: g.kind === 'exit' && !run.exitOpen,
+    progress: g.kind === 'zone' ? `${g.value}%` : g.kind === 'exit' ? '' : g.kind === 'boss' && boss ? `${boss.max - boss.hp}/${boss.max}` : `${g.value}/${g.count}`,
+    fill: g.kind === 'boss' && boss ? (boss.max - boss.hp) / boss.max : g.value / g.count }));
+}
+function Goals({ run }: { run: TomatinaRun }) {
+  return <ul className="tom__goals" aria-label="Goals">{goalLines(run).map(g => <li key={g.kind} className={g.done ? 'is-done' : g.waiting ? 'is-waiting' : ''}>
+    <i aria-hidden="true">{g.done ? '✓' : ''}</i><span>{g.text}</span>{g.progress ? <b>{g.progress}</b> : null}{!g.done && g.kind !== 'exit' ? <em style={{ width: `${Math.round(g.fill * 100)}%` }} /> : null}
+  </li>)}</ul>;
+}
+
+/** Doom-style status bar, crosshair, goals, a compass to the next goal and the crier's big calls. */
 function TomatinaHud({ run }: { run: TomatinaRun }) {
   const town = TOWNS[run.config.worldTheme ?? 'classic'] ?? TOWNS.classic, night = run.night;
   const paper = night ? town.ink : town.paper, ink = night ? town.paper : town.ink;
   const mood = run.hurt > 0 ? 'hurt' : run.happy > 0 ? 'happy' : run.dry < 35 ? 'wet' : 'calm', look = [0, -1, 0, 1][Math.floor(run.elapsed / 1.6) % 4];
   const powers = (Object.keys(run.power) as PowerKind[]).filter(k => run.power[k] > 0), bag = run.bag;
   const style = { '--tom-paper': paper, '--tom-ink': ink, '--tom-red': town.tomato } as CSSProperties;
-  const playing = run.phase === 'playing';
-  return <div className="tom__hud" style={style}>
+  const playing = run.phase === 'playing', hud = useRef<HTMLDivElement>(null), next = playing ? run.nextObjective() : null;
+  // The touch buttons live beside the HUD: give them the town's inks too.
+  useEffect(() => { const stage = hud.current?.closest<HTMLElement>('.premium-stage'); if (!stage) return; stage.style.setProperty('--tom-paper', paper); stage.style.setProperty('--tom-ink', ink); stage.style.setProperty('--tom-red', town.tomato); }, [paper, ink, town.tomato]);
+  const turn = next ? Math.atan2(Math.sin(Math.atan2(next.z - run.pz, next.x - run.px) - run.yaw), Math.cos(Math.atan2(next.z - run.pz, next.x - run.px) - run.yaw)) : 0;
+  return <div className="tom__hud" style={style} ref={hud}>
+    {playing && run.briefing > 0 ? <div className="tom__brief" style={{ opacity: Math.min(1, run.briefing / .6) }}>
+      <small>STREET {run.level}</small><h2>{run.levelName}</h2><Goals run={run} /><p>{run.stage.tip}</p>
+    </div> : playing ? <Goals run={run} /> : null}
+    {next && run.briefing <= 0 ? <div className="tom__compass" role="status"><b style={{ transform: `rotate(${turn}rad)` }} aria-hidden="true">▲</b>{next.label} · {Math.round(Math.hypot(next.x - run.px, next.z - run.pz))} M</div> : null}
     {playing ? <div className="tom__cross" aria-hidden="true" /> : null}
-    {playing && run.display.timer > 0 ? <div key={run.display.text} className="tom__call" style={{ opacity: Math.min(1, run.display.timer / .3) }}>{run.display.text}</div> : null}
+    {playing && run.display.timer > 0 && run.briefing <= 0 ? <div key={run.display.text} className="tom__call" style={{ opacity: Math.min(1, run.display.timer / .3) }}>{run.display.text}</div> : null}
     {playing && run.weather.text ? <div className="tom__weather"><i aria-hidden="true">{WEATHER_ICON[run.config.weather ?? 'clear']}</i>{run.weather.text}{run.windX || run.windZ ? <b style={{ transform: `rotate(${Math.atan2(run.windZ, run.windX) - run.yaw + Math.PI / 2}rad)` }} aria-label="wind direction">↑</b> : null}</div> : null}
-    {playing && run.exitOpen ? <div className="tom__exit">¡FIESTA! FIND THE EXIT ARCH</div> : null}
     <div className="tom__bar" role="group" aria-label="Status">
       <Face style={run.config.characterStyle ?? 'original'} mood={mood} look={look} paper={paper} ink={ink} red={town.tomato} />
       <div className="tom__stat"><small>DRY</small><strong className={run.dry < 35 ? 'is-low' : ''}>♥{Math.round(run.dry)}</strong></div>
@@ -106,15 +129,15 @@ function TomatinaHud({ run }: { run: TomatinaRun }) {
 
 export const tomatinaSpec: PremiumGameSpec<TomatinaRun> = {
   id: 'tomatina', title: 'TOMATINA', eyebrow: 'PAINT THE TOWN RED', description: 'A first-person tomato fight in the streets of a Spanish town: lob tomatoes at the cleaning robots, paint the plazas red and hit every bullseye across twelve streets.',
-  instructions: 'Arrows or WASD walk and turn. Tap or click where a tomato should land (Space throws straight ahead). Drag to look around. E pours an unlocked tomato rain.', goal: 'Paint the town red.',
+  instructions: 'Arrows or WASD walk and turn (on a tablet the pad walks and sidesteps). Drag to aim up, down and around. Tap or click anywhere (or press Space or THROW) to throw at the crosshair. E pours an unlocked tomato rain.', goal: 'Paint the town red.',
   width: 1280, height: 720, catalog: tomatinaCatalog,
-  controls: [{ label: '◀ TURN', action: 'left', hold: 'left' }, { label: '▲ WALK', action: 'up', hold: 'up' }, { label: '▼ BACK', action: 'down', hold: 'down' }, { label: 'TURN ▶', action: 'right', hold: 'right' }, { label: 'THROW', action: 'primary', primary: true }, { label: 'RAIN · E', action: 'ability' }],
+  controls: [{ label: '◀ LEFT', action: 'left', hold: 'left' }, { label: '▲ GO', action: 'up', hold: 'up' }, { label: '▼ BACK', action: 'down', hold: 'down' }, { label: 'RIGHT ▶', action: 'right', hold: 'right' }, { label: 'THROW', action: 'primary', primary: true }, { label: 'RAIN · E', action: 'ability' }],
   create: checkpoint => new TomatinaRun(checkpoint), createView: (canvas, run) => new TomatinaView(canvas, run),
   objective: run => { const goals = run.goalProgress(); return { label: `STREET ${run.level} · ${run.levelName.toUpperCase()} · ${goals.map(g => `${GOAL_TEXT[g.kind]} ${g.value}/${g.count}${g.kind === 'zone' ? '%' : ''}`).join(' · ')}`, value: goals.reduce((sum, g) => sum + g.value / g.count, 0), max: goals.length }; },
   hud: run => <TomatinaHud run={run} />,
   invites: crierInvites,
-  hints: [{ keys: '← → ↑ ↓', label: 'turn and walk' }, { keys: 'Click', label: 'throw where you click' }, { keys: 'Space', label: 'throw straight ahead' }, { keys: 'Drag', label: 'look around' }],
-  touchHints: [{ keys: 'Tap', label: 'throw where you tap' }, { keys: 'Drag', label: 'look around' }, { keys: 'Pad', label: 'walk and turn' }],
+  hints: [{ keys: '← → ↑ ↓', label: 'turn and walk' }, { keys: 'Drag', label: 'aim up, down and around' }, { keys: 'Click', label: 'throw at the crosshair' }, { keys: 'Space', label: 'throw too' }],
+  touchHints: [{ keys: 'Pad', label: 'walk and sidestep' }, { keys: 'Drag', label: 'aim anywhere' }, { keys: 'Tap', label: 'throw at the crosshair' }],
   result: run => run.phase === 'cleared'
     ? { win: true, headline: `${run.paintPercent}% RED`, caption: `${run.levelName} is painted!`, detail: `${run.score.toLocaleString()} points · ${run.tally.robots} robot${run.tally.robots === 1 ? '' : 's'} splatted · best combo ×${Math.max(1, run.best)}` }
     : { win: false, caption: 'Soaked!', detail: `${run.goalProgress().map(g => `${GOAL_TEXT[g.kind].toLowerCase()} ${g.value}/${g.count}${g.kind === 'zone' ? '%' : ''}`).join(' · ')} · ${THROWERS[run.config.characterStyle ?? 'original']?.name ?? 'You'} needs a dry shirt` },

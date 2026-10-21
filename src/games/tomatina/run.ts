@@ -47,7 +47,7 @@ export interface Amigo { id: number; x: number; z: number; yaw: number; cool: nu
 export type PowerKind = 'cherry' | 'mega' | 'bounce';
 export const POWER_TEXT: Record<PowerKind, string> = { cherry: 'CHERRY STORM', mega: 'MEGA TOMATO', bounce: 'BOUNCY TOMATOES' };
 const PICKUP_OF: Record<string, PickupKind> = { A: 'crate', H: 'churros', c: 'cherry', m: 'mega', b: 'bounce', g: 'golden' };
-const RESPAWN: Record<PickupKind, number> = { crate: 18, churros: 35, cherry: 30, mega: 30, bounce: 30, golden: 0, drop: 0 };
+const RESPAWN: Record<PickupKind, number> = { crate: 10, churros: 35, cherry: 30, mega: 30, bounce: 30, golden: 0, drop: 0 };
 
 /** A small deterministic random generator, so every street plays the same way for tests and bots. */
 function random(seed: number) { let s = seed >>> 0; return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -56,6 +56,10 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 export class TomatinaRun extends ArcadeRun {
   grid: string[][] = []; cols = 0; rows = 0; gatesOpen = false; exitOpen = false;
   px = 0; pz = 0; yaw = 0; speed = 0; startX = 0; startZ = 0; startYaw = 0;
+  /** Looking up or down (radians), and whether left/right sidestep instead of turning (touch screens aim by dragging). */
+  pitch = 0; strafe = false; sideSpeed = 0;
+  /** Seconds the street's briefing card stays up, and the trickle that keeps an empty bag from getting stuck. */
+  briefing = 0; private trickle = 0;
   dry = 100; ammo = 20; cool = 0; rainCool = 0; invuln = 0; hurt = 0; happy = 0; bob = 0; throwAnim = 0; soakedAt = -9;
   power: Record<PowerKind, number> = { cherry: 0, mega: 0, bounce: 0 };
   bots: Bot[] = []; tomatoes: Tomato[] = []; water: Water[] = []; splats: Splat[] = []; pickups: Pickup[] = []; amigos: Amigo[] = [];
@@ -98,7 +102,7 @@ export class TomatinaRun extends ArcadeRun {
     this.grid = map.map(r => r.padEnd(width, '#').split('')); this.rows = map.length; this.cols = width; this.gatesOpen = false; this.exitOpen = false; this.flows.clear();
     this.bots = []; this.tomatoes = []; this.water = []; this.splats = []; this.pickups = []; this.amigos = []; this.targets = []; this.targetsHit = new Set();
     this.tally = { robots: 0, golden: 0, exit: 0, boss: 0 }; this.combo = 0; this.best = 0; this.lastSplat = -9; this.tags = []; this.blockedThrows = 0;
-    this.power = { cherry: 0, mega: 0, bounce: 0 }; this.cool = 0; this.rainCool = 0; this.display = { text: stage.name.toUpperCase(), timer: 2.4 };
+    this.power = { cherry: 0, mega: 0, bounce: 0 }; this.cool = 0; this.rainCool = 0; this.display = { text: '', timer: 0 }; this.briefing = 5; this.trickle = 0;
     const tw = this.cols * 2, th = this.rows * 2; this.paint = new Uint8Array(tw * th); this.paintable = new Uint8Array(tw * th); this.zone = new Uint8Array(tw * th);
     this.paintedTiles = this.paintableTiles = this.zoneTiles = this.zonePainted = 0;
     for (let row = 0; row < this.rows; row++) for (let col = 0; col < this.cols; col++) {
@@ -122,7 +126,7 @@ export class TomatinaRun extends ArcadeRun {
     const info = BOT_INFO[kind], extra = kind === 'boss' ? Math.round(4 * (this.brains.speed - 1) + (this.level > 12 ? 4 : 0)) : 0;
     this.bots.push({ id: this.nextId++, kind, x, z, yaw: Math.PI / 2, hp: info.hp + extra, max: info.hp + extra, alive: true, splatAt: 0, alert: 0, noticed: false, cool: 1 + this.rng() * 1.5, stun: 0, act: 0, load: 0, droop: 0, door: 0, cycle: 4, open: false, vx: 0, vz: 0, think: this.rng(), tx: x, tz: z, homeX: x, homeZ: z, marks: [], hit: 9 });
   }
-  private respawn() { this.px = this.startX; this.pz = this.startZ; this.yaw = this.startYaw; this.speed = 0; this.invuln = 2.5; this.hurt = 0; for (const a of this.amigos) { a.x = this.startX; a.z = this.startZ; } }
+  private respawn() { this.px = this.startX; this.pz = this.startZ; this.yaw = this.startYaw; this.pitch = 0; this.speed = this.sideSpeed = 0; this.invuln = 2.5; this.hurt = 0; for (const a of this.amigos) { a.x = this.startX; a.z = this.startZ; } }
 
   // ---------------------------------------------------------------- runtime and summaries
   protected runtime(): Record<string, number> { return { splats: this.tally.robots, paint: this.paintPercent, tomatoes: this.ammo, dry: Math.round(this.dry), combo: this.combo }; }
@@ -140,7 +144,8 @@ export class TomatinaRun extends ArcadeRun {
     else if (action === 'ability') this.tomatoRain();
   }
   /** Turns the view (drag to look). */
-  look(delta: number) { if (this.phase === 'playing') this.yaw = wrap(this.yaw + clamp(delta, -1, 1)); }
+  /** Turns the view (drag to aim): sideways turns, up and down tilts. */
+  look(delta: number, tilt = 0) { if (this.phase !== 'playing') return; this.yaw = wrap(this.yaw + clamp(delta, -1, 1)); this.pitch = clamp(this.pitch + clamp(tilt, -1, 1), -1.05, .75); }
   /** Where a throw starts: your right hand, just below the eyes. */
   hand() { const f = [Math.cos(this.yaw), Math.sin(this.yaw)], r = [-f[1], f[0]]; return { x: this.px + f[0] * .3 + r[0] * .22, y: EYE - .22, z: this.pz + f[1] * .3 + r[1] * .22 }; }
   /**
@@ -149,6 +154,7 @@ export class TomatinaRun extends ArcadeRun {
    * Tapping open sky throws high, which is how you lob over an umbrella.
    */
   aimAt(yaw: number, pitch: number): boolean {
+    pitch += this.pitch;
     const a = this.yaw + yaw, dir = { x: Math.cos(a) * Math.cos(pitch), y: Math.sin(pitch), z: Math.sin(a) * Math.cos(pitch) };
     const hit = this.castRay(this.px, EYE, this.pz, dir.x, dir.y, dir.z, 60);
     return hit ? this.throwAt(hit.x, hit.y, hit.z) : this.throwDirection(a, pitch + .1);
@@ -218,11 +224,13 @@ export class TomatinaRun extends ArcadeRun {
   // ---------------------------------------------------------------- simulation
   protected tick(dt: number): void {
     const w = this.weather;
-    this.display.timer = Math.max(0, this.display.timer - dt); this.cool = Math.max(0, this.cool - dt); this.rainCool = Math.max(0, this.rainCool - dt);
+    this.display.timer = Math.max(0, this.display.timer - dt); this.briefing = Math.max(0, this.briefing - dt); this.cool = Math.max(0, this.cool - dt); this.rainCool = Math.max(0, this.rainCool - dt);
     this.invuln = Math.max(0, this.invuln - dt); this.hurt = Math.max(0, this.hurt - dt); this.happy = Math.max(0, this.happy - dt); this.throwAnim = Math.max(0, this.throwAnim - dt * 3.2);
     for (const k of Object.keys(this.power) as PowerKind[]) this.power[k] = Math.max(0, this.power[k] - dt);
     if (w.wind) { const a = this.elapsed * .13 + this.seed, gust = w.wind * (.6 + .4 * Math.sin(this.elapsed * .7)); this.windX = Math.cos(a) * gust; this.windZ = Math.sin(a) * gust; } else this.windX = this.windZ = 0;
     this.movePlayer(dt);
+    // Nearly out? Neighbours on the balconies toss you a tomato now and then, so you are never stuck.
+    if (this.ammo < 3) { this.trickle += dt; if (this.trickle > 2.5) { this.trickle = 0; this.ammo++; this.say('A NEIGHBOUR TOSSES YOU A TOMATO', 1); } } else this.trickle = 0;
     this.updateTomatoes(dt); this.updateWater(dt); this.updateBots(dt); this.updateAmigos(dt); this.updatePickups(dt);
     for (const s of this.splats) if (s.life < 1 && s.life > 0) s.life = Math.max(0, s.life - dt * .05);
     if (w.wash) this.washRain(dt, w.wash);
@@ -230,10 +238,13 @@ export class TomatinaRun extends ArcadeRun {
     this.checkGoals();
   }
   private movePlayer(dt: number) {
-    const i = this.input, turn = (i.right ? 1 : 0) - (i.left ? 1 : 0), go = (i.up ? 1 : 0) - (i.down ? .7 : 0);
-    this.yaw = wrap(this.yaw + turn * TURN * dt);
-    const target = go * this.config.speed * this.weather.grip; this.speed += (target - this.speed) * Math.min(1, dt * 10);
-    if (Math.abs(this.speed) > .05) { this.slide(Math.cos(this.yaw) * this.speed * dt, Math.sin(this.yaw) * this.speed * dt); this.bob += dt * Math.abs(this.speed) * 1.9; }
+    const i = this.input, side = (i.right ? 1 : 0) - (i.left ? 1 : 0), go = (i.up ? 1 : 0) - (i.down ? .7 : 0);
+    // Keyboards turn with left/right; touch screens sidestep, because dragging does the aiming.
+    if (!this.strafe) this.yaw = wrap(this.yaw + side * TURN * dt);
+    const grip = this.config.speed * this.weather.grip, ease = Math.min(1, dt * 10);
+    this.speed += (go * grip - this.speed) * ease; this.sideSpeed += ((this.strafe ? side * .85 : 0) * grip - this.sideSpeed) * ease;
+    const fx = Math.cos(this.yaw), fz = Math.sin(this.yaw);
+    if (Math.abs(this.speed) > .05 || Math.abs(this.sideSpeed) > .05) { this.slide((fx * this.speed - fz * this.sideSpeed) * dt, (fz * this.speed + fx * this.sideSpeed) * dt); this.bob += dt * Math.hypot(this.speed, this.sideSpeed) * 1.9; }
     // Robots and friends push back gently, so you never walk through them.
     for (const b of this.live) { const r = BOT_INFO[b.kind].r + PLAYER_R, dx = this.px - b.x, dz = this.pz - b.z, d = Math.hypot(dx, dz); if (d < r && d > 1e-4) this.slide(dx / d * (r - d), dz / d * (r - d)); }
     if (this.exitOpen && this.at(...this.cellOf(this.px, this.pz)) === 'X' && !this.tally.exit) { this.tally.exit = 1; this.checkGoals(); }
@@ -418,6 +429,8 @@ export class TomatinaRun extends ArcadeRun {
   walkCells(x0: number, z0: number, x1: number, z1: number) { const [c, r] = this.cellOf(x0, z0), [gc, gr] = this.cellOf(x1, z1); return this.flowTo(gc, gr)[r * this.cols + c]; }
 
   private updateBots(dt: number) {
+    // Robots wait while the street's briefing is on screen.
+    if (this.briefing > 0) { for (const b of this.bots) b.hit += dt; return; }
     const brains = this.brains, pace = this.stage.pace * brains.speed, sight = brains.sight * this.weather.sight * (this.night ? .6 / Math.max(.6, this.weather.sight) : 1) * Math.min(1.2, .7 + this.stage.pace * .3);
     for (const b of this.bots) {
       b.hit += dt;
@@ -512,9 +525,9 @@ export class TomatinaRun extends ArcadeRun {
       if (p.gone) continue;
       if (p.kind === 'drop') { p.life -= dt; if (p.life <= 0) { p.gone = true; continue; } }
       if (p.away > 0) { p.away = Math.max(0, p.away - dt); continue; }
-      if (Math.hypot(p.x - this.px, p.z - this.pz) > .9) continue;
+      if (Math.hypot(p.x - this.px, p.z - this.pz) > 1.15) continue;
       switch (p.kind) {
-        case 'crate': if (this.ammo >= this.bag) continue; this.ammo = Math.min(this.bag, this.ammo + 10); this.say('+10 TOMATOES', 1); break;
+        case 'crate': { if (this.ammo >= this.bag) continue; const got = this.bag - this.ammo; this.ammo = this.bag; this.say(`CRATE! +${got} TOMATOES`, 1.2); break; }
         case 'drop': if (this.ammo >= this.bag) continue; this.ammo = Math.min(this.bag, this.ammo + 3); this.say('+3 TOMATOES', .8); break;
         case 'churros': if (this.dry >= 100) continue; this.dry = Math.min(100, this.dry + 40); this.say('CHURROS! +40 DRY', 1.1); break;
         case 'golden': this.tally.golden++; this.addScore(500, p.x, p.z, 'GOLDEN TOMATO!'); this.say('¡TOMATE DE ORO!', 1.5); this.cue('perfect', p.x, p.z); break;
@@ -524,6 +537,20 @@ export class TomatinaRun extends ArcadeRun {
       this.cue('score', p.x, p.z);
     }
     this.pickups = this.pickups.filter(p => !p.gone || p.kind !== 'drop');
+  }
+  /** Where to go next, for the compass: a crate when the bag is empty, otherwise the first goal still open. */
+  nextObjective(): { label: string; x: number; z: number } | null {
+    const near = <P extends { x: number; z: number }>(list: readonly P[]) => list.reduce<P | null>((best, p) => !best || Math.hypot(p.x - this.px, p.z - this.pz) < Math.hypot(best.x - this.px, best.z - this.pz) ? p : best, null);
+    if (this.ammo === 0) { const crate = near(this.pickups.filter(p => (p.kind === 'crate' || p.kind === 'drop') && !p.gone && p.away === 0)); if (crate) return { label: 'TOMATO CRATE', x: crate.x, z: crate.z }; }
+    for (const g of this.goalProgress()) {
+      if (g.value >= g.count) continue;
+      if (g.kind === 'robots' || g.kind === 'boss') { const b = near(this.live.filter(b => g.kind === 'robots' || b.kind === 'boss')); if (b) return { label: g.kind === 'boss' ? 'LA LAVADORA' : 'ROBOT', x: b.x, z: b.z }; }
+      if (g.kind === 'targets') { const t = near(this.targets.filter(t => !this.targetsHit.has(t)).map(t => this.center(t % this.cols, Math.floor(t / this.cols)))); if (t) return { label: 'BULLSEYE', ...t }; }
+      if (g.kind === 'golden') { const p = near(this.pickups.filter(p => p.kind === 'golden' && !p.gone)); if (p) return { label: 'GOLDEN TOMATO', x: p.x, z: p.z }; }
+      if (g.kind === 'zone') { const tw = this.cols * 2, tiles: { x: number; z: number }[] = []; for (let i = 0; i < this.zone.length; i++) if (this.zone[i] && !this.paint[i]) tiles.push({ x: i % tw + .5, z: Math.floor(i / tw) + .5 }); const t = near(tiles); if (t) return { label: 'PLAZA', ...t }; }
+      if (g.kind === 'exit' && this.exitOpen) for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) if (this.grid[r][c] === 'X') return { label: '¡FIESTA! EXIT', ...this.center(c, r) };
+    }
+    return null;
   }
   private checkGoals() {
     if (this.phase !== 'playing') return;

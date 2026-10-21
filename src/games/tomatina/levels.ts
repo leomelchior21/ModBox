@@ -23,7 +23,7 @@ export interface TomatinaLevel {
 export const LEVELS: readonly TomatinaLevel[] = [
   {
     name: 'La Calle', face: 3, pace: .75, goals: [['robots', 3]],
-    tip: 'The Limpiabots stole the tomatoes! Tap a robot (or press Space) to throw one back.',
+    tip: 'The Limpiabots stole the tomatoes! Put the crosshair on a robot (drag to aim), then tap or press Space to throw one back.',
     map: [
       '#############',
       '####=====####',

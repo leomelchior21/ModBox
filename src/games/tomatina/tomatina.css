@@ -7,9 +7,8 @@
 .tom__cross::before { left:7px; top:0; width:2px; height:15px; }
 .tom__cross::after { top:7px; left:0; width:15px; height:2px; }
 .tom__call { position:absolute; left:50%; top:16%; transform:translateX(-50%); padding:4px 14px 2px; background:var(--tom-paper); border:3px solid var(--tom-ink); box-shadow:4px 4px 0 var(--tom-ink); color:var(--tom-ink); font-size:clamp(20px,3.4cqw,34px); line-height:1; letter-spacing:.04em; white-space:nowrap; max-width:92%; overflow:hidden; text-overflow:ellipsis; animation:tom-pop .22s steps(3) both; }
-.tom__weather, .tom__exit { position:absolute; right:12px; top:56px; display:flex; align-items:center; gap:6px; padding:2px 8px; background:var(--tom-paper); border:2px solid var(--tom-ink); font-size:15px; letter-spacing:.06em; }
+.tom__weather { position:absolute; right:12px; top:56px; display:flex; align-items:center; gap:6px; padding:2px 8px; background:var(--tom-paper); border:2px solid var(--tom-ink); font-size:15px; letter-spacing:.06em; }
 .tom__weather b { display:inline-block; font-size:16px; }
-.tom__exit { right:auto; left:50%; top:auto; bottom:84px; transform:translateX(-50%); background:var(--tom-red); color:#fff; border-color:var(--tom-ink); font-size:18px; animation:tom-blink 1s steps(2) infinite; }
 .tom__bar { position:absolute; left:50%; bottom:10px; transform:translateX(-50%); display:flex; align-items:stretch; gap:0; background:var(--tom-paper); border:3px solid var(--tom-ink); box-shadow:4px 4px 0 var(--tom-ink); }
 .tom__face { width:56px; height:56px; image-rendering:pixelated; border-right:3px solid var(--tom-ink); display:block; }
 .tom__stat { display:flex; flex-direction:column; justify-content:center; padding:2px 12px; border-right:3px solid var(--tom-ink); min-width:70px; }
@@ -29,7 +28,42 @@
 .lab .premium-stage--tomatina:has(.premium__controls--touch) .tom__stat { min-width:0; padding:2px 8px; }
 .lab .premium-stage--tomatina:has(.premium__controls--touch) .tom__stat strong { font-size:24px; }
 .lab .premium-stage--tomatina:has(.premium__controls--touch) .tom__face { width:46px; height:46px; }
-.lab .premium-stage--tomatina .premium__notice, .lab .premium-stage--tomatina .premium__keyHint { display:none; }
+.lab .premium-stage--tomatina .premium__notice, .lab .premium-stage--tomatina .premium__keyHint, .premium-stage--tomatina .world__objective { display:none; }
 @container (max-width:720px) { .tom__stat:nth-of-type(3) { display:none; } .tom__stat { min-width:0; padding:2px 7px; } .tom__stat strong { font-size:22px; } .tom__face { width:42px; height:42px; } .tom__powers { display:none; } }
 @container (max-width:520px) { .tom__bar { bottom:auto; top:44px; } .tom__call { top:28%; } }
-@media (prefers-reduced-motion: reduce) { .tom__call, .tom__exit, .tom__stat strong.is-low, .tom__powers span.is-ready { animation:none; } }
+@media (prefers-reduced-motion: reduce) { .tom__call, .tom__compass, .tom__stat strong.is-low, .tom__powers span.is-ready { animation:none; } }
+
+/* Goals: a checklist card in the town's inks, under the logo. */
+.tom__goals { position:absolute; left:14px; top:clamp(70px,11cqh,92px); margin:0; padding:6px 8px; list-style:none; display:grid; gap:4px; max-width:min(330px,46%); background:var(--tom-paper); border:3px solid var(--tom-ink); box-shadow:4px 4px 0 var(--tom-ink); }
+.tom__goals li { position:relative; display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:6px; padding:1px 0 3px; font-size:17px; line-height:1; letter-spacing:.02em; }
+.tom__goals li i { display:grid; place-items:center; width:16px; height:16px; border:2px solid var(--tom-ink); font-style:normal; font-size:15px; }
+.tom__goals li b { font-weight:400; font-size:19px; color:var(--tom-red); }
+.tom__goals li em { position:absolute; left:24px; right:0; bottom:0; height:2px; background:var(--tom-red); max-width:calc(100% - 24px); }
+.tom__goals li.is-done span { text-decoration:line-through; opacity:.6; } .tom__goals li.is-done i { background:var(--tom-ink); color:var(--tom-paper); }
+.tom__goals li.is-waiting { opacity:.55; }
+/* The street briefing: what to do here, for the first seconds of every street. */
+.tom__brief { position:absolute; left:50%; top:50%; transform:translate(-50%,-56%); width:min(440px,88%); padding:14px 16px 12px; background:var(--tom-paper); border:4px solid var(--tom-ink); box-shadow:6px 6px 0 var(--tom-ink); text-align:center; }
+.tom__brief small { font-size:16px; letter-spacing:.3em; } .tom__brief h2 { margin:2px 0 10px; font:400 clamp(30px,5cqw,44px)/1 var(--font-terminal,'VT323',monospace); color:var(--tom-red); text-transform:uppercase; }
+.tom__brief .tom__goals { position:static; max-width:none; box-shadow:none; border-width:2px; text-align:left; }
+.tom__brief p { margin:10px 0 0; font-size:17px; line-height:1.15; }
+/* Compass: points at the next goal (or a crate when the bag is empty). */
+.tom__compass { position:absolute; left:50%; bottom:86px; transform:translateX(-50%); display:flex; align-items:center; gap:8px; padding:2px 10px 2px 6px; background:var(--tom-paper); border:3px solid var(--tom-ink); font-size:18px; letter-spacing:.06em; white-space:nowrap; }
+.tom__compass b { display:grid; place-items:center; width:24px; height:24px; background:var(--tom-red); color:var(--tom-paper); font-weight:400; font-size:15px; transition:transform .12s linear; }
+
+/* Tablet controls: big chunky buttons drawn like the rest of the game. The pad walks and sidesteps; THROW is a tomato. */
+.lab .premium-stage--tomatina .premium__controls--touch { bottom:76px; left:12px; right:12px; }
+.lab .premium-stage--tomatina .premium__controls--touch button { width:96px; height:84px; border:3px solid var(--tom-ink,#5a170c); border-radius:4px; background:var(--tom-paper,#f7ecc8); color:var(--tom-ink,#5a170c); box-shadow:4px 4px 0 var(--tom-ink,#5a170c); backdrop-filter:none; -webkit-backdrop-filter:none; font:400 20px/1 var(--font-terminal,'VT323',monospace); letter-spacing:.06em; }
+.lab .premium-stage--tomatina .premium__controls--touch button:active:not(:disabled) { transform:translate(3px,3px); box-shadow:1px 1px 0 var(--tom-ink,#5a170c); background:var(--tom-paper,#f7ecc8); }
+.lab .premium-stage--tomatina .premium__pad--dpad { grid-template-columns:repeat(3,80px); grid-template-rows:repeat(3,72px); gap:6px; }
+.lab .premium-stage--tomatina .premium__pad--dpad button { width:100%; height:100%; font-size:21px; }
+.lab .premium-stage--tomatina .premium__controls--touch .premium__control--primary { width:136px; height:128px; border-radius:50%; background:var(--tom-red,#e8341a); color:var(--tom-paper,#f7ecc8); font-size:30px; }
+.lab .premium-stage--tomatina .premium__controls--touch .premium__control--primary:active:not(:disabled) { background:var(--tom-red,#e8341a); filter:brightness(.9); }
+.lab .premium-stage--tomatina .premium__controls--touch button:disabled { opacity:.4; }
+.lab .premium-stage--tomatina:has(.premium__controls--touch) .tom__stat:nth-of-type(3) { display:none; }
+.lab .premium-stage--tomatina:has(.premium__controls--touch) .tom__compass { bottom:auto; top:clamp(70px,11cqh,92px); left:auto; right:14px; transform:none; }
+@container (max-width:600px) {
+  .lab .premium-stage--tomatina .premium__pad--dpad { grid-template-columns:repeat(3,62px); grid-template-rows:repeat(3,56px); gap:4px; }
+  .lab .premium-stage--tomatina .premium__controls--touch button { width:74px; height:64px; font-size:16px; }
+  .lab .premium-stage--tomatina .premium__controls--touch .premium__control--primary { width:104px; height:98px; font-size:24px; }
+  .tom__goals { max-width:60%; } .tom__goals li { font-size:14px; }
+}
