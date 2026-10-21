@@ -4,6 +4,9 @@ import { World, material, mesh, type Shapes } from '../three-kit/world';
 import { SlingersRun, SLING, pieceOf, type PieceKind } from './run';
 import type { BladeKind } from './levels';
 import type { Body } from './physics2d';
+import { slingWorld } from './worlds';
+import { WorldWeather } from '../three-kit/weather';
+import { tintTexture, weatherLight } from '../three-kit/looks';
 
 const BLADE_COLOR: Record<BladeKind, string> = { saw: '#e5392f', split: '#2f8fe5', turbo: '#ffc928', bomb: '#26282e' };
 const MATERIAL_COLOR: Record<string, string> = { wood: '#d79a55', glass: '#a8e6ff', steel: '#9aa6b2', tnt: '#d8392b', robot: '#8fd34a', helmet: '#8fd34a', boss: '#7cc23c' };
@@ -20,11 +23,19 @@ const textures = () => ({
 });
 
 /** Saw disc in the XY plane (facing the camera), spun around z. */
-function bladeModel(s: Shapes, parent: T.Object3D, kind: BladeKind, r: number): T.Group {
+function bladeModel(s: Shapes, parent: T.Object3D, kind: BladeKind, r: number, style = 'original'): T.Group {
   const g = new T.Group(); parent.add(g);
+  const flat = (geometry: T.BufferGeometry, m: T.Material, z = 0) => { const d = mesh(geometry, m, g, 0, 0, z); d.rotation.x = Math.PI / 2; return d; };
+  // Blade styles: a pizza, a frosted donut, a ninja shuriken, a chunky gear, or the classic saw. The hub colour still shows the blade type.
+  if (style === 'pizza') { flat(new T.CylinderGeometry(r * .95, r * .95, .14, 28), material('#d9893a', .8)); flat(new T.CylinderGeometry(r * .8, r * .8, .15, 28), material('#ffcf5a', .6), .005); for (let i = 0; i < 5; i++) { const a = i * 1.26; flat(new T.CylinderGeometry(r * .16, r * .16, .17, 14), material('#c8302f', .6), .01).position.set(Math.cos(a) * r * .5, Math.sin(a) * r * .5, .01); } }
+  else if (style === 'donut') { mesh(new T.TorusGeometry(r * .62, r * .32, 12, 28), material('#d9a060', .7), g); const frost = mesh(new T.TorusGeometry(r * .62, r * .3, 12, 28, Math.PI * 2), material('#ff7ab8', .4), g, 0, 0, .06); frost.scale.z = .6; for (let i = 0; i < 10; i++) { const a = i * .63; s.cube(g, material(['#ffd23f', '#38c8ff', '#ffffff', '#7dff9a'][i % 4]), Math.cos(a) * r * .62, Math.sin(a) * r * .62, r * .22, r * .18, r * .05, .03, false).rotation.z = a; } }
+  else if (style === 'shuriken') { const steel = material('#3a4048', .25, .8); for (let i = 0; i < 4; i++) { const blade = s.cube(g, steel, 0, 0, 0, r * 2, r * .42, .1, false); blade.rotation.z = i * Math.PI / 4; blade.scale.x = r * 2; } }
+  else if (style === 'gear') { const iron = material('#8a95a2', .4, .7); flat(new T.CylinderGeometry(r * .8, r * .8, .16, 20), iron); for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; s.cube(g, iron, Math.cos(a) * r * .88, Math.sin(a) * r * .88, 0, r * .34, r * .34, .16, false).rotation.z = a; } }
+  else {
   const steel = material('#e9eef2', .25, .8), disc = mesh(new T.CylinderGeometry(r * .82, r * .82, .12, 28), steel, g); disc.rotation.x = Math.PI / 2;
   for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, tooth = s.cube(g, steel, Math.cos(a) * r * .85, Math.sin(a) * r * .85, 0, r * .36, r * .24, .12, false); tooth.rotation.z = a + .55; }
-  const hub = mesh(new T.CylinderGeometry(r * .5, r * .5, .16, 20), material(BLADE_COLOR[kind], .4, .2), g); hub.rotation.x = Math.PI / 2;
+  }
+  const hub = mesh(new T.CylinderGeometry(r * .5 * (style === 'original' ? 1 : .55), r * .5 * (style === 'original' ? 1 : .55), .16, 20), material(BLADE_COLOR[kind], .4, .2), g, 0, 0, style === 'original' ? 0 : .08); hub.rotation.x = Math.PI / 2;
   for (const side of [-1, 1]) s.ball(g, material('#ffffff'), side * r * .18, r * .08, .1, r * .12, false);
   for (const side of [-1, 1]) s.ball(g, material('#111111'), side * r * .18, r * .06, .14, r * .06, false);
   if (kind === 'bomb') { s.tube(g, material('#5a4a3a'), r * .2, r * .62, 0, .03, .25); s.ball(g, material('#ffcf5a'), r * .25, r * .8, 0, .06, false); }
@@ -47,12 +58,13 @@ export class SlingersView extends World<SlingersRun> {
   private rack = new T.Group(); private pocket = new T.Group(); private dots: T.InstancedMesh; private chunks: { mesh: T.Mesh; vx: number; vy: number; spin: number; age: number }[] = [];
   private seen = new Map<number, { x: number; y: number; kind: PieceKind }>(); private built = -1; private rackKey = '';
   private frame = { x: 8, y: 4, half: 7 }; private aspect = 1.6; private ray = new T.Raycaster();
+  private weather: WorldWeather; private worldKey = ''; private bladeStyle = '';
   constructor(canvas: HTMLCanvasElement, run: SlingersRun) {
     super(canvas, run, '#bfe6f7', 15);
     this.camera = new T.OrthographicCamera(-10, 10, 6, -6, .1, 200); this.renderer.toneMapping = T.NoToneMapping; this.scene.fog = null; this.sun.intensity = 2.3;
     this.scene.add(this.stageGroup, this.sling, this.rack, this.pocket);
     this.dots = new T.InstancedMesh(new T.CircleGeometry(.07, 10), new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .9 }), 140); this.dots.frustumCulled = false; this.dots.count = 0; this.scene.add(this.dots);
-    this.buildSling();
+    this.buildSling(); this.remix.ownWorld(true); this.weather = new WorldWeather(this.scene, { w: 40, h: 14, d: 8 });
   }
   resize(width: number, height: number, pixelRatio: number): void { super.resize(width, height, pixelRatio); this.aspect = width / Math.max(1, height); }
   private buildSling() {
@@ -63,23 +75,36 @@ export class SlingersView extends World<SlingersRun> {
   }
   private buildStage() {
     this.disposeStage(this.stageGroup); this.stageGroup.clear(); const s = this.shapes, run = this.run, end = run.structureEnd + 30;
-    const dirt = material('#ffffff', .95); dirt.map = this.tex.dirt; this.tex.dirt.repeat.set(30, 2);
-    const pebbles = material('#ffffff', .95); pebbles.map = this.tex.pebbles; this.tex.pebbles.repeat.set(40, 2);
+    const w = slingWorld(run.config.worldTheme); this.worldKey = run.config.worldTheme ?? 'classic';
+    const sky = document.createElement('canvas'); sky.width = 8; sky.height = 256; const sg = sky.getContext('2d')!, grad = sg.createLinearGradient(0, 0, 0, 256); grad.addColorStop(0, w.sky[0]); grad.addColorStop(1, w.sky[1]); sg.fillStyle = grad; sg.fillRect(0, 0, 8, 256); if (w.stars) for (let i = 0; i < 40; i++) { sg.fillStyle = '#ffffff'; sg.fillRect(i * 13 % 8, i * 37 % 200, 1, 1); }
+    if (this.scene.background instanceof T.Texture) this.scene.background.dispose(); const skyMap = new T.CanvasTexture(sky); skyMap.colorSpace = T.SRGBColorSpace; this.scene.background = skyMap;
+    const dirtMap = w.dirt === '#ffffff' ? this.tex.dirt : tintTexture(this.tex.dirt, w.dirt), baseMap = w.base === '#ffffff' ? this.tex.pebbles : tintTexture(this.tex.pebbles, w.base);
+    const dirt = material('#ffffff', .95); dirt.map = dirtMap; dirtMap.repeat.set(30, 2);
+    const pebbles = material('#ffffff', .95); pebbles.map = baseMap; baseMap.repeat.set(40, 2);
     s.cube(this.stageGroup, dirt, end / 2 - 20, -1.1, 0, end + 40, 2.2, 3, false); s.cube(this.stageGroup, pebbles, end / 2 - 20, -3.2, 0, end + 40, 2.2, 3.2, false);
-    const grass = material('#5fbf3a', .8), grassDark = material('#3f9a2a', .8);
+    const grass = material(w.grass, .8), grassDark = material(w.grassDark, .8);
     s.cube(this.stageGroup, grass, end / 2 - 20, -.06, .1, end + 40, .16, 3.2, false);
     for (let i = 0; i < 160; i++) { const tuft = mesh(new T.ConeGeometry(.08, .32 + (i % 3) * .1, 4), i % 2 ? grass : grassDark, this.stageGroup, -20 + i * .45 + Math.sin(i) * .1, .1, 1.55, false); tuft.rotation.z = Math.sin(i * 3) * .3; }
     // Slingshot mound and the hills the structures stand on.
     for (const h of [{ x: -1.2, w: 4, h: .9 }, ...run.stage.hills]) { s.cube(this.stageGroup, dirt, h.x, h.h / 2, 0, h.w, h.h, 3, false); s.cube(this.stageGroup, grass, h.x, h.h - .06, .1, h.w + .06, .14, 3.2, false); }
     // Backdrop: cloud band and layered hills, like a sunny cartoon quarry.
-    const cloud = new T.MeshBasicMaterial({ color: '#ffffff', fog: false }), farHill = new T.MeshBasicMaterial({ color: '#8fc9a8', fog: false }), midHill = new T.MeshBasicMaterial({ color: '#6fb86a', fog: false });
-    for (let i = 0; i < 26; i++) { const puff = mesh(new T.CircleGeometry(1.1 + (i % 4) * .45, 32), cloud, this.stageGroup, -16 + i * 3.6 + Math.sin(i * 2.3), 6.4 + Math.sin(i * 1.7) * .9 + (i % 3) * .5, -45, false); puff.scale.y = .62; }
+    const cloud = new T.MeshBasicMaterial({ color: w.cloud, fog: false }), farHill = new T.MeshBasicMaterial({ color: w.far, fog: false }), midHill = new T.MeshBasicMaterial({ color: w.mid, fog: false });
+    for (let i = 0; i < (w.backdrop === 'moon' ? 0 : 26); i++) { const puff = mesh(new T.CircleGeometry(1.1 + (i % 4) * .45, 32), cloud, this.stageGroup, -16 + i * 3.6 + Math.sin(i * 2.3), 6.4 + Math.sin(i * 1.7) * .9 + (i % 3) * .5, -45, false); puff.scale.y = .62; }
     for (let i = 0; i < 9; i++) mesh(new T.CircleGeometry(8 + (i % 3) * 2.5, 72), farHill, this.stageGroup, -16 + i * 8, -6.4 - (i % 2), -40, false);
     for (let i = 0; i < 12; i++) mesh(new T.CircleGeometry(5 + (i % 3) * 2, 64), midHill, this.stageGroup, -14 + i * 6.5, -5.2, -25, false);
+    this.backdrop(w);
+  }
+  /** Silhouettes per battleground: castle towers, a pirate ship and palms, the Earth and craters, or jungle trees. */
+  private backdrop(w: ReturnType<typeof slingWorld>) {
+    const flat = (color: string) => new T.MeshBasicMaterial({ color, fog: false }), g = this.stageGroup, shape = (geometry: T.BufferGeometry, color: string, x: number, y: number, z: number) => mesh(geometry, flat(color), g, x, y, z, false);
+    if (w.backdrop === 'castle') for (let i = 0; i < 6; i++) { const x = -10 + i * 12; shape(new T.PlaneGeometry(4, 9), '#7a8090', x, 1.5, -30); shape(new T.PlaneGeometry(9, 5), '#8a90a0', x + 6, -.5, -31); for (let k = 0; k < 4; k++) shape(new T.PlaneGeometry(.7, .8), '#7a8090', x - 1.5 + k, 6.3, -30); shape(new T.ConeGeometry(2.4, 3, 4), '#5a3a6a', x, 7.5, -29.9); }
+    if (w.backdrop === 'cove') { shape(new T.PlaneGeometry(400, 9), '#1fb3d6', 20, -2, -35); for (let i = 0; i < 6; i++) { const x = -12 + i * 14; shape(new T.PlaneGeometry(.35, 5), '#8a6a44', x, 1.5, -20); for (let k = 0; k < 5; k++) { const leaf = shape(new T.PlaneGeometry(2.4, .35), '#3aa860', x + Math.cos(k * 1.2) * .9, 4.2 + Math.sin(k * 1.2) * .3, -19.9); leaf.rotation.z = k * 1.2 - .5; } } const ship = new T.Group(); ship.position.set(40, 1.5, -33); g.add(ship); ship.add(mesh(new T.PlaneGeometry(9, 2), flat('#5a3a24'), ship, 0, 0, 0, false)); for (const x of [-2, 1.5]) { ship.add(mesh(new T.PlaneGeometry(.25, 7), flat('#3a2414'), ship, x, 4, 0, false)); ship.add(mesh(new T.PlaneGeometry(3, 3), flat('#f4ecd8'), ship, x + .2, 4.5, .01, false)); } ship.add(mesh(new T.PlaneGeometry(1.2, .8), flat('#111111'), ship, -2, 7.8, .01, false)); }
+    if (w.backdrop === 'moon') { shape(new T.CircleGeometry(3.2, 40), '#3f8ae0', 30, 9, -44); shape(new T.CircleGeometry(1.2, 20), '#5fbf6a', 29, 9.6, -43.9); for (let i = 0; i < 10; i++) { const c = shape(new T.CircleGeometry(.8 + i % 3 * .5, 24), '#9a9ea8', -10 + i * 7, -.04, 1.65); c.scale.y = .2; } }
+    if (w.backdrop === 'jungle') for (let i = 0; i < 12; i++) { const x = -14 + i * 7; shape(new T.PlaneGeometry(.6, 8), '#4a3a24', x, 1, -22); shape(new T.CircleGeometry(3 + i % 3, 20), i % 2 ? '#2f7a3a' : '#3f9a4a', x, 5.5, -21.9); for (let k = 0; k < 3; k++) shape(new T.PlaneGeometry(.08, 3 + k), '#3f7a3a', x + 1.5 + k * .5, 3, -21.8); }
   }
   private actor(b: Body): T.Group {
     const s = this.shapes, p = pieceOf(b), root = new T.Group(); this.scene.add(root);
-    if (p.kind === 'blade') bladeModel(s, root, p.blade!, b.r);
+    if (p.kind === 'blade') { bladeModel(s, root, p.blade!, b.r, this.run.config.characterStyle); root.userData.blade = true; }
     else if (p.kind === 'robot' || p.kind === 'helmet' || p.kind === 'boss') robotModel(s, root, p.kind, b.w);
     else {
       const m = p.kind === 'glass' ? new T.MeshStandardMaterial({ color: '#b6ecff', roughness: .1, metalness: .1, transparent: true, opacity: .62 }) : material('#ffffff', p.kind === 'steel' ? .4 : .85, p.kind === 'steel' ? .5 : 0);
@@ -100,7 +125,10 @@ export class SlingersView extends World<SlingersRun> {
   protected rebuild(): void { for (const g of this.actors.values()) { g.removeFromParent(); this.disposeStage(g); } this.actors.clear(); this.seen.clear(); this.built = -1; this.rackKey = ''; }
   protected update(dt: number, reduced: boolean): void {
     const run = this.run;
-    if (this.built !== run.revision) { this.built = run.revision; this.buildStage(); }
+    if (this.built !== run.revision || (run.config.worldTheme ?? 'classic') !== this.worldKey) { this.built = run.revision; this.buildStage(); }
+    // A new blade style re-dresses the blades already in flight.
+    if ((run.config.characterStyle ?? 'original') !== this.bladeStyle) { this.bladeStyle = run.config.characterStyle ?? 'original'; for (const [id, g] of this.actors) if (g.userData.blade) { g.removeFromParent(); this.disposeStage(g); this.actors.delete(id); } }
+    this.weather.update(dt, run.weather.kind, new T.Vector3(this.frame.x, 2, 0), run.wind, reduced); weatherLight(this.scene, this.sun, this.weather); this.scene.fog = null;
     const live = new Set<number>();
     for (const b of run.world.bodies) {
       const p = pieceOf(b); if (p.kind === 'ground') continue; live.add(b.id);
@@ -124,11 +152,11 @@ export class SlingersView extends World<SlingersRun> {
     // Sling pocket and rubber bands follow the pull.
     const loaded = run.loaded, power = run.aimPower, pull = loaded ? { x: -Math.cos(run.aimAngle) * power * 1.5, y: -Math.sin(run.aimAngle) * power * 1.5 } : { x: 0, y: 0 };
     const pocket = { x: SLING.x + pull.x, y: SLING.y + pull.y };
-    const key = `${run.revision}|${run.queue.join(',')}|${run.state}`;
+    const key = `${run.revision}|${run.queue.join(',')}|${run.state}|${run.config.characterStyle}`;
     if (key !== this.rackKey) {
       this.rackKey = key; this.disposeStage(this.rack); this.rack.clear(); this.disposeStage(this.pocket); this.pocket.clear();
-      run.queue.slice(loaded ? 1 : 0).forEach((kind, i) => { const g = bladeModel(this.shapes, this.rack, kind, .3); g.position.set(-1.2 - i * .75, 1.2, .2); });
-      if (loaded) bladeModel(this.shapes, this.pocket, loaded, .32);
+      run.queue.slice(loaded ? 1 : 0).forEach((kind, i) => { const g = bladeModel(this.shapes, this.rack, kind, .3, run.config.characterStyle); g.position.set(-1.2 - i * .75, 1.2, .2); });
+      if (loaded) bladeModel(this.shapes, this.pocket, loaded, .32, run.config.characterStyle);
     }
     this.pocket.position.set(pocket.x, pocket.y, .1); this.pocket.visible = Boolean(loaded);
     for (const [i, band] of this.bands.entries()) {

@@ -17,6 +17,8 @@ import { STACK_WORLDS, STACK_WEATHER } from '../speed-stack/worlds';
 import { speedStackSpec } from '../speed-stack/StackScreen';
 import { NAJA_GARDENS, NAJA_WEATHER } from '../naja-run/worlds';
 import { najaRunSpec } from '../naja-run/NajaScreen';
+import { SLING_WORLDS, SLING_WEATHER } from '../makita-slingers/worlds';
+import { makitaSlingersSpec } from '../makita-slingers/SlingersScreen';
 import { pinballCatalog } from '../pinballerz/catalog';
 import { StackRun, overlap1D, STACK_LEVELS } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
@@ -330,6 +332,22 @@ describe('Naja Run gardens, weather and the old cobra', () => {
     expect(najaRunSpec.invites!(run, 'lose')[0].code).toBe('bool wrapWalls = true;'); expect(najaRunSpec.invites!(run, 'win')[0].code).toBe('string worldTheme = "desert";');
     for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of najaRunSpec.invites!(run, moment)) expect(parseGameScript<ArcadeConfig>(invite.code, 'csharp', najaCatalog.schema).ok, invite.code).toBe(true);
     expect(Object.keys(NAJA_GARDENS)).toEqual(najaCatalog.mods.find(m => m.id === 'worldTheme')!.values); expect(Object.keys(NAJA_WEATHER)).toEqual(najaCatalog.mods.find(m => m.id === 'weather')!.values);
+  });
+});
+
+describe('Makita Slingers battlegrounds, wind and the crew chief', () => {
+  it('bends blades in the wind, floats them on the Moon and shows it in the preview', () => {
+    const calm = new SlingersRun(), windy = new SlingersRun(), moon = new SlingersRun(); for (const r of [calm, windy, moon]) r.launch();
+    windy.config.weather = 'wind'; moon.config.worldTheme = 'moon';
+    expect(windy.preview().at(-1)!.x).toBeGreaterThan(calm.preview().at(-1)!.x); expect(moon.gravity).toBeLessThan(calm.gravity * .5);
+    for (const r of [calm, windy]) { r.fire(); for (let i = 0; i < 40; i++) r.step(1 / 60); } expect(windy.flying[0].x).toBeGreaterThan(calm.flying[0].x);
+    expect(Object.keys(SLING_WORLDS)).toEqual(slingersCatalog.mods.find(m => m.id === 'worldTheme')!.values); expect(Object.keys(SLING_WEATHER)).toEqual(slingersCatalog.mods.find(m => m.id === 'weather')!.values);
+  });
+  it('offers the flight preview after misses and the Moon after a win', () => {
+    const run = new SlingersRun(); run.launch(); run.fire(); run.shotsSinceKill = 2;
+    expect(makitaSlingersSpec.invites!(run, 'struggle')[0].code).toBe('bool aimGuide = true;'); expect(makitaSlingersSpec.invites!(run, 'lose')[0].code).toBe('bool aimGuide = true;');
+    expect(makitaSlingersSpec.invites!(run, 'win')[0].code).toBe('string worldTheme = "castle";');
+    for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of makitaSlingersSpec.invites!(run, moment)) expect(parseGameScript<ArcadeConfig>(invite.code, 'csharp', slingersCatalog.schema).ok, invite.code).toBe(true);
   });
 });
 

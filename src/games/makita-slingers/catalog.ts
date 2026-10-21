@@ -9,5 +9,10 @@ export const slingersCatalog = createArcadeCatalog({
   overdrive: { name: 'blastBlade', label: 'BLAST BLADE', blurb: 'Press E in flight to detonate any blade with a shockwave.' },
   lives: { name: 'bladeCount', label: 'BLADE RACK', min: 3, max: 8 },
   final: 'Dismantle every robot in a quarry and clear the stage.',
+  remix: {
+    worldTheme: { label: 'BATTLEGROUND', blurb: 'Lay siege to a "castle", raid a "pirate" cove (value "cove"), fight on the "moon" where low gravity makes blades fly far, or explore the "jungle" ruins.', values: ['classic', 'castle', 'cove', 'moon', 'jungle'] },
+    characterStyle: { label: 'BLADE STYLE', blurb: 'Fling a "pizza", a frosted "donut", a ninja "shuriken" or a chunky "gear" instead of a saw. The centre colour still shows the blade type.', values: ['original', 'pizza', 'donut', 'shuriken', 'gear'] },
+    weather: { label: 'BATTLE WEATHER', blurb: '"wind" pushes blades in flight (the preview shows it), "rain" and "snow" make the sling slower, and "night" fills the sky with fireflies.', values: ['clear', 'wind', 'rain', 'snow', 'night'] },
+  },
   runtime: { robots: 'robots still standing', blades: 'blades left in the rack' },
 });

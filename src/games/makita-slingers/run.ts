@@ -2,6 +2,7 @@ import { ArcadeRun, clamp, type ArcadeAction } from '../premium-kit/core';
 import { slingersCatalog } from './catalog';
 import { World2D, type Body } from './physics2d';
 import { slingLevel, slingLevelName, type BladeKind, type Material, type RobotKind, type SlingLevel } from './levels';
+import { SLING_WEATHER, slingWorld } from './worlds';
 
 export const SLING = { x: 0, y: 2.3 }, MAX_PULL = 3.2, STEP = 1 / 240;
 export type PieceKind = Material | RobotKind | 'blade' | 'ground';
@@ -22,8 +23,13 @@ export class SlingersRun extends ArcadeRun {
   robotsLeft = 0; private clock = 0; private pathTimer = 0; private grace = 0; private exploding: { x: number; y: number; r: number }[] = [];
   constructor(checkpoint?: unknown) { super('makita-slingers', slingersCatalog.defaults, slingersCatalog.schema, checkpoint); this.build(); }
   get levelName() { return slingLevelName(this.level); }
-  get gravity() { return this.config.gravity / 32; }
-  get maxSpeed() { return this.config.power * .19; }
+  get gravity() { return this.config.gravity / 32 * slingWorld(this.config.worldTheme).gravity; }
+  get maxSpeed() { return this.config.power * .19 * this.weather.speed; }
+  get weather() { return SLING_WEATHER[this.config.weather ?? 'clear'] ?? SLING_WEATHER.clear; }
+  /** Sideways wind on blades in flight, gusting. */
+  get wind() { return this.weather.wind * (.65 + .35 * Math.sin(this.elapsed * .7)); }
+  /** Shots since the last robot fell, so the crew chief knows when aiming is the problem. */
+  shotsSinceKill = 0;
   get loaded(): BladeKind | null { return this.state === 'aim' && this.queue.length ? this.queue[0] : null; }
   get structureEnd() { return Math.max(...this.stage.blocks.map(b => b.x + b.w / 2), ...this.stage.robots.map(r => r.x + 1), ...this.stage.hills.map(h => h.x + h.w / 2)); }
   private build() {
@@ -42,7 +48,7 @@ export class SlingersRun extends ArcadeRun {
   protected setup(): void {
     this.build(); this.queue = Array.from({ length: Math.max(1, this.config.lives) }, (_, i) => this.stage.blades[i % this.stage.blades.length]);
     this.lives = this.queue.length; this.flying = []; this.special = false; this.state = 'aim'; this.settleTimer = 0; this.path = []; this.lastPath = []; this.dragging = false; this.pull = { x: 0, y: 0 };
-    this.clock = 0; this.grace = .4; this.exploding = []; this.aimAngle = .55; this.aimPower = .85;
+    this.clock = 0; this.grace = .4; this.exploding = []; this.shotsSinceKill = 0; this.aimAngle = .55; this.aimPower = .85;
     this.notice = `${this.levelName.toUpperCase()} · ${this.stage.tip}`;
   }
   /** Launch velocity for the current aim (or drag). */
@@ -51,15 +57,15 @@ export class SlingersRun extends ArcadeRun {
   }
   /** Predicted path of a blade fired with the current aim, for the trajectory guide. */
   preview(points = 36): { x: number; y: number }[] {
-    const v = this.velocity(), g = this.gravity, out: { x: number; y: number }[] = [];
-    for (let i = 1; i <= points; i++) { const t = i * .07, y = SLING.y + v.y * t - g * t * t / 2; if (y < -.2) break; out.push({ x: SLING.x + v.x * t, y }); }
+    const v = this.velocity(), g = this.gravity, wind = this.wind, out: { x: number; y: number }[] = [];
+    for (let i = 1; i <= points; i++) { const t = i * .07, y = SLING.y + v.y * t - g * t * t / 2; if (y < -.2) break; out.push({ x: SLING.x + v.x * t + wind * t * t / 2, y }); }
     return out;
   }
   fire(): boolean {
     const kind = this.loaded; if (this.phase !== 'playing' || !kind || this.aimPower < .1) return false;
     const v = this.velocity(), blade = this.world.add('circle', SLING.x, SLING.y, { r: BLADE_RADIUS[kind] }, kind === 'bomb' ? 6 : 5, { friction: .5, restitution: .3, tag: { kind: 'blade', hp: Infinity, maxHp: Infinity, blade: kind, born: this.elapsed } satisfies Piece });
     blade.vx = v.x; blade.vy = v.y; blade.w0 = -14;
-    this.queue.shift(); this.lives = this.queue.length; this.flying = [blade]; this.special = false; this.state = 'flight'; this.settleTimer = 0;
+    this.queue.shift(); this.lives = this.queue.length; this.flying = [blade]; this.shotsSinceKill++; this.special = false; this.state = 'flight'; this.settleTimer = 0;
     this.lastPath = this.path; this.path = []; this.pathTimer = 0; this.dragging = false; this.pull = { x: 0, y: 0 };
     this.metrics.actions++; if (this.config.assist) this.metrics.assisted++;
     this.cue('launch', SLING.x, SLING.y); this.notice = kind === 'saw' ? 'BLADE AWAY!' : 'BLADE AWAY! Tap again in flight for its special move.'; return true;
@@ -115,7 +121,7 @@ export class SlingersRun extends ArcadeRun {
   }
   protected tick(dt: number): void {
     this.world.gravity = -this.gravity; this.grace = Math.max(0, this.grace - dt); this.clock += dt;
-    while (this.clock >= STEP) { this.world.step(STEP); this.clock -= STEP; }
+    while (this.clock >= STEP) { const wind = this.wind * STEP; if (wind) for (const b of this.flying) b.vx += wind; this.world.step(STEP); this.clock -= STEP; }
     this.exploding = [];
     // Pieces that ran out of health break apart; crates take their neighbours with them.
     for (const b of [...this.world.bodies]) {
@@ -124,7 +130,7 @@ export class SlingersRun extends ArcadeRun {
       if (b.y < -3 || Math.abs(b.x) > 80) p.hp = 0;
       if (p.hp > 0) continue;
       this.world.remove(b);
-      if (p.kind === 'robot' || p.kind === 'helmet' || p.kind === 'boss') { this.robotsLeft--; this.metrics.perfects++; this.addScore(this.config.bonus * (p.kind === 'boss' ? 3 : 1), b.x, b.y, `ROBOT +${this.config.bonus * (p.kind === 'boss' ? 3 : 1)}`); }
+      if (p.kind === 'robot' || p.kind === 'helmet' || p.kind === 'boss') { this.robotsLeft--; this.shotsSinceKill = 0; this.metrics.perfects++; this.addScore(this.config.bonus * (p.kind === 'boss' ? 3 : 1), b.x, b.y, `ROBOT +${this.config.bonus * (p.kind === 'boss' ? 3 : 1)}`); }
       else { this.addScore(POINTS[p.kind], b.x, b.y); if (p.kind === 'tnt') { this.blast(b.x, b.y, 3, 60); this.cue('hit', b.x, b.y, 'BOOM!'); } }
       this.cue('hit', b.x, b.y);
     }
