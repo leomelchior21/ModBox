@@ -402,7 +402,7 @@ describe('MODBOX app shell', () => {
     ['makita-slingers', 'MAKITA SLINGERS', 'alpine', 'blastBlade'],
     ['naja-run', 'NAJA RUN', 'volcanic', 'venomRush'],
     ['pinballerz', 'PINBALLERZ', 'maracana', 'powerShot'],
-    ['speed-stack', 'SPEED STACK', 'alpine', 'focusMode'],
+    ['speed-stack', 'SPEED STACK', 'tokyo', 'focusMode'],
     ['temple-race', 'TEMPLE RACE', 'lava', 'relicShield'],
     ['subway-runnerz', 'SUBWAY RUNNERZ', 'tokyo', 'hoverboard'],
     ['team-counters', 'TEAM COUNTERS', 'candy', 'teamShield'],

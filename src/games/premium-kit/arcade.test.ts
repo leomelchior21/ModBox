@@ -13,6 +13,8 @@ import { WEATHER } from '../pinballerz/run';
 import { VENUES } from '../pinballerz/stadium';
 import { YOUR_KITS, rivalKit } from '../pinballerz/kits';
 import { pinballerzSpec } from '../pinballerz/PinballScreen';
+import { STACK_WORLDS, STACK_WEATHER } from '../speed-stack/worlds';
+import { speedStackSpec } from '../speed-stack/StackScreen';
 import { pinballCatalog } from '../pinballerz/catalog';
 import { StackRun, overlap1D, STACK_LEVELS } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
@@ -302,6 +304,20 @@ describe('Speed Stack overlap and timing', () => {
     const normal = new StackRun(), slow = new StackRun(); normal.launch(); slow.launch(); slow.config.overdrive = true; slow.action('ability'); advance(normal, .5); advance(slow, .5);
     expect(slow.offset + 320).toBeLessThan((normal.offset + 320) * .5); expect(slow.focusCooldown).toBeGreaterThan(11);
     slow.moving.x = 1000; slow.drop(); advance(slow, 3); expect(slow.falling).toHaveLength(0);
+  });
+});
+
+describe('Speed Stack sites, weather and the foreman', () => {
+  it('makes perfects harder in the rain, gusts in the wind and slows the crane in the snow', () => {
+    const run = new StackRun(); run.launch(); run.moving.x = run.top.x + run.config.power * .9; run.dropLock = 0; run.config.weather = 'rain'; run.drop(); expect(run.cuts).toBe(1);
+    const calm = new StackRun(), windy = new StackRun(); calm.launch(); windy.launch(); windy.config.weather = 'wind'; const speeds = new Set<number>(); for (let i = 0; i < 40; i++) { windy.step(.05); speeds.add(Math.round(windy.speed)); } expect(speeds.size).toBeGreaterThan(8);
+    const snow = new StackRun(); snow.launch(); snow.config.weather = 'snow'; expect(snow.speed).toBeLessThan(calm.speed);
+    expect(Object.keys(STACK_WORLDS)).toEqual(stackCatalog.mods.find(m => m.id === 'worldTheme')!.values); expect(Object.keys(STACK_WEATHER)).toEqual(stackCatalog.mods.find(m => m.id === 'weather')!.values);
+  });
+  it('coaches with magnet snap after a collapse and a new site after a skyline', () => {
+    const run = new StackRun(); run.launch();
+    expect(speedStackSpec.invites!(run, 'lose')[0].code).toBe('bool magnetSnap = true;'); expect(speedStackSpec.invites!(run, 'win')[0].code).toBe('string worldTheme = "tokyo";');
+    for (const moment of ['lose', 'win', 'struggle'] as const) for (const invite of speedStackSpec.invites!(run, moment)) expect(parseGameScript<ArcadeConfig>(invite.code, 'csharp', stackCatalog.schema).ok, invite.code).toBe(true);
   });
 });
 

@@ -9,5 +9,10 @@ export const stackCatalog = createArcadeCatalog({
   overdrive: { name: 'focusMode', label: 'SLOW THE MOMENT', blurb: 'Use FOCUS or E for a three-second timing window in slow motion.' },
   lives: { name: 'chances', label: 'SECOND CHANCES', min: 1, max: 4 },
   final: 'Stack every floor of a skyline and clear the stage.',
+  remix: {
+    worldTheme: { label: 'BUILD SITE', blurb: 'Build in neon "tokyo", beside the "desert" pyramids, down on an "ocean" reef among bubbles or at a "space" orbit station.', values: ['classic', 'tokyo', 'desert', 'ocean', 'space'] },
+    characterStyle: { label: 'SLAB STYLE', blurb: 'Stack see-through "glass", warm "wood", striped "candy" or dark slabs with glowing "neon" edges.', values: ['original', 'glass', 'wood', 'candy', 'neon'] },
+    weather: { label: 'SITE WEATHER', blurb: '"wind" makes every stage gusty, "rain" makes perfect drops harder, "snow" slows the crane and "night" brings out the stars.', values: ['clear', 'wind', 'rain', 'snow', 'night'] },
+  },
   runtime: { floors: 'floors stacked this stage', streak: 'perfect drops in a row' },
 });

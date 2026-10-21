@@ -1,5 +1,6 @@
 import { ArcadeRun, type ArcadeAction } from '../premium-kit/core';
 import { stackCatalog } from './catalog';
+import { STACK_WEATHER } from './worlds';
 
 export interface StackSlab { x: number; z: number; w: number; d: number; layer: number; color: number; perfect: boolean; gold?: boolean }
 export interface FallingSlab { slab: StackSlab; vx: number; vz: number; fall: number; velocity: number; age: number; spin: number }
@@ -40,12 +41,16 @@ export class StackRun extends ArcadeRun {
   get top(): StackSlab { return this.slabs[this.slabs.length - 1]; }
   /** Slab speed now: the tempo mod, the stage tempo, a little per floor and the wind. */
   get speed(): number {
-    const gust = this.stage.gust ? 1 + Math.sin(this.gustPhase) * .45 : 1;
-    return (this.config.speed * this.stage.tempo + this.placed * 3.2) * gust * (this.focus > 0 ? .43 : 1);
+    const w = this.weather, gust = this.stage.gust || w.gust ? 1 + Math.sin(this.gustPhase) * .45 : 1;
+    return (this.config.speed * this.stage.tempo + this.placed * 3.2) * gust * w.speed * (this.focus > 0 ? .43 : 1);
   }
+  get weather() { return STACK_WEATHER[this.config.weather ?? 'clear'] ?? STACK_WEATHER.clear; }
+  /** Misses and near-misses this stage, for the foreman's advice. */
+  misses = 0; cuts = 0;
   protected setup(): void {
     const w = this.stage.width, start = -w / 2;
     this.slabs = [{ x: start, z: start, w, d: w, layer: 0, color: 0, perfect: true }]; this.falling = []; this.placed = 0; this.streak = 0; this.best = 0; this.perfects = 0;
+    this.misses = 0; this.cuts = 0;
     this.camera = 0; this.focus = 0; this.focusCooldown = 0; this.dropLock = 0; this.ripple = 99; this.grew = 99; this.gustPhase = 0;
     this.spawn(); this.notice = `${this.levelName.toUpperCase()} · ${this.stage.tip}`;
   }
@@ -58,7 +63,7 @@ export class StackRun extends ArcadeRun {
     if (this.phase !== 'playing' || this.dropLock > 0) return false;
     this.metrics.actions++; this.dropLock = .16;
     const top = this.top, delta = this.axis === 'x' ? this.moving.x - top.x : this.moving.z - top.z, gold = !!this.moving.gold;
-    const perfect = Math.abs(delta) <= this.config.power + (this.config.assist ? 10 : 0);
+    const perfect = Math.abs(delta) <= (this.config.power + (this.config.assist ? 10 : 0)) * this.weather.window;
     if (perfect) {
       this.moving.x = top.x; this.moving.z = top.z; this.moving.perfect = true; this.streak++; this.perfects++; this.best = Math.max(this.best, this.streak); this.metrics.perfects++; this.ripple = 0;
       if (this.config.assist) this.metrics.assisted++;
@@ -72,13 +77,13 @@ export class StackRun extends ArcadeRun {
       const overlapX = overlap1D(top.x, top.w, this.moving.x, this.moving.w), overlapZ = overlap1D(top.z, top.d, this.moving.z, this.moving.d);
       if (overlapX.size < 8 || overlapZ.size < 8) {
         this.falling.push({ slab: { ...this.moving }, vx: this.axis === 'x' ? this.direction * 100 : 0, vz: this.axis === 'z' ? this.direction * 100 : 0, fall: 0, velocity: 0, age: 0, spin: this.direction });
-        this.streak = 0; this.lose(420, 420, 'MISSED THE TOWER'); if (this.phase === 'playing') { this.spawn(); this.notice = 'A second chance. Wait until the next slab lines up.'; } return false;
+        this.streak = 0; this.misses++; this.lose(420, 420, 'MISSED THE TOWER'); if (this.phase === 'playing') { this.spawn(); this.notice = 'A second chance. Wait until the next slab lines up.'; } return false;
       }
       const cutSize = this.axis === 'x' ? this.moving.w - overlapX.size : this.moving.d - overlapZ.size, cut = { ...this.moving, gold: false };
       if (this.axis === 'x') { cut.w = cutSize; cut.x = delta > 0 ? overlapX.start + overlapX.size : this.moving.x; }
       else { cut.d = cutSize; cut.z = delta > 0 ? overlapZ.start + overlapZ.size : this.moving.z; }
       this.falling.push({ slab: cut, vx: this.axis === 'x' ? Math.sign(delta) * 100 : 0, vz: this.axis === 'z' ? Math.sign(delta) * 100 : 0, fall: 0, velocity: 0, age: 0, spin: Math.sign(delta) });
-      this.moving.x = overlapX.start; this.moving.z = overlapZ.start; this.moving.w = overlapX.size; this.moving.d = overlapZ.size; this.moving.gold = false; this.streak = 0;
+      this.moving.x = overlapX.start; this.moving.z = overlapZ.start; this.moving.w = overlapX.size; this.moving.d = overlapZ.size; this.moving.gold = false; this.streak = 0; this.cuts++;
       this.addScore(25, 420, 400, '+25'); this.cue('hit', 420, 450); this.notice = `CLEAN CUT · ${Math.round(Math.min(this.moving.w, this.moving.d))} wide. Aim for a perfect.`;
     }
     this.slabs.push({ ...this.moving }); this.placed++;
