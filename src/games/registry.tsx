@@ -21,6 +21,8 @@ import { roombaRun } from './roomba-run/definition';
 
 import { tomatina } from './tomatina/definition';
 
+import { anominers } from './anominers/definition';
+
 /** Register a finished game's definition here to expose it in both libraries. */
 export const gameRegistry = createGameRegistry([
   vectorZero,
@@ -38,4 +40,5 @@ export const gameRegistry = createGameRegistry([
   monsterStrider,
   roombaRun,
   tomatina,
+  anominers,
 ]);

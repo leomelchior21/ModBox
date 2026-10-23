@@ -1,6 +1,6 @@
 # Current campaigns
 
-All games support Python, Swift and C#. Makitas vs Zombies, Block Forge, Makita Slingers, Naja Run, Pinballerz, Speed Stack, Temple Race, Subway Runnerz, Team Counters, Monster Strider, Roomba Run and Tomatina start in Free Play with complete basic settings and every mod and rule tool available. Their seven teaching missions and final challenge are optional suggestions, with unrestricted navigation back to Free Play. Upgrades start off so enabling one produces a noticeable change. Switching modes seeds unsaved challenge code from the current experiment while preserving existing saved code and checkpoints. The original three games retain progressive unlocks.
+All games support Python, Swift and C#. Makitas vs Zombies, Block Forge, Makita Slingers, Naja Run, Pinballerz, Speed Stack, Temple Race, Subway Runnerz, Team Counters, Monster Strider, Roomba Run, Tomatina, Neon Maze and Anominers start in Free Play with complete basic settings and every mod and rule tool available. Their seven teaching missions and final challenge are optional suggestions, with unrestricted navigation back to Free Play. Upgrades start off so enabling one produces a noticeable change. Switching modes seeds unsaved challenge code from the current experiment while preserving existing saved code and checkpoints. The original three games retain progressive unlocks.
 
 | Stage | Vector Zero | Neon Maze (until its rebuild) | Devil Floor | Makitas vs Zombies | Block Forge |
 | --- | --- | --- | --- | --- | --- |
@@ -81,3 +81,13 @@ Neon Maze was rebuilt as a premium 3D game in the arcade kit (cabinet ID `maze`,
 - SPACE (or a tap) phase-dashes through walls; some sectors seal a gem behind walls. TIME WARP (E) slows the sentinels when unlocked.
 - `worldTheme` rebuilds the grid (synthwave, 1980 arcade, code rain, abyss, vapor sunset); `characterStyle` swaps the runner (orb, comet, saucer, pixel cube, chomper); `weather` is live interference (static, blackout, storm, data snow).
 - Sentinels and the saucer are modelled in the Unity studio (`sentinels.glb`). The view renders neon edges with bloom, a follow camera and a light trail. The test bot in `testBots.ts` only steers and dashes, and clears all twelve sectors.
+
+## Anominers
+
+A cozy asteroid-mining roguelike drawn like an old home computer: about 220 lines in two inks, scaled up with crisp pixels.
+
+- Twelve asteroids grown from seeds (`src/games/anominers/levels.ts`), from First Rock to The Anomaly. Each has its own size, caves, minerals (copper 1, ice 1, crystal 3, gold 5), a mineral quota, an anomaly timer and threat; some hide lost technology, magma pockets burn your hull, and the last one is the anomaly core itself.
+- Your drill beam cuts whatever is in front of the ship; loose minerals drift to you and fill the cargo hold. Fly home to bank them (and repair). When the quota (and any lost tech) is in, dock at the base for 2.5 seconds to warp.
+- When the timer runs out the anomaly opens a rift, corrupts the rock around it and sends anomalites through the stone after you and your drones. Blast them (Space or a tap), destroy the rift for a big bonus, or bank fast and run. A wreck spills half the cargo and launches a spare hull.
+- Mods change the run: drill power, thrusters, cargo hold, beam range, ore magnet, drone crew and drone bay (E builds a drone for 10 minerals), blaster level, swarm size and the anomaly's mood. `worldTheme` changes sector (the ice fields make the ship drift), `characterStyle` the ship, and `weather` brings meteors that crater the rock, solar wind, a nebula that hides everyone, or an ion storm.
+- On tablets, hold a finger where you want to fly and tap to blast; the square pads work too. The test bot in `testBots.ts` uses only the arrows and BLAST and clears all twelve asteroids.
