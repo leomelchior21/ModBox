@@ -129,14 +129,14 @@ function TomatinaHud({ run }: { run: TomatinaRun }) {
 
 export const tomatinaSpec: PremiumGameSpec<TomatinaRun> = {
   id: 'tomatina', title: 'TOMATINA', eyebrow: 'PAINT THE TOWN RED', description: 'A first-person tomato fight in the streets of a Spanish town: lob tomatoes at the cleaning robots, paint the plazas red and hit every bullseye across twelve streets.',
-  instructions: 'Arrows or WASD walk and turn (on a tablet the pad walks and sidesteps). Drag to aim up, down and around. Tap or click anywhere (or press Space or THROW) to throw at the crosshair. E pours an unlocked tomato rain.', goal: 'Paint the town red.',
+  instructions: 'With a mouse, click the street to capture it: move the mouse to aim, click to throw, WASD to walk and sidestep, Esc to pause and free the mouse. On a tablet the pad walks and sidesteps, dragging aims and a tap throws at the crosshair. E pours an unlocked tomato rain.', goal: 'Paint the town red.',
   width: 1280, height: 720, catalog: tomatinaCatalog,
   controls: [{ label: '◀ LEFT', action: 'left', hold: 'left' }, { label: '▲ GO', action: 'up', hold: 'up' }, { label: '▼ BACK', action: 'down', hold: 'down' }, { label: 'RIGHT ▶', action: 'right', hold: 'right' }, { label: 'THROW', action: 'primary', primary: true }, { label: 'RAIN · E', action: 'ability' }],
   create: checkpoint => new TomatinaRun(checkpoint), createView: (canvas, run) => new TomatinaView(canvas, run),
   objective: run => { const goals = run.goalProgress(); return { label: `STREET ${run.level} · ${run.levelName.toUpperCase()} · ${goals.map(g => `${GOAL_TEXT[g.kind]} ${g.value}/${g.count}${g.kind === 'zone' ? '%' : ''}`).join(' · ')}`, value: goals.reduce((sum, g) => sum + g.value / g.count, 0), max: goals.length }; },
   hud: run => <TomatinaHud run={run} />,
   invites: crierInvites,
-  hints: [{ keys: '← → ↑ ↓', label: 'turn and walk' }, { keys: 'Drag', label: 'aim up, down and around' }, { keys: 'Click', label: 'throw at the crosshair' }, { keys: 'Space', label: 'throw too' }],
+  hints: [{ keys: 'Mouse', label: 'aim like a shooter' }, { keys: 'Click', label: 'throw at the crosshair' }, { keys: 'WASD', label: 'walk and sidestep' }, { keys: 'Esc', label: 'pause and free the mouse' }],
   touchHints: [{ keys: 'Pad', label: 'walk and sidestep' }, { keys: 'Drag', label: 'aim anywhere' }, { keys: 'Tap', label: 'throw at the crosshair' }],
   result: run => run.phase === 'cleared'
     ? { win: true, headline: `${run.paintPercent}% RED`, caption: `${run.levelName} is painted!`, detail: `${run.score.toLocaleString()} points · ${run.tally.robots} robot${run.tally.robots === 1 ? '' : 's'} splatted · best combo ×${Math.max(1, run.best)}` }

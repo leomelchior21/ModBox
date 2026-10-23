@@ -176,7 +176,7 @@ export function PremiumScreen<R extends ArcadeRun>({ spec, gameId, missionId, de
   }, [run, sound, update]);
   const pointer = (phase: 'down' | 'move' | 'up' | 'cancel', e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (libraryOpen || settingsOpen || menuOpen() || run.phase !== 'playing') return;
-    if (phase === 'down') { engage(); e.currentTarget.focus({ preventScroll: true }); e.currentTarget.setPointerCapture?.(e.pointerId); }
+    if (phase === 'down') { engage(); e.currentTarget.focus({ preventScroll: true }); try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* a locked mouse (desktop mouse-look) cannot be captured */ } }
     const r = e.currentTarget.getBoundingClientRect(), fit = Math.min(r.width / spec.width, r.height / spec.height);
     if (world.current?.pointer) world.current.pointer(phase, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, e.pointerId);
     else if (spec.createView) run.pointer(phase, (e.clientX - r.left) / r.width * spec.width, (e.clientY - r.top) / r.height * spec.height, e.pointerId);

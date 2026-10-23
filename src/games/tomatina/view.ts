@@ -76,12 +76,33 @@ export class TomatinaView implements WorldView {
   private particles: Flake[] = []; private shake = 0; private flash = 0; private scratch = new T.Object3D();
   private press: { id: number; x: number; y: number; lastX: number; lastY: number; t: number; moved: boolean } | null = null;
   width = 1; height = 1;
+  private touch = false; private mouseLook = false;
+  get locked() { return typeof document !== 'undefined' && document.pointerLockElement === this.canvas; }
+  /** Any click in the game area while playing (the PLAY or RESUME button too) captures the mouse again. */
+  private onClick = (event: MouseEvent) => {
+    // React may already have removed the PLAY or RESUME button, so read where the click happened from its path.
+    const path = event.composedPath().filter((n): n is Element => n instanceof Element);
+    if (this.locked || this.run.phase !== 'playing' || !path.some(n => n.classList.contains('premium-stage')) || path.some(n => n.matches('.cm-editor,.premium__expand,.play-mode,a'))) return;
+    try { const request = this.canvas.requestPointerLock() as unknown; if (request instanceof Promise) request.catch(() => undefined); } catch { /* not allowed here */ }
+  };
+  private onMouse = (event: MouseEvent) => { if (this.locked && this.run.phase === 'playing') this.run.look(event.movementX * .0024, -event.movementY * .0024); };
+  private wasLocked = false;
+  private onLock = () => {
+    const locked = this.locked; this.run.strafe = this.touch || locked;
+    // Esc (or leaving the tab) frees the mouse: pause, so the cursor is back for the editor and the menus.
+    if (this.wasLocked && !locked && this.run.phase === 'playing') this.run.pause();
+    this.wasLocked = locked;
+  };
   constructor(readonly canvas: HTMLCanvasElement, readonly run: TomatinaRun) {
     this.renderer = new T.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = T.LinearSRGBColorSpace; this.renderer.setPixelRatio(1);
     canvas.style.imageRendering = 'pixelated';
     // On touch screens the pad walks and sidesteps; dragging the scene aims, like a mobile shooter.
-    run.strafe = typeof window !== 'undefined' && window.matchMedia?.('(any-pointer: coarse)').matches === true;
+    this.touch = typeof window !== 'undefined' && window.matchMedia?.('(any-pointer: coarse)').matches === true; run.strafe = this.touch;
+    // With a mouse or touchpad the street captures the pointer like a desktop shooter: moving the mouse aims,
+    // clicking throws and WASD walk and sidestep. Esc frees the mouse and pauses the game.
+    this.mouseLook = !this.touch && typeof document !== 'undefined' && 'requestPointerLock' in canvas;
+    if (this.mouseLook) { document.addEventListener('click', this.onClick); document.addEventListener('mousemove', this.onMouse); document.addEventListener('pointerlockchange', this.onLock); }
     this.target = new T.WebGLRenderTarget(4, 4, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, depthTexture: new T.DepthTexture(4, 4, T.UnsignedIntType) });
     this.post = new T.ShaderMaterial({ vertexShader: POST_VERTEX, fragmentShader: POST_FRAGMENT, depthTest: false, depthWrite: false, uniforms: {
       tColor: { value: this.target.texture }, tDepth: { value: this.target.depthTexture }, res: { value: new T.Vector2(4, 4) }, near: { value: this.camera.near }, far: { value: this.camera.far },
@@ -114,6 +135,7 @@ export class TomatinaView implements WorldView {
 
   /** Drag to aim (any direction); tap anywhere to throw at the crosshair. */
   pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number, pointerId: number): void {
+    if (phase === 'down' && this.locked) { this.run.aimAt(0, 0); return; }
     if (phase === 'down') { this.press = { id: pointerId, x, y, lastX: x, lastY: y, t: performance.now(), moved: false }; return; }
     const p = this.press; if (!p || p.id !== pointerId) return;
     if (phase === 'move') { if (Math.abs(x - p.x) > .025 || Math.abs(y - p.y) > .04) p.moved = true; if (p.moved) this.run.look((x - p.lastX) * this.hfov * 1.2, (p.lastY - y) * this.camera.fov * Math.PI / 180 * 1.2); p.lastX = x; p.lastY = y; return; }
@@ -126,6 +148,9 @@ export class TomatinaView implements WorldView {
 
   render(dt: number, held: boolean, reduced: boolean, cues: readonly ArcadeCue[]): void {
     const run = this.run, step = held ? 0 : dt; this.time += step;
+    // Results, pauses and code editing need the cursor back.
+    if (this.locked && (run.phase !== 'playing' || held)) document.exitPointerLock?.();
+    if (this.mouseLook && this.wasLocked !== this.locked) this.onLock();
     const town = run.config.worldTheme && TOWNS[run.config.worldTheme] ? run.config.worldTheme : 'classic';
     if (this.revision !== run.revision || !this.level.children.length) { this.revision = run.revision; this.town = ''; this.buildLevel(); this.particles = []; }
     if (this.town !== town) { this.town = town; this.applyTown(town); }
@@ -331,6 +356,7 @@ export class TomatinaView implements WorldView {
   }
   diagnostics(): Record<string, number> { const info = this.renderer.info; return { drawCalls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures }; }
   dispose(): void {
+    if (this.mouseLook) { document.removeEventListener('click', this.onClick); document.removeEventListener('mousemove', this.onMouse); document.removeEventListener('pointerlockchange', this.onLock); if (this.locked) document.exitPointerLock?.(); }
     for (const r of this.robots.values()) r.dispose(); for (const a of this.amigos.values()) a.dispose(); this.hand.dispose();
     this.scene.traverse(o => { if (o instanceof T.Mesh) { o.geometry.dispose(); for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose(); } });
     this.target.dispose(); this.post.dispose(); this.renderer.dispose();
