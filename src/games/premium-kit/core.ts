@@ -9,6 +9,7 @@ export interface ArcadeConfig {
   /** Optional game-specific mods (see CatalogOptions.extraMods). */
   teammates?: number; rivals?: number; balls?: number; crowd?: number; difficulty?: string; celebration?: string;
   splash?: number; bounces?: number; ammo?: number;
+  wallColor?: string; sleepers?: number; gemDuration?: number; phaseLength?: number; mazeSize?: number; revealMap?: boolean; trail?: boolean;
 }
 export type ArcadePhase = 'ready' | 'playing' | 'paused' | 'cleared' | 'gameover';
 export type ArcadeAction = 'primary' | 'left' | 'right' | 'up' | 'down' | 'ability' | 'launch' | 'nudge';

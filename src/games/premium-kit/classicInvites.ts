@@ -4,20 +4,6 @@ import type { GameInvite } from './InviteList';
 type Config = Record<string, unknown>;
 const pick = (list: (GameInvite | false)[]) => list.filter((i): i is GameInvite => Boolean(i));
 
-/** Neon Maze: a signal operator talking the runner through the grid. */
-export function mazeInvites(c: Config, moment: InviteMoment): GameInvite[] {
-  if (moment === 'lose') return pick([
-    !c.shield && { id: 'maze-shield', target: 'shield', icon: '🛡', title: 'Signal lost! Raise a shield', reason: 'One sentinel hit is absorbed.', code: 'bool shield = true;', tone: 'help' },
-    Number(c.sentinelSpeed) > 1 && { id: 'maze-slow', target: 'sentinelSpeed', icon: '🐢', title: 'Slow the sentinels', reason: 'The hunters patrol at a gentler pace.', code: 'int sentinelSpeed = 1;', tone: 'help' },
-    Number(c.gemDuration) < 9 && { id: 'maze-stun', target: 'gemDuration', icon: '💎', title: 'Longer gem stuns', reason: 'Amber gems freeze the squad for longer.', code: 'int gemDuration = 9;', tone: 'help' },
-    !c.revealMap && { id: 'maze-map', target: 'revealMap', icon: '🗺', title: 'Reveal the map', reason: 'See the whole maze from the start.', code: 'bool revealMap = true;', tone: 'help' },
-  ]);
-  return pick([
-    Number(c.sentinelCount) < 5 && { id: 'maze-more', target: 'sentinelCount', icon: '👾', title: 'A bigger squad', reason: 'Five sentinels hunting through the grid.', code: 'int sentinels = 5;', tone: 'challenge' },
-    Number(c.mazeSize) < 9 && { id: 'maze-big', target: 'mazeSize', icon: '🌀', title: 'A wider labyrinth', reason: 'The biggest maze you can build.', code: 'int mazeSize = 9;', tone: 'challenge' },
-    { id: 'maze-colour', target: 'wallColor', icon: '🎨', title: 'Rewire the neon', reason: 'Paint the maze a new colour.', code: `string wallColor = "${c.wallColor === 'amber' ? 'violet' : 'amber'}";`, tone: 'style' },
-  ]);
-}
 /** Devil Floor: an ember guide who has seen many explorers fall. */
 export function floorInvites(c: Config, moment: InviteMoment): GameInvite[] {
   if (moment === 'lose') return pick([

@@ -1,208 +1,98 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { EditorView } from '@codemirror/view';
-import { GameWorkspace } from '../../components/GameWorkspace';
-import { TopBar } from '../../components/TopBar';
-import { SettingsDialog } from '../../components/SettingsDialog';
-import { CoachBubble } from '../../components/CoachBubble';
-import { InviteList, usableInvites } from '../premium-kit/InviteList';
-import { mazeInvites } from '../premium-kit/classicInvites';
-import type { ModInvite } from '../premium-kit/invites';
-import { applyModToEditor } from '../../editor/CodeEditor';
-import type { ModInsertMode } from '../../editor/modEditing';
-import { normalizeVariableSpacing } from '../../editor/languageEditing';
-import { codeKey, fileNameForLanguage, formatCodeForLanguage, localizeMod, localizeTool } from '../../interpreter/languageSyntax';
-import { parseGameScript } from '../../interpreter/gameScript';
-import { navigate } from '../../app/router';
-import { useProgress } from '../../state/progressStore';
-import { useDebouncedValue, useMediaQuery } from '../../utils/hooks';
-import { useGameCode } from '../useGameCode';
+import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import type { GameScreenProps } from '../types';
-import { MAZE_MODS, MAZE_RUNTIME_LABELS, MAZE_TOOLS, mazeSchema, type MazeConfig } from './mods';
-import { MAZE_MISSIONS, MAZE_STARTER, MAZE_SANDBOX, getMazeMission, mazeGuidance, mazeMissionPassed, mazeUnlocked, playableMazeProgram } from './missions';
-import { NeonMazeRun, type MazeInput } from './run';
-import { drawMaze, MAZE_COLORS } from './render';
-import { MazeJoystick, PhaseButton } from './controls';
-import { MazeSound } from './sound';
+import { PremiumScreen, type PremiumGameSpec } from '../premium-kit/PremiumScreen';
+import type { InviteMoment, ModInvite } from '../premium-kit/invites';
+import { mazeCatalog } from './catalog';
+import { NeonMazeRun, SECTORS, sectorName } from './run';
+import { GRIDS, GRID_ORDER, WALL_COLORS, RUNNERS } from './worlds';
+import { NeonMazeView } from './view';
+import '../three-kit/world.css';
 import './neon-maze.css';
 
-const MAZE_COACH_TARGETS = {
-  'maze-log': /(?:Console\.WriteLine|print)/, 'maze-math': /^\s*moveSpeed\s*=/,
-  'maze-score': /^\s*if.*\bscore\b/, 'maze-energy': /^\s*if.*\benergy\b/,
-};
-const KEY_INPUT: Record<string, keyof MazeInput> = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'phase' };
-const modInteractionOpen = () => Boolean(document.querySelector('.mod-options, .topbar__more[open], .modal'));
-
-export function NeonMazeScreen({ gameId, missionId, debugFlag }: GameScreenProps): JSX.Element {
-  const progress = useProgress(), language = progress.activeLanguage;
-  const mission = getMazeMission(missionId ?? progress.currentMissionId);
-  const starter = useMemo(() => {
-    const saved = useProgress.getState().getGameProgress(gameId).codes;
-    const previous = MAZE_MISSIONS[mission.order - 1];
-    const carried = previous ? saved[codeKey(language, previous.id)] : undefined;
-    return normalizeVariableSpacing(carried ?? formatCodeForLanguage(mission.kind === 'sandbox' ? MAZE_SANDBOX : MAZE_STARTER, language), language);
-  }, [gameId, mission.id, mission.order, mission.kind, language]);
-  const { code, onChange } = useGameCode(gameId, mission.id, language, starter);
-  const debounced = useDebouncedValue(code, 220);
-  const program = useMemo(() => parseGameScript<MazeConfig>(debounced, language, mazeSchema), [debounced, language]);
-  const unlocked = useMemo(() => mazeUnlocked(mission, progress.completed, progress.freeModeUnlocked), [mission, progress.completed, progress.freeModeUnlocked]);
-  const liveProgram = useMemo(() => playableMazeProgram(program, unlocked.map(mod => mod.id)), [program, unlocked]);
-  const run = useMemo(() => new NeonMazeRun(), []), sound = useMemo(() => new MazeSound(), []);
-  const [snapshot, setSnapshot] = useState(() => run.snapshot());
-  const [focused, setFocused] = useState(false), [libraryOpen, setLibraryOpen] = useState(false), [settingsOpen, setSettingsOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false), [dismissed, setDismissed] = useState('');
-  const canvas = useRef<HTMLCanvasElement>(null), editor = useRef<EditorView | null>(null), stage = useRef<HTMLDivElement>(null);
-  const input = useRef<MazeInput>({ up: false, right: false, down: false, left: false, phase: false });
-  const blocked = useRef(false); blocked.current = focused || libraryOpen || settingsOpen;
-  const touch = useMediaQuery('(any-pointer: coarse)');
-  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
-  const diagnostic = program.diagnostics.find(d => d.severity === 'error');
-  const passed = mazeMissionPassed(mission, liveProgram, snapshot) || progress.completed.includes(mission.id);
-  const fullGameReady = mission.kind === 'final' && passed;
-  const guidance = mazeGuidance(mission, liveProgram, snapshot, passed);
-  const showCoach = !diagnostic && dismissed !== `${mission.id}:${guidance.message}`;
-  const editorTarget = Boolean(guidance.targetId && program.symbols.some(s => s.mod === guidance.targetId));
-  const clearInput = useCallback(() => { for (const key of Object.keys(input.current) as (keyof MazeInput)[]) input.current[key] = false; }, []);
-  const update = useCallback(() => { setSnapshot(run.snapshot()); }, [run]);
-  const focusGame = useCallback(() => {
-    (document.activeElement as HTMLElement | null)?.blur?.(); canvas.current?.focus({ preventScroll: true }); setFocused(false); sound.unlock();
-  }, [sound]);
-  const launch = useCallback(() => { sound.unlock(); clearInput(); run.launch(); update(); focusGame(); }, [sound, run, update, focusGame, clearInput]);
-  const insert = useCallback((snippet: string, mode?: ModInsertMode) => applyModToEditor(editor.current, snippet, mode, language), [language]);
-  // One-line mod invites on the end screen, only for mods this mission has unlocked.
-  const localInvite = (invite: ModInvite): ModInvite => ({ ...invite, code: formatCodeForLanguage(invite.code, language).trim() });
-  const acceptInvite = (_invite: ModInvite, then: () => void) => { insert(formatCodeForLanguage(_invite.code, language), 'replace'); window.setTimeout(() => { then(); update(); focusGame(); }, 450); };
-  const dismiss = () => setDismissed(`${mission.id}:${guidance.message}`);
-
-  useEffect(() => {
-    const store = useProgress.getState(); store.setMission(mission.id);
-    if (store.getGameProgress(gameId).codes[codeKey(language, mission.id)] === undefined) store.setGameCode(gameId, codeKey(language, mission.id), code);
-  }, [gameId, language, mission.id]); // Initial save; useGameCode saves every later edit immediately.
-  useEffect(() => { run.setProgram(liveProgram); update(); }, [liveProgram, run, update]);
-  useEffect(() => { sound.muted = !progress.settings.sound; }, [progress.settings.sound, sound]);
-  useEffect(() => {
-    if (passed && mission.kind !== 'sandbox' && !progress.completed.includes(mission.id)) useProgress.getState().completeMission(mission.id, mission.kind === 'final');
-  }, [passed, mission, progress.completed]);
-  useEffect(() => { if (guidance.targetId) setCollapsed(false); }, [guidance.targetId]);
-
-  useEffect(() => {
-    const element = canvas.current, context = element?.getContext('2d');
-    if (!element || !context) return;
-    let raf = 0, last = performance.now(), reported = 0, width = 600, height = 600, alive = true;
-    const resize = () => {
-      const rect = element.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = Math.max(1, rect.width); height = Math.max(1, rect.height);
-      element.width = Math.round(width * dpr); element.height = Math.round(height * dpr); context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    resize();
-    const observer = new ResizeObserver(resize); observer.observe(element);
-    const draw = (now: number) => {
-      if (!alive) return;
-      const previous = run.phase;
-      if (blocked.current || modInteractionOpen()) clearInput();
-      else run.step((now - last) / 1000, input.current);
-      last = now;
-      for (const event of run.events.splice(0)) sound.play(event);
-      drawMaze(context, run, width, height, now / 1000, reducedMotion);
-      if (now - reported > 120 || previous !== run.phase) { update(); reported = now; }
-      raf = requestAnimationFrame(draw);
-    };
-    draw(last);
-    return () => { alive = false; cancelAnimationFrame(raf); observer.disconnect(); clearInput(); };
-  }, [run, update, clearInput, reducedMotion, sound]);
-  useEffect(() => () => sound.destroy(), [sound]);
-  useEffect(() => {
-    const typing = () => Boolean((document.activeElement as HTMLElement | null)?.closest('input,textarea,select,[contenteditable="true"],.cm-editor,button,summary'));
-    const keydown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || blocked.current || modInteractionOpen() || typing()) return;
-      if (KEY_INPUT[e.code] && run.phase === 'playing') {
-        e.preventDefault();
-        const direction = KEY_INPUT[e.code];
-        if (direction !== 'phase') {
-          input.current.up = input.current.right = input.current.down = input.current.left = false;
-          run.requestTurn(direction);
-        }
-        input.current[direction] = true;
-      }
-      if (e.code === 'KeyP') { e.preventDefault(); clearInput(); run.phase === 'paused' ? run.resume() : run.pause(); update(); }
-      if (e.code === 'Enter' && run.phase === 'launch') { e.preventDefault(); launch(); }
-    };
-    const keyup = (e: KeyboardEvent) => { if (KEY_INPUT[e.code]) input.current[KEY_INPUT[e.code]] = false; };
-    const blur = () => { clearInput(); run.pause(); update(); };
-    const hidden = () => { if (document.hidden) blur(); };
-    window.addEventListener('keydown', keydown); window.addEventListener('keyup', keyup); window.addEventListener('blur', blur); document.addEventListener('visibilitychange', hidden);
-    return () => { window.removeEventListener('keydown', keydown); window.removeEventListener('keyup', keyup); window.removeEventListener('blur', blur); document.removeEventListener('visibilitychange', hidden); clearInput(); };
-  }, [run, update, launch, clearInput]);
-  useEffect(() => {
-    if (snapshot.score > useProgress.getState().bestScore) useProgress.getState().setBestScore(snapshot.score);
-  }, [snapshot.score]);
-
-  const go = (next: typeof mission) => {
-    clearInput(); const store = useProgress.getState();
-    if (next.kind === 'sandbox' && store.codes[codeKey(language, next.id)] === undefined) store.setGameCode(gameId, codeKey(language, next.id), code);
-    store.setMission(next.id); navigate({ name: 'lab', gameId, missionId: next.id, debug: debugFlag });
-  };
-  const next = MAZE_MISSIONS[mission.order + 1], previous = MAZE_MISSIONS[mission.order - 1];
-  const mods = useMemo(() => unlocked.map(mod => localizeMod(mod, language)), [unlocked, language]);
-  const tools = useMemo(() => MAZE_TOOLS.filter(tool => mission.kind === 'sandbox' || progress.freeModeUnlocked || tool.unlockAt <= mission.order)
-    .map(tool => localizeTool(tool, language)), [mission.kind, mission.order, progress.freeModeUnlocked, language]);
-  const playing = snapshot.phase === 'playing';
-  const onPhase = () => { focusGame(); run.phaseJump(); update(); };
-
-  return <GameWorkspace gameId={gameId} gameTitle="NEON MAZE" touch={touch} coding={focused}
-    header={<TopBar gameName="NEON MAZE" missions={MAZE_MISSIONS} completed={progress.completed} paused={snapshot.phase === 'paused'} sound={progress.settings.sound}
-      restartLabel="Restart maze" onHome={() => navigate({ name: 'landing' })} onRestart={launch}
-      onTogglePause={() => { clearInput(); run.phase === 'paused' ? run.resume() : run.pause(); update(); focusGame(); }}
-      onResetCode={() => onChange(starter)} onResetFullGame={() => { if (window.confirm('Reset NEON MAZE? This clears its missions, code and high score.')) { useProgress.getState().resetCurrentGame(); navigate({ name: 'landing' }); } }}
-      onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onSettings={() => setSettingsOpen(true)} onOpenLibrary={() => setLibraryOpen(true)}
-      onFullscreen={() => { if (document.fullscreenElement) void document.exitFullscreen(); else void stage.current?.closest('.lab')?.requestFullscreen?.(); }} />}
-    editor={{ value: code, onChange, language, mods: MAZE_MODS, runtimeLabels: MAZE_RUNTIME_LABELS, coachTargets: MAZE_COACH_TARGETS,
-      errorLines: diagnostic ? [diagnostic.line] : [], onFocusChange: value => { setFocused(value); clearInput(); }, onViewReady: view => { editor.current = view; },
-      coach: showCoach && guidance.targetId && editorTarget
-        ? { key: guidance.message, message: guidance.message, targetId: guidance.targetId } : undefined,
-      onDismissCoach: dismiss, ariaLabel: `${language} maze code editor` }}
-    editorToolbar={<><span className="lab__filename mono">{fileNameForLanguage(language)}</span><span className="lab__autosave">Auto-save <b>ON</b></span></>}
-    feedback={{ status: diagnostic ? 'error' : passed ? 'complete' : 'ready', diagnostic, ruleCount: liveProgram.rules.length, guidance }}
-    modStrip={{ mods, tools, totalMods: MAZE_MODS.length, collapsed, onToggleCollapsed: () => setCollapsed(v => !v), onInsert: insert, onOpenLibrary: () => setLibraryOpen(true), language,
-      activeTargetId: guidance.targetId, coach: showCoach && guidance.targetId && !editorTarget ? guidance : undefined, onDismissCoach: dismiss }}
-    library={{ open: libraryOpen, onClose: () => { setLibraryOpen(false); focusGame(); }, onInsert: (snippet, mode) => { setLibraryOpen(false); insert(snippet, mode); } }}
-    stageRef={stage}
-    stage={<div className={`stage neon-stage ${passed && next ? 'stage--missionReady' : ''} ${fullGameReady ? 'stage--fullGameReady' : ''}`} style={{ '--maze-neon': MAZE_COLORS[snapshot.config.wallColor] } as React.CSSProperties}>
-      <canvas ref={canvas} className="stage__canvas" tabIndex={0} onPointerDown={focusGame} aria-label="Neon Maze scrolling labyrinth. Keep rolling and collect dots. Amber gems stun sentinels. Arrow keys or WASD to steer; Space to phase jump; P to pause." />
-      <div className="neon__hud" aria-label="Maze status">
-        <div><small>SECTOR {String(snapshot.level).padStart(2, '0')} · {snapshot.config.runnerName}</small><strong>{String(snapshot.score).padStart(5, '0')}</strong></div>
-        <div className="neon__hudRight"><span>◆ {snapshot.cores}/3 <b>GEMS</b> · {snapshot.lives} <b>LIVES</b></span><label>ENERGY <meter min={0} max={100} low={40} high={70} optimum={100} value={snapshot.energy} /> {snapshot.energy}%</label></div>
-      </div>
-      {snapshot.stunRemaining > 0 ? <span className="neon__stun">SENTINELS STUNNED · {snapshot.stunRemaining.toFixed(1)}s</span> : null}
-      {playing && focused ? <span className="neon__editing">EDITING · MAZE CLOCK HELD</span> : null}
-      <div className="neon__log" aria-label="Signal log"><small>SIGNAL FEED</small>{snapshot.messages.slice(0, touch ? 1 : 2).map((message, i) => <p key={`${i}:${message}`}>{message}</p>)}</div>
-      {playing ? <div className="touchbar neon__controls">
-        {!touch ? <span className="neon__keys">KEEP ROLLING · WASD / ARROWS TO STEER · SPACE TO PHASE</span> : null}
-        <div className={`touchbar__cluster ${touch ? 'touchbar__cluster--left' : 'touchbar__cluster--right'}`}><PhaseButton cooldown={snapshot.phaseCooldown} onPhase={onPhase} /></div>
-        {touch ? <MazeJoystick input={input.current} onEngage={focusGame} onTurn={direction => run.requestTurn(direction)} /> : null}
-      </div> : null}
-      {snapshot.phase !== 'playing' ? <div className={`overlay neon__overlay neon__overlay--${snapshot.phase}`}>
-        <div className="neon__panel">
-          <span className="neon__eyebrow">{mission.kind === 'sandbox' ? 'EVERY MOD UNLOCKED' : `MISSION ${mission.order + 1}/8 · ${mission.title}`}</span>
-          <div className="neon__emblem" aria-hidden="true">◉</div>
-          <h1>{snapshot.phase === 'launch' ? 'NEON MAZE' : snapshot.phase === 'cleared' ? 'SECTOR CLEAR' : snapshot.phase === 'paused' ? 'SIGNAL HELD' : 'SIGNAL LOST'}</h1>
-          <p>{snapshot.phase === 'cleared' ? 'Three gems collected. Roll into your next labyrinth.' : snapshot.phase === 'gameover' ? `You scored ${snapshot.score}. Rewire your mods and roll again.` : 'Keep rolling through the neon lines. Collect dots for points and amber gems to stun and catch sentinels. Add Room Lights to reveal the darkness. Three gems open the next sector.'}</p>
-          {snapshot.phase === 'gameover' || snapshot.phase === 'cleared' ? <InviteList moment={snapshot.phase === 'cleared' ? 'win' : 'lose'} invites={usableInvites(mazeInvites(snapshot.config as unknown as Record<string, unknown>, snapshot.phase === 'cleared' ? 'win' : 'lose'), unlocked.map(m => m.id)).slice(0, 2).map(localInvite)} onInvite={invite => acceptInvite(invite, () => { if (snapshot.phase === 'cleared') run.advance(); else run.launch(); })} /> : null}
-          <div className="neon__legend"><span><i className="neon__legendRunner" /> YOU</span><span><i className="neon__legendDot" /> DOT +5</span><span><i className="neon__legendCore" /> STUN GEM</span><span><i className="neon__legendHunter" /> SENTINEL</span></div>
-          <button className="btn neon__enter" onClick={() => {
-            if (snapshot.phase === 'paused') run.resume(); else if (snapshot.phase === 'cleared') run.advance(); else run.launch();
-            update(); focusGame();
-          }}>{snapshot.phase === 'paused' ? 'RESUME RUN' : snapshot.phase === 'cleared' ? 'NEXT SECTOR →' : snapshot.phase === 'gameover' ? 'ROLL AGAIN →' : 'START ROLLING →'}</button>
-          <small>{touch ? 'JOYSTICK TO STEER · WALLS STOP YOUR ROLL · PHASE TO JUMP' : 'WASD / ARROWS TO STEER · WALLS STOP YOUR ROLL · SPACE TO PHASE · P TO PAUSE'}</small>
-        </div>
-      </div> : null}
-      {previous ? <button className="stage__missionBack" onClick={() => go(previous)}>← Previous mission</button> : null}
-      {passed && next ? <div className="stage__missionNext"><button className="mission__next mission__next--ready" onClick={() => go(next)}>{fullGameReady ? 'Play full game' : 'NEXT MISSION'} <span aria-hidden="true">→</span></button></div> : null}
-      {showCoach && !guidance.targetId && !passed && snapshot.metrics.steps === 0 ? <CoachBubble className="coach-bubble--stage" message={guidance.message} onDismiss={dismiss} /> : null}
-    </div>}
-    overlays={<>
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} studentName={progress.studentName} sound={progress.settings.sound} debug={progress.settings.debug} bestScore={progress.bestScore} completedCount={progress.completed.length}
-        onRename={name => useProgress.getState().setStudentName(name)} onToggleSound={() => useProgress.getState().setSetting('sound', !progress.settings.sound)} onToggleDebug={() => useProgress.getState().setSetting('debug', !progress.settings.debug)}
-        onResetProgress={() => { useProgress.getState().resetProgress(); navigate({ name: 'landing' }); }} />
-      {debugFlag || progress.settings.debug ? <pre className="neon__debug" aria-label="Maze debug state">{JSON.stringify({ phase: snapshot.phase, config: snapshot.config, metrics: snapshot.metrics, ignored: Object.keys(program.config).filter(key => !unlocked.some(mod => mod.id === key)) }, null, 2)}</pre> : null}
-    </>} />;
+/**
+ * The SIGNAL OPERATOR talks the runner through the grid: help after a crash, a dare after a clear,
+ * and one quick tweak when a sector is going badly.
+ */
+function operatorInvites(run: NeonMazeRun, moment: InviteMoment): ModInvite[] {
+  const c = run.config, out: ModInvite[] = [], add = (when: boolean, invite: ModInvite) => { if (when) out.push(invite); };
+  if (moment === 'struggle') {
+    add(run.lives < c.lives && !c.assist, { id: 'nm-shield-live', icon: '⬡', title: 'Signal lost! Raise a shield', reason: 'One sentinel hit is absorbed, then it recharges.', code: 'bool shield = true;', tone: 'help' });
+    add(run.dark && !c.revealMap, { id: 'nm-lights-live', icon: '◉', title: 'It is dark in here', reason: 'ROOM LIGHTS shows the whole maze and a map.', code: 'bool revealMap = true;', tone: 'help' });
+    add(run.elapsed > 40 && run.cores === 0 && c.power < 7, { id: 'nm-speed-live', icon: '»', title: 'Roll faster', reason: 'A quicker runner outpaces every hunter.', code: 'int moveSpeed = 7;', tone: 'help' });
+    add(run.train >= 4 && (c.gemDuration ?? 6) < 9, { id: 'nm-stun-live', icon: '❄', title: `A train of ${run.train}!`, reason: 'A longer gem freeze gives you time to eat it all.', code: 'int gemDuration = 10;', tone: 'style' });
+    return out;
+  }
+  if (moment === 'lose') {
+    add(!c.assist, { id: 'nm-shield', icon: '⬡', title: 'Raise a shield', reason: 'One sentinel hit is absorbed, then it recharges.', code: 'bool shield = true;', tone: 'help' });
+    add(c.speed > 1, { id: 'nm-slow', icon: '🐢', title: 'Slow the hunters', reason: 'They patrol at a gentle pace.', code: 'int sentinelSpeed = 1;', tone: 'help' });
+    add((c.difficulty ?? 'normal') !== 'sleepy', { id: 'nm-sleepy', icon: '😴', title: 'Sleepy hunters', reason: 'They wander off and forget about you.', code: 'string sentinelBrain = "sleepy";', tone: 'help' });
+    add(c.lives < 5, { id: 'nm-orbs', icon: '●', title: 'More spare orbs', reason: 'Five chances in every sector.', code: 'int spareOrbs = 5;', tone: 'help' });
+    add(run.dark && !c.revealMap, { id: 'nm-lights', icon: '◉', title: 'Turn on the room lights', reason: 'See every corridor, even in a blackout.', code: 'bool revealMap = true;', tone: 'help' });
+    add((c.gemDuration ?? 6) < 9, { id: 'nm-stun', icon: '❄', title: 'Longer gem freeze', reason: 'More time to catch the frozen sentinels.', code: 'int gemDuration = 10;', tone: 'help' });
+    return out;
+  }
+  const next = GRID_ORDER[(GRID_ORDER.indexOf(c.worldTheme ?? 'classic') + 1) % GRID_ORDER.length];
+  add((c.sleepers ?? 0) < 8, { id: 'nm-train', icon: '∴', title: 'Build a monster train', reason: 'Eight more sleeping drones to wake and devour.', code: 'int sleepers = 8;', tone: 'challenge' });
+  add((c.difficulty ?? 'normal') !== 'genius', { id: 'nm-genius', icon: '🧠', title: 'Genius hunters', reason: 'They predict your route and never take a break.', code: 'string sentinelBrain = "genius";', tone: 'challenge' });
+  add(true, { id: `nm-grid-${next}`, icon: '◈', title: `Rebuild as ${GRIDS[next].name}`, reason: 'A whole new look for the labyrinth.', code: `string worldTheme = "${next}";`, tone: 'style' });
+  add((c.weather ?? 'clear') === 'clear', { id: 'nm-storm', icon: '⚡', title: 'Run it in a storm', reason: 'Darkness, with lightning to show the way.', code: 'string weather = "storm";', tone: 'challenge' });
+  add((c.characterStyle ?? 'original') === 'original', { id: 'nm-chomper', icon: '◔', title: 'Roll as a chomper', reason: 'Hungry for dots.', code: 'string characterStyle = "chomper";', tone: 'style' });
+  add((c.rivals ?? 0) < 2, { id: 'nm-squad', icon: '◇', title: 'Two more hunters', reason: 'A bigger squad on every sector.', code: 'int sentinels = 2;', tone: 'challenge' });
+  return out;
 }
+
+/** A small map of the maze for ROOM LIGHTS. */
+function MiniMap({ run }: { run: NeonMazeRun }) {
+  const g = run.grid, path = useMemo(() => { let d = ''; for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) if (g.open[y][x]) d += `M${x} ${y}h1v1h-1z`; return d; }, [g]), p = run.position;
+  return <svg className="nm__map" viewBox={`-0.5 -0.5 ${g.w + 1} ${g.h + 1}`} aria-label="Maze map">
+    <path d={path} />{g.gems.map((t, i) => run.gemsTaken[i] ? null : <rect key={i} className="nm__mapGem" x={t.x + .1} y={t.y + .1} width=".8" height=".8" />)}
+    <rect className={`nm__mapExit${run.exitOpen ? ' is-open' : ''}`} x={g.exit.x} y={g.exit.y} width="1" height="1" />
+    <circle className="nm__mapYou" cx={p.x + .5} cy={p.y + .5} r=".7" />
+  </svg>;
+}
+function Goals({ run }: { run: NeonMazeRun }) {
+  const goals = run.goalProgress();
+  return <ul className="nm__goals" aria-label="Goals">{goals.map(g => {
+    const done = g.value >= g.count, waiting = g.kind === 'exit' && !run.exitOpen;
+    const text = g.kind === 'gems' ? `Collect ${g.count} amber gems` : g.kind === 'warden' ? 'Catch the frozen Warden 3 times' : run.exitOpen ? 'Roll into the exit portal' : 'Then roll into the exit portal';
+    return <li key={g.kind} className={done ? 'is-done' : waiting ? 'is-waiting' : ''}><i aria-hidden="true">{done ? '✓' : ''}</i><span>{text}</span>{g.kind !== 'exit' ? <b>{g.value}/{g.count}</b> : null}</li>;
+  })}</ul>;
+}
+function NeonHud({ run }: { run: NeonMazeRun }) {
+  const theme = GRIDS[run.config.worldTheme ?? 'classic'] ?? GRIDS.classic, edge = run.config.wallColor && WALL_COLORS[run.config.wallColor] ? WALL_COLORS[run.config.wallColor] : theme.edge;
+  const playing = run.phase === 'playing', flow = Math.floor(run.flow), hud = useRef<HTMLDivElement>(null);
+  // The touch pads sit beside the HUD: give them the same neon.
+  useEffect(() => { hud.current?.closest<HTMLElement>('.premium-stage')?.style.setProperty('--nm-edge', edge); }, [edge]);
+  return <div className="nm__hud" ref={hud} style={{ '--nm-edge': edge } as CSSProperties}>
+    {playing && run.briefing > 0 ? <div className="nm__brief" style={{ opacity: Math.min(1, run.briefing / .5) }}><small>SECTOR {String(run.level).padStart(2, '0')}</small><h2>{run.levelName}</h2><Goals run={run} /><p>{run.sector.tip}</p></div> : playing ? <Goals run={run} /> : null}
+    {playing && run.display.timer > 0 && run.briefing <= 0 ? <div key={run.display.text} className="nm__call" style={{ opacity: Math.min(1, run.display.timer / .3) }}>{run.display.text}</div> : null}
+    {playing ? <div className="nm__flow" aria-label={`Flow times ${flow}`}><small>FLOW</small><strong>×{flow}</strong><span><em style={{ width: `${(run.flow - 1) / 7 * 100}%` }} /></span></div> : null}
+    {playing && run.stun > 0 ? <div className={`nm__frozen${run.stun < 2 ? ' is-ending' : ''}`}><b>❄</b>FROZEN {run.stun.toFixed(1)}s</div> : null}
+    {playing && run.train > 0 ? <div className="nm__train">TRAIN <strong>×{run.train}</strong></div> : null}
+    {playing ? <div className="nm__chips">
+      <span className={run.dashCool > 0 ? '' : 'is-ready'}>↠ {run.dashCool > 0 ? run.dashCool.toFixed(1) : 'DASH'}</span>
+      {run.config.overdrive ? <span className={run.warpCool > 0 ? '' : 'is-ready'}>◷ {run.warp > 0 ? 'WARP!' : run.warpCool > 0 ? Math.ceil(run.warpCool) : 'WARP · E'}</span> : null}
+      {run.config.assist ? <span className={run.shieldCool > 0 ? '' : 'is-ready'}>⬡ {run.shieldCool > 0 ? Math.ceil(run.shieldCool) : 'SHIELD'}</span> : null}
+      {run.signal.text ? <span>{run.signal.text}</span> : null}
+    </div> : null}
+    {playing && run.config.revealMap ? <MiniMap run={run} /> : null}
+  </div>;
+}
+
+export const neonMazeSpec: PremiumGameSpec<NeonMazeRun> = {
+  id: 'maze', title: 'NEON MAZE', eyebrow: 'ROLL · CHAIN · DEVOUR', description: 'A neon labyrinth chase: chain dots for FLOW, wake a ghost train of drones, freeze everything with amber gems and devour the whole train across twelve sectors.',
+  instructions: 'Arrows or WASD steer (on a tablet, swipe or use the pad). Space dashes through walls; E fires an unlocked time warp. Three gems open the exit.', goal: 'Chain. Freeze. Devour.',
+  width: 1280, height: 720, catalog: mazeCatalog,
+  controls: [{ label: '◀ LEFT', action: 'left', hold: 'left' }, { label: '▲ UP', action: 'up', hold: 'up' }, { label: '▼ DOWN', action: 'down', hold: 'down' }, { label: 'RIGHT ▶', action: 'right', hold: 'right' }, { label: 'DASH', action: 'primary', primary: true }, { label: 'WARP · E', action: 'ability' }],
+  create: checkpoint => new NeonMazeRun(checkpoint), createView: (canvas, run) => new NeonMazeView(canvas, run),
+  objective: run => { const g = run.goalProgress()[0]; return { label: `SECTOR ${run.level} · ${run.levelName.toUpperCase()} · ${g.kind === 'warden' ? 'WARDEN' : 'GEMS'} ${g.value}/${g.count}`, value: g.value, max: g.count }; },
+  hud: run => <NeonHud run={run} />,
+  invites: operatorInvites,
+  hints: [{ keys: '← → ↑ ↓', label: 'steer (turns are remembered)' }, { keys: 'Space', label: 'phase dash through a wall' }, { keys: 'Gem', label: 'freeze them, then catch them' }],
+  touchHints: [{ keys: 'Swipe', label: 'steer' }, { keys: 'Tap', label: 'phase dash' }, { keys: 'Gem', label: 'freeze them, then catch them' }],
+  result: run => run.phase === 'cleared'
+    ? { win: true, headline: `×${Math.max(1, run.best)} CHAIN`, caption: `${run.levelName} cleared!`, detail: `${run.score.toLocaleString()} points · ${run.dotsEaten}/${run.dotsTotal} dots · ${RUNNERS[run.config.characterStyle ?? 'original'] ?? 'Runner'} ${run.config.playerName}` }
+    : { win: false, caption: 'Signal lost!', detail: `${run.sector.warden ? `warden ${run.wardenCaught}/3` : `gems ${run.cores}/${run.gemsTaken.length}`} · ${run.dotsEaten} dots · grab a gem, then catch them` },
+  stages: run => Array.from({ length: Math.max(SECTORS.length, run.frontier) }, (_, i) => i + 1).map(level => ({ level, name: sectorName(level), state: level < run.frontier || level === run.level && run.phase === 'cleared' ? 'done' : level === run.frontier ? 'current' : 'locked' })),
+};
+export function NeonMazeScreen(props: GameScreenProps): JSX.Element { return <PremiumScreen {...props} spec={neonMazeSpec} />; }

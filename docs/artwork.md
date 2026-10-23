@@ -2,7 +2,9 @@
 
 The home, arcade, and language screens use each game's `hero` image through `GameArtwork`, with the same image frame and availability badge. Existing artwork is reused for Vector Zero and Devil Floor. Runner has been removed and replaced by MAKITAS VS ZOMBIES. The registered `Cover` component remains a fallback if the image cannot load.
 
-## NEON MAZE cover
+## NEON MAZE cover (original game)
+
+The rebuilt Neon Maze uses `public/art/maze/cover.webp`, rendered from the game itself, and `public/art/maze/logo.svg`. The notes below describe the original cover.
 
 - Final asset: `public/art/neon-maze-lines.webp`.
 - Created and then edited with the built-in imagegen tool; both original generated PNGs are retained in the Codex generated-images directory.

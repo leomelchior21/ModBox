@@ -23,6 +23,8 @@ import { pinballCatalog } from '../pinballerz/catalog';
 import { StackRun, overlap1D, STACK_LEVELS } from '../speed-stack/run';
 import { stackCatalog } from '../speed-stack/catalog';
 import { TomatinaRun } from '../tomatina/run';
+import { NeonMazeRun } from '../neon-maze/run';
+import { mazeCatalog } from '../neon-maze/catalog';
 import { tomatinaCatalog } from '../tomatina/catalog';
 import { readCampaign, type ArcadeConfig, type ArcadeRun } from './core';
 import { ArcadeEffects } from './visuals';
@@ -33,6 +35,7 @@ const games = [
   { id: 'pinballerz', catalog: pinballCatalog, create: (save?: unknown) => new PinballRun(save) },
   { id: 'speed-stack', catalog: stackCatalog, create: (save?: unknown) => new StackRun(save) },
   { id: 'tomatina', catalog: tomatinaCatalog, create: (save?: unknown) => new TomatinaRun(save) },
+  { id: 'maze', catalog: mazeCatalog, create: (save?: unknown) => new NeonMazeRun(save) },
 ];
 const advance = (run: ArcadeRun, time: number) => { for (let frame = 0; frame < Math.ceil(time * 120); frame++) run.step(1 / 120); };
 

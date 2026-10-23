@@ -2,9 +2,8 @@
 
 Each game owns its simulation, art, controls, mods, missions and co-pilot instructions. `GameWorkspace` owns the common screen: editor, co-pilot and mods on the left; game on the right. Its responsive layout, library scrolling and popup behavior are shared.
 
-Vector Zero uses it in `src/games/vector-zero/VectorZeroScreen.tsx`. NEON MAZE uses it in `src/games/neon-maze/NeonMazeScreen.tsx`, with its own pure maze simulation, rendering, mods, eight missions and touch controls. Its touch joystick sits at the bottom right of the game view, with PHASE at the bottom left. The registered cabinet keeps the original `maze` game ID. A smaller independent example is `src/games/__tests__/fixtures/gardenGame.tsx`: a DOM garden with unrelated mods, exercised by the integration tests. This example is not listed as a public game.
+Vector Zero uses it in `src/games/vector-zero/VectorZeroScreen.tsx`. NEON MAZE now runs on the premium arcade kit (see `src/games/neon-maze` and [Current campaigns](current-campaigns.md)); the registered cabinet keeps the original `maze` game ID. A smaller independent example is `src/games/__tests__/fixtures/gardenGame.tsx`: a DOM garden with unrelated mods, exercised by the integration tests. This example is not listed as a public game.
 
-NEON MAZE follows a rolling orb through tall, connected sectors drawn with continuous neon lines. The camera shows more than 20 columns on typical game views; braided corridors remove dead ends and create frequent junctions and alternate routes. Each dot scores 5 points; each amber gem freezes all sentinels for `gemDuration` seconds (6 by default) and awards `coreValue` points. Three gems open the gate, which immediately starts the next sector while preserving score, lives and remaining stun. The existing `cores` runtime variable and mission metrics count gems so saved code keeps working. `dots` and `stun` expose the sector’s collected dots and remaining stun time to live rules. `revealMap` also shows an overview on larger game views.
 
 ## Define your controls
 
@@ -55,7 +54,6 @@ Export a React screen taking `GameScreenProps`. Render `GameWorkspace` with:
 
 Your controller owns animation timers, listeners and input, and cleans them up on unmount. Suspend keyboard gameplay while editing or using dialogs/libraries. Put mobile controls inside your game view and account for its available size and safe areas.
 
-NEON MAZE demonstrates continuous movement: directional input queues a turn while the runner keeps cruising. Walls stop the runner until a valid turn is requested; corners and dead ends never choose a direction for the player. Reversing mid-corridor preserves the orb's visual position. Its separate `sentinels.ts` planner assigns pursuit, interception, flanking and core-guard targets, alternates chase/scatter periods, and routes hunters through corridors without unnecessary reversals or crowding. Rendering and swept contact checks share interpolated actor positions, and each movement segment retains its duration through live speed edits.
 
 DEVIL FLOOR uses `src/games/devil-floor/DevilFloorScreen.tsx` and preserves the original `platform` cabinet ID. Its pure simulation uses physics substeps for responsive running, buffered jumps, a short ledge grace period, and an optional double jump. The camera follows the explorer across lava, collapsing platforms, spikes, fireballs, crystals and checkpoints. All generated gaps are reachable with the default physics. A/D or Left/Right runs; Space, W or Up jumps; P pauses. Touch players have two movement buttons on the left and JUMP on the right. Release JUMP before a second airborne jump.
 

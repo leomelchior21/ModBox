@@ -166,6 +166,39 @@ public static class ModboxArt
         ExportParts(root.gameObject,Path.Combine(output,"limpiabots.glb"));
     }
 
+    /**
+     * NEON MAZE sentinels and the saucer runner. Nodes are "<model>.<part>"; pure #ff00ff marks the glowing body the
+     * web repaints per hunter (and turns frozen blue). Models face -z (+z once exported).
+     */
+    static void NeonSentinels(string output) {
+        Begin("Neon sentinels / NEON MAZE");
+        var glow=Paint("#ff00ff"); var white=Paint("#ffffff"); var ink=Paint("#000000"); var dark=Paint("#262626"); var light=Paint("#d9d9d9");
+        // HUNTER: a floating ghost of light: dome, a skirt of drifting spikes, two big eyes that follow you.
+        Limb("hunter.body",0,.45f,0);
+        Piece("dome","round",glow,0,.52f,0,.78f,.82f,.78f); Piece("waist","tube",glow,0,.3f,0,.78f,.22f,.78f);
+        for(int i=0;i<8;i++) { float a=i*Mathf.PI/4; Turned("spike","box",glow,Mathf.Cos(a)*.3f,.13f,Mathf.Sin(a)*.3f,.12f,.24f,.12f,(i%2==0?18:-18),a*Mathf.Rad2Deg,0); }
+        Piece("crest","round",white,0,.92f,.1f,.18f,.08f,.18f);
+        Limb("hunter.eyes",0,.6f,-.38f);
+        for(int s=-1;s<=1;s+=2) { Piece("eye","round",white,s*.15f,.6f,-.38f,.24f,.28f,.14f); Piece("pupil","round",ink,s*.15f,.58f,-.46f,.11f,.13f,.05f); }
+        // DRONE: a small sleeping sphere with a halo antenna. Its eye opens when it wakes.
+        Limb("drone.body",0,.3f,0);
+        Piece("shell","round",glow,0,.32f,0,.46f,.42f,.46f); Piece("band","tube",dark,0,.3f,0,.48f,.06f,.48f); Piece("antenna","tube",light,0,.6f,0,.03f,.16f,.03f); Piece("halo","tube",white,0,.7f,0,.18f,.02f,.18f);
+        for(int s=-1;s<=1;s+=2) Turned("fin","box",glow,s*.27f,.3f,0,.18f,.04f,.12f,0,0,s*20);
+        Limb("drone.eyes",0,.34f,-.25f);
+        Piece("eye","round",white,0,.34f,-.25f,.22f,.16f,.1f); Piece("pupil","round",ink,0,.33f,-.3f,.1f,.09f,.04f);
+        // THE WARDEN: a giant floating core inside a spinning ring, with one big eye.
+        Limb("warden.body",0,.9f,0);
+        Piece("core","round",glow,0,.9f,0,1.1f,1.1f,1.1f); for(int i=0;i<6;i++) { float a=i*Mathf.PI/3; Turned("spike","box",glow,Mathf.Cos(a)*.62f,.9f+Mathf.Sin(a)*.62f,0,.14f,.42f,.14f,0,0,a*Mathf.Rad2Deg-90); }
+        Piece("eye","round",white,0,.95f,-.55f,.5f,.5f,.22f); Piece("pupil","round",ink,0,.95f,-.66f,.22f,.22f,.06f); Piece("lid","box",dark,0,1.22f,-.5f,.6f,.08f,.12f);
+        Limb("warden.ring",0,.9f,0);
+        Turned("ring","tube",light,0,.9f,0,1.7f,.08f,1.7f,90,0,0); for(int i=0;i<8;i++) { float a=i*Mathf.PI/4; Piece("lamp","round",glow,Mathf.Cos(a)*.85f,.9f+Mathf.Sin(a)*.85f,0,.12f,.12f,.12f); }
+        // SAUCER runner: a little flying saucer with a glass dome and a ring of lights.
+        Limb("ufo.body",0,.3f,0);
+        Piece("hull","round",light,0,.28f,0,.9f,.24f,.9f); Piece("rim","tube",glow,0,.28f,0,.94f,.05f,.94f); Piece("dome","round",white,0,.42f,0,.42f,.36f,.42f);
+        for(int i=0;i<8;i++) { float a=i*Mathf.PI/4; Piece("light","round",white,Mathf.Cos(a)*.36f,.22f,Mathf.Sin(a)*.36f,.08f,.06f,.08f); }
+        ExportParts(root.gameObject,Path.Combine(output,"sentinels.glb"));
+    }
+
     [MenuItem("MODBOX/Build web model pack")]
     public static void Build() {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
@@ -218,6 +251,7 @@ public static class ModboxArt
         End(Path.Combine(output,"turret.glb")); root.position=new Vector3(3,0,4);
         Footballer(output); root.position=new Vector3(0,0,-6); root.localScale=Vector3.one*2;
         Limpiabots(output); root.position=new Vector3(8,0,-6);
+        NeonSentinels(output); root.position=new Vector3(-8,0,-6);
         var sun=new GameObject("Sun").AddComponent<Light>(); sun.type=LightType.Directional; sun.intensity=1.3f; sun.transform.rotation=Quaternion.Euler(40,-30,0);
         var camera=new GameObject("Camera").AddComponent<Camera>(); camera.transform.position=new Vector3(10,11,-15); camera.transform.LookAt(new Vector3(0,0,1)); camera.clearFlags=CameraClearFlags.SolidColor; camera.backgroundColor=new Color(.16f,.2f,.28f); RenderSettings.ambientLight=new Color(.6f,.65f,.75f);
         Directory.CreateDirectory(Path.Combine(Application.dataPath,"Scenes")); EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene(),"Assets/Scenes/ModelGallery.unity"); AssetDatabase.SaveAssets(); Debug.Log("MODBOX_MODEL_EXPORT_OK " + output);

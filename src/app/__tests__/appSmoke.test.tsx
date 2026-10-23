@@ -23,6 +23,7 @@ vi.mock('../../games/team-counters/view', () => ({ TeamView: class { resize() {}
 vi.mock('../../games/monster-strider/view', () => ({ MonsterView: class { resize() {} render() {} dispose() {} } }));
 vi.mock('../../games/roomba-run/view', () => ({ RoombaView: class { resize() {} render() {} dispose() {} } }));
 vi.mock('../../games/tomatina/view', () => ({ TomatinaView: class { resize() {} render() {} dispose() {} } }));
+vi.mock('../../games/neon-maze/view', () => ({ NeonMazeView: class { resize() {} render() {} dispose() {} } }));
 
 /* ============================================================================
    MODBOX — APP SMOKE TEST
@@ -150,24 +151,16 @@ describe('MODBOX app shell', () => {
     expect(window.location.hash).toContain('game=maze');
     expect(host.querySelectorAll('.langcard')).toHaveLength(3);
     await act(async () => host.querySelector<HTMLButtonElement>('.langcard:nth-child(3) button')?.click());
-    expect(await waitFor(() => Boolean(host.querySelector('.neon-stage')))).toBe(true);
+    expect(await waitFor(() => Boolean(host.querySelector('.premium-stage--maze')))).toBe(true);
     expect(host.querySelector('.lab')?.getAttribute('data-game-id')).toBe('maze');
     expect(host.querySelector('.lab__left .cm-editor')).toBeTruthy();
     expect(host.querySelector('.lab__left .feedback')).toBeTruthy();
     expect(host.querySelector('.lab__right canvas')).toBeTruthy();
-    expect(host.querySelector('.modstrip')?.textContent).toContain('wallColor');
+    expect(host.querySelector('.modstrip')?.textContent).toContain('worldTheme');
     expect(host.querySelector('.modstrip')?.textContent).not.toContain('laserPower');
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
-    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'string wallColor = "amber";' } }));
-    expect(await waitFor(() => Boolean(host.querySelector('.neon-stage .mission__next')))).toBe(true);
-    expect(useProgress.getState().getGameProgress('maze').completed).toContain('m00');
-    const resetCode = [...host.querySelectorAll<HTMLButtonElement>('.topbar__more button')].find(button => button.textContent === 'Reset code');
-    await act(async () => resetCode?.click());
-    expect(useProgress.getState().getGameProgress('maze').codes['csharp:m00']).toBe('string wallColor = "cyan";');
-    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'string wallColor = "amber";' } }));
-    await act(async () => host.querySelector<HTMLButtonElement>('.mission__next')?.click());
-    expect(await waitFor(() => useProgress.getState().currentMissionId === 'm01')).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('amber');
+    await act(async () => view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: 'string worldTheme = "arcade";' + String.fromCharCode(10) + 'string runnerName = "Aurora";' } }));
+    expect(await waitFor(() => useProgress.getState().getGameProgress('maze').codes['csharp:free']?.includes('arcade') ?? false)).toBe(true);
     const drop = new Event('drop', { bubbles: true, cancelable: true });
     Object.defineProperty(drop, 'dataTransfer', { value: { getData: () => 'int sentinels = 3;', types: ['application/x-modbox-mod'] } });
     await act(async () => host.querySelector('.cm-content')?.dispatchEvent(drop));
@@ -318,8 +311,8 @@ describe('MODBOX app shell', () => {
     expect(await waitFor(() => host.querySelector('.floor__eyebrow')?.textContent?.includes('A PATH FORWARD') ?? false)).toBe(true);
     expect(host.querySelector('.cm-content')?.textContent).toContain('background = "volcano"');
     await act(async () => { window.location.hash = '#/lab?game=maze&mission=m00'; });
-    expect(await waitFor(() => Boolean(host.querySelector('.neon-stage')))).toBe(true);
-    expect(host.querySelector('.cm-content')?.textContent).toContain('wallColor');
+    expect(await waitFor(() => Boolean(host.querySelector('.premium-stage--maze')))).toBe(true);
+    expect(host.querySelector('.cm-content')?.textContent).toContain('worldTheme');
     expect(useProgress.getState().getGameProgress('platform').codes['python:m00']).toContain('background = "volcano"');
   }, 15000);
 
@@ -380,7 +373,7 @@ describe('MODBOX app shell', () => {
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Pause"]')?.click());
     expect(host.querySelector('.forge__intro h2')?.textContent).toBe('Room to breathe.');
     await act(async () => { window.location.hash = '#/lab?game=maze&mission=m00'; });
-    expect(await waitFor(() => Boolean(host.querySelector('.neon-stage')))).toBe(true);
+    expect(await waitFor(() => Boolean(host.querySelector('.premium-stage--maze')))).toBe(true);
     expect(useProgress.getState().getGameProgress('block-forge').codes['python:free']).toContain('glass');
   }, 15000);
 
@@ -410,6 +403,7 @@ describe('MODBOX app shell', () => {
     ['monster-strider', 'MONSTER STRIDER', 'lava', 'nitro'],
     ['roomba-run', 'ROOMBA RUN', 'spaceship', 'turboBrush'],
     ['tomatina', 'TOMATINA', 'alhambra', 'tomatoRain'],
+    ['maze', 'NEON MAZE', 'arcade', 'timeWarp'],
   ])('opens %s in basic free play, enables every mod and keeps challenges optional', async (id, title, theme, ability) => {
     window.location.hash = '#/'; const { host, root } = mount(); await act(async () => root.render(<App />));
     await act(async () => host.querySelector<HTMLButtonElement>(`.home-game--${id}`)?.click()); await flush();
@@ -419,7 +413,7 @@ describe('MODBOX app shell', () => {
     expect(host.querySelector('.premium__introLogo')?.getAttribute('alt')).toBe(title);
     expect(window.location.hash).toContain('mission=free');
     expect(host.querySelector('.cm-content')?.textContent).toContain('worldTheme'); expect(host.querySelector('.cm-content')?.textContent).not.toContain('playerName');
-    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'tomatina' ? 21 : id === 'pinballerz' ? 18 : id === 'roomba-run' ? 13 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 12 : 11);
+    expect(host.querySelectorAll('.modtile-wrap')).toHaveLength(id === 'maze' ? 23 : id === 'tomatina' ? 21 : id === 'pinballerz' ? 18 : id === 'roomba-run' ? 13 : ['temple-race', 'subway-runnerz', 'team-counters', 'monster-strider'].includes(id) ? 12 : 11);
     const view = EditorView.findFromDOM(host.querySelector('.cm-editor')!);
     const enhanced = `${view!.state.doc.toString().replace(/worldTheme = "[^"]+"/, `worldTheme = "${theme}"`)}
 ${ability} = True`;

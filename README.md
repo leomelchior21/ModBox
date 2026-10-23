@@ -10,8 +10,9 @@ Play **VECTOR ZERO**, **NEON MAZE**, **DEVIL FLOOR**, **MAKITAS VS ZOMBIES**, **
 **SUBWAY RUNNERZ**, **TEAM COUNTERS**, **MONSTER STRIDER**, **ROOMBA RUN** and **TOMATINA**.
 Each game supports Python, Swift and C#. The twelve newest games open in Free Play with a complete basic game and every mod available immediately.
 Enable upgrades, change the physics and add live rules to see their effects. Their eight
-guided challenges are optional; existing code and saves are preserved. Vector Zero, Neon Maze
-and Devil Floor retain their progressive learning campaigns.
+guided challenges are optional; existing code and saves are preserved. Vector Zero and Devil Floor
+retain their progressive learning campaigns. NEON MAZE was rebuilt as a neon 3D chase: chain dots for
+FLOW, wake a ghost train of drones, freeze everything with amber gems and devour the train.
 
 The five new 3D games use native WebGL worlds, animated mesh characters, original cover art,
 transparent item atlases and SVG wordmarks. See the [research and design brief](docs/3d-arcade-research.md)

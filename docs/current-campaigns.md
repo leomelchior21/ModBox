@@ -2,7 +2,7 @@
 
 All games support Python, Swift and C#. Makitas vs Zombies, Block Forge, Makita Slingers, Naja Run, Pinballerz, Speed Stack, Temple Race, Subway Runnerz, Team Counters, Monster Strider, Roomba Run and Tomatina start in Free Play with complete basic settings and every mod and rule tool available. Their seven teaching missions and final challenge are optional suggestions, with unrestricted navigation back to Free Play. Upgrades start off so enabling one produces a noticeable change. Switching modes seeds unsaved challenge code from the current experiment while preserving existing saved code and checkpoints. The original three games retain progressive unlocks.
 
-| Stage | Vector Zero | Neon Maze | Devil Floor | Makitas vs Zombies | Block Forge |
+| Stage | Vector Zero | Neon Maze (until its rebuild) | Devil Floor | Makitas vs Zombies | Block Forge |
 | --- | --- | --- | --- | --- | --- |
 | 00 | Change the rock type | Recolor the ball and maze, initially dark and without enemies | Add a backdrop to the starting island | Change sunset scenery to night | Change the block palette |
 | 01 | Name the ship and transmit | Create three or more sentinels | Build six or more platforms | Change grass lanes to concrete with props | Give the forge a custom name |
@@ -70,3 +70,14 @@ Tomatina is a first-person tomato fight through twelve hand-drawn streets: La Ca
 - `worldTheme` tours real places in their own inks and wall art (Buñol, La Boqueria, the Alhambra, Metro Sol and Park Güell); `characterStyle` changes the arm on screen and the face on the status bar; `weather` is live and changes play: rain rinses paint off the street, wind pushes tomatoes sideways, fog and night shorten everyone's sight.
 - The renderer draws the scene at about 210 lines into colour and depth buffers, then one pass turns grey levels into ordered dither between the town's paper and ink, outlines depth edges, keeps pure red as tomato red, dissolves the distance into fog and adds drips when you are soaked.
 - The test bot in `testBots.ts` plays with the same inputs as a student (turn, walk, tap) and clears all twelve streets; the first three take it under 40 seconds.
+
+## Neon Maze
+
+Neon Maze was rebuilt as a premium 3D game in the arcade kit (cabinet ID `maze`, so links and saves keep working). It opens in Free Play like the other premium games and keeps almost every variable name of the original: `moveSpeed`, `sentinels`, `sentinelSpeed`, `shield`, `coreValue`, `gemDuration`, `phaseLength`, `mazeSize`, `revealMap`, `trail`, `wallColor` and `runnerName`, plus the `energy`, `cores`, `dots` and `steps` runtime names, so old code still parses.
+
+- Twelve seeded sectors (`src/games/neon-maze/levels.ts`): Boot Sequence, First Contact, Ghost Train, Amber Rush, Phase Walls, Blackout, Wraparound, Hunter Pack, Overclock, The Long Train, Static Storm and The Warden. Mazes are carved on a tile grid and braided so there are no dead ends; three gems open the exit portal.
+- The runner moves tile to tile with remembered turns and instant reversing, and waits for your first input. Dots build FLOW (×1 to ×8) while you keep collecting; a gem freezes every sentinel, and catches pay double, then double again.
+- Hunters have roles (chase, cut off, flank, guard the gems). Sleeping drones wake as you pass and follow you in a ghost train: grab a gem, turn around and devour the whole train. Bumping into your own train only scatters it and resets FLOW. The Warden must be caught three times while frozen; its gems come back.
+- SPACE (or a tap) phase-dashes through walls; some sectors seal a gem behind walls. TIME WARP (E) slows the sentinels when unlocked.
+- `worldTheme` rebuilds the grid (synthwave, 1980 arcade, code rain, abyss, vapor sunset); `characterStyle` swaps the runner (orb, comet, saucer, pixel cube, chomper); `weather` is live interference (static, blackout, storm, data snow).
+- Sentinels and the saucer are modelled in the Unity studio (`sentinels.glb`). The view renders neon edges with bloom, a follow camera and a light trail. The test bot in `testBots.ts` only steers and dashes, and clears all twelve sectors.
